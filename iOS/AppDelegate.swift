@@ -13,13 +13,7 @@ import UserNotifications
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
-#if CANONICAL_BUILD          // true only for App-Store scheme
-    static let canonicalID = "app.aidoku.Aidoku"
-#else
-    static let canonicalID = Bundle.main.bundleIdentifier ?? ""
-#endif
-
-    static let isSideloaded = Bundle.main.bundleIdentifier != canonicalID
+    static let isSideloaded = true
 
     private var networkObserverId: UUID?
 
@@ -238,7 +232,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 config.urlCache = nil
                 return DataLoader(configuration: config)
             }()
-            let dataCache = try? DataCache(name: "app.aidoku.Aidoku.datacache") // disk cache
+            let dataCache = try? DataCache(
+                name: "app.tachiaz.TachiAZ.datacache"
+            )
             let imageCache = Nuke.ImageCache() // memory cache
             dataCache?.sizeLimit = 500 * 1024 * 1024
             imageCache.costLimit = 100 * 1024 * 1024

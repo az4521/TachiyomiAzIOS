@@ -86,6 +86,8 @@ Last updated: 2026-07-31
 - The iOS AIX/WASM importer, installed-interpreter reload path, delegated
   source-list bootstrap/settings, and source-list backup restore are disabled
   after Keiyoushi parity. Local files, Komga, and Kavita remain available.
+- Fork-specific `app.tachiaz.TachiAZ` app and test bundle identifiers avoid
+  Aidoku signing collisions and allow both apps to coexist.
 
 ## Compatibility transition
 

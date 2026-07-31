@@ -31,7 +31,8 @@ still needs an Xcode simulator build on macOS. See
 
 This fork is not distributed through TestFlight or the App Store. Build it with
 Xcode for either an iOS Simulator or a physical iOS device. Sideloading is only
-needed for a physical device.
+needed for a physical device. Its bundle identifier is
+`app.tachiaz.TachiAZ`, so it can coexist with Aidoku.
 
 Before the first build:
 

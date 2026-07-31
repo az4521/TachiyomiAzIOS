@@ -17,7 +17,7 @@
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>app.aidoku.Aidoku.aib</string>
+				<string>app.tachiaz.TachiAZ.aib</string>
 			</array>
 		</dict>
 		<dict>
@@ -117,7 +117,7 @@
 			<key>UTTypeIconFiles</key>
 			<array/>
 			<key>UTTypeIdentifier</key>
-			<string>app.aidoku.Aidoku.aib</string>
+			<string>app.tachiaz.TachiAZ.aib</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
