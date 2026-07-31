@@ -33,7 +33,8 @@ whose source subsystem is compatible with the Mihon extension ecosystem.
 3. Import normal `.tachibk` backups from Mihon and TachiyomiAZ.
 4. Keep Aidoku's native iOS reader and download experience.
 5. Provide a Material Design 1-inspired navigation drawer and visual theme.
-6. Work on physical arm64 iPhones and iPads through sideloading.
+6. Work in the arm64/x86_64 iOS Simulator and on physical arm64 iPhones and
+   iPads through sideloading.
 
 ### Compatibility goals
 
@@ -58,7 +59,9 @@ whose source subsystem is compatible with the Mihon extension ecosystem.
 
 ## 3. Scope simplifications
 
-- Remove AidokuRunner and Aidoku's WASM source execution path.
+- Retain AidokuRunner's model and `Runner` protocol surface for the existing
+  app, but replace the production online-source execution path with the JVM
+  host and remove Aidoku's WASM interpreter after simulator validation.
 - Remove Aidoku-specific delegated-source behavior.
 - Do not port bespoke E-Hentai/ExHentai integration or migration code.
 - Treat all supported sources through the generic JVM extension interface.

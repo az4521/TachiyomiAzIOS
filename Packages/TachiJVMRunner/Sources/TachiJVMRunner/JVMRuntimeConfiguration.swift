@@ -73,12 +73,29 @@ public struct JVMRuntimeConfiguration: Sendable {
                 "Bundled Suwayomi compatibility JARs are missing"
             )
         }
+        let applicationSupport = try fileManager.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let jvmHome = applicationSupport.appendingPathComponent(
+            "JVMHome",
+            isDirectory: true
+        )
+        try fileManager.createDirectory(
+            at: jvmHome,
+            withIntermediateDirectories: true
+        )
 
         return JVMRuntimeConfiguration(
             javaHomeURL: javaHomeURL,
             frameworksURL: frameworksURL,
             classpathURLs: compatibilityJars + [hostURL],
-            additionalOptions: additionalOptions
+            additionalOptions: [
+                "-Duser.home=\(jvmHome.path)",
+                "-Djava.io.tmpdir=\(FileManager.default.temporaryDirectory.path)"
+            ] + additionalOptions
         )
     }
 }

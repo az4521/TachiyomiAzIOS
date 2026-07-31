@@ -51,6 +51,11 @@ The JNI bridge creates one VM and attaches caller threads as needed. It never
 destroys or restarts the VM because HotSpot/OpenJDK does not support reliable
 in-process VM recreation.
 
+`user.home` is explicitly rooted at `Application Support/JVMHome` and
+`java.io.tmpdir` at the app's temporary directory. AndroidCompat preferences,
+configuration, and persistent cookies therefore stay inside the iOS app
+sandbox on both simulator and device.
+
 ## Build prerequisites
 
 1. Run `Scripts/bootstrap-openjdk-ios.sh` on macOS. It installs both device

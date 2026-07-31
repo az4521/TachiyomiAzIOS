@@ -44,6 +44,8 @@ Last updated: 2026-07-31
   text, single-select, and multi-select values.
 - Native reader image requests reconstructed through each extension's
   `imageRequest`, including source headers and persistent Java cookies.
+- JVM home and temporary paths explicitly rooted inside the app container so
+  AndroidCompat preferences and cookies persist on simulator and device.
 - Manifest gating for the supported Mihon extension-lib 1.4–1.6 range.
 - A binary fixture compiled against official TachiyomiX 1.4.4 that proves a
   suspend host call falls back to its Rx-only popular implementation.

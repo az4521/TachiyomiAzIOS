@@ -8,17 +8,19 @@ OpenJDK/mobile Zero runtime for direct Keiyoushi JVM extension JARs, adding
 Mihon/TachiyomiAZ backup
 import, and using a Material Design 1-inspired navigation drawer.
 
-The JVM work is under active development. The Java host, JNI boundary, JAR
-validation/loading, pinned Suwayomi source API/AndroidCompat layer, first
-typed browse/search/details/chapters/pages operations, and backup decoder are
-implemented and tested off-device. The complete stack still needs simulator
-and physical-device validation on macOS. See
+The Java host, JNI boundary, JAR validation/loading, pinned Suwayomi source
+API/AndroidCompat layer, repository installer, browse/search/filter/details/
+chapters/pages/image operations, preferences, and backup decoder are
+implemented and tested against real extension-lib 1.4 and 1.6 JARs. The
+complete stack still needs an Xcode simulator build on macOS. See
 [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md).
 
 ## Features
 - [x] No ads
 - [x] Aidoku WASM sources during the compatibility transition
-- [ ] Full Mihon/Keiyoushi extension-lib 1.4–1.6 source compatibility
+- [x] Core Mihon/Keiyoushi extension-lib 1.4–1.6 source compatibility
+- [x] Keiyoushi JAR catalog installation and updates
+- [x] Mihon/TachiyomiAZ `.tachibk` import
 - [x] Online reading through external sources
 - [x] Downloads
 - [x] Tracker integration (AniList, MyAnimeList)
