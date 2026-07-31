@@ -67,6 +67,8 @@ Last updated: 2026-07-31
 - Conversion of manga, library membership, categories, chapters, chapter
   bookmarks, read progress, history, source IDs, supported tracker links, and
   correctly translated viewer settings into Aidoku's backup model.
+- Regression coverage for Mihon's extra publication states and TachiyomiAZ's
+  id-less category/order format and extended reader modes.
 - `.tachibk` and legacy `.proto.gz` selection and deep-link import.
 - Material Design 1-inspired hamburger drawer using the existing Aidoku
   library, browse, history, search, and settings controllers.
@@ -124,6 +126,8 @@ for the simulator-first sideloading target.
   typed manga summaries with `hasNextPage = true`.
 - JNI C++ bridge compiles with `-std=c++17 -Wall -Wextra -Werror`.
 - Git whitespace checks pass.
+- The nightly macOS job compiles both the app and its unit-test bundle for a
+  generic arm64/x86_64 iOS Simulator before producing the device archive.
 
 Xcode, Swift, and an iOS SDK are not installed in the current Linux/WSL
 workspace, so an honest Xcode compile or device-runtime claim cannot be made

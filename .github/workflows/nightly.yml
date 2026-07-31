@@ -39,6 +39,18 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             build
+      - name: Compile iOS Simulator tests
+        run: |
+          xcodebuild \
+            -scheme "Aidoku (iOS)" \
+            -configuration Debug \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath build/simulator-tests \
+            -skipPackagePluginValidation \
+            CODE_SIGN_IDENTITY= \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build-for-testing
       - name: Get commit SHA
         id: commitinfo
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"

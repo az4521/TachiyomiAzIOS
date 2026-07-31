@@ -72,18 +72,32 @@ public struct JVMRuntimeConfiguration: Sendable {
                 "Bundled mobile JVM shims are missing"
             )
         }
+        #if os(iOS)
+        // The mobile VM is statically linked. An app containing no dynamic
+        // frameworks may not have a physical Frameworks directory, but the
+        // JNI bridge still accepts this path for java.library.path.
+        let frameworksURL = bundle.privateFrameworksURL ??
+            bundle.bundleURL.appendingPathComponent(
+                "Frameworks",
+                isDirectory: true
+            )
+        #else
         guard let frameworksURL = bundle.privateFrameworksURL else {
             throw JVMRuntimeError.invalidConfiguration(
                 "Application framework directory is unavailable"
             )
         }
+        #endif
 
         let compatibilityJars = try fileManager
             .contentsOfDirectory(
                 at: compatibilityURL,
                 includingPropertiesForKeys: nil
             )
-            .filter { $0.pathExtension == "jar" }
+            .filter {
+                $0.pathExtension == "jar" &&
+                    !$0.lastPathComponent.hasPrefix("logback-")
+            }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
         guard !compatibilityJars.isEmpty else {
             throw JVMRuntimeError.invalidConfiguration(
