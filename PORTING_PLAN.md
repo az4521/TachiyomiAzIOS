@@ -1,6 +1,7 @@
 # TachiAZ iOS Fork Plan
 
-Status: implementation in progress (see `docs/IMPLEMENTATION_STATUS.md`)  
+Status: implemented; macOS Xcode validation pending (see
+`docs/IMPLEMENTATION_STATUS.md`)
 Last updated: 2026-07-31
 
 ## 1. Executive summary
