@@ -98,15 +98,17 @@ interpreter-backed sources are no longer loaded on iOS. Legacy implementations
 remain compiled for the upstream-compatible macOS target and to avoid a risky
 model-layer rewrite unrelated to JVM execution.
 
-## Required before calling the fork complete
+## External validation
 
 1. Run the configured Xcode build for a generic arm64/x86_64 iOS Simulator on
    a macOS host. This workspace has no Xcode or iOS SDK.
-2. Validate Android graphics/resource edge cases across a broader extension
-   fixture matrix. JavaScript/login challenges use the native WKWebView flow;
-   desktop CEF is deliberately excluded.
-Physical arm64 device validation remains desirable, but it is not a blocker
-for the simulator-first sideloading target.
+2. Continue expanding the extension fixture matrix to catch uncommon Android
+   graphics/resource assumptions. JavaScript/login challenges use the native
+   WKWebView flow; desktop CEF is deliberately excluded.
+
+The requested MangaDex 1.4 and AsuraScans 1.6 fixtures pass. Physical arm64
+device validation and a broader compatibility corpus remain desirable, but
+they are not blockers for the simulator-first sideloading target.
 
 ## Validation completed in this workspace
 

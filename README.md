@@ -50,6 +50,14 @@ scheme; the build phase embeds the simulator bundle automatically. The
 nightly workflow also uploads the unsigned universal simulator `.app` as a zip
 before producing the sideloadable device IPA.
 
+To install a downloaded simulator artifact after booting a simulator:
+
+```sh
+unzip TachiAZ-iOS_Simulator-*.zip
+xcrun simctl install booted Aidoku.app
+xcrun simctl launch booted app.tachiaz.TachiAZ
+```
+
 ## Contributing
 The original application and reader are Aidoku work. JVM runtime changes in
 this fork are described in `docs/JVM_RUNTIME.md`.
