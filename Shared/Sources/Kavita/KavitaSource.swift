@@ -100,7 +100,6 @@ extension AidokuRunner.Source {
         )
     }
 }
-
 actor KavitaSourceRunner: Runner {
     static let sourceKeyPrefix = "kavita"
 
@@ -109,7 +108,6 @@ actor KavitaSourceRunner: Runner {
 
     let features: SourceFeatures = .init(
         providesListings: true,
-        providesHome: true,
         dynamicFilters: true,
         dynamicSettings: true,
         dynamicListings: true,
@@ -772,85 +770,6 @@ extension KavitaSourceRunner {
     private func updateSourceConfig(updateSourceList: Bool = false) {
         let config = CustomSourceConfig.kavita(.init(key: sourceKey, name: name, server: server))
         SourceManager.shared.updateCustomSource(key: sourceKey, config: config, updateSourceList: updateSourceList)
-    }
-}
-
-extension KavitaSourceRunner {
-    func getHome() async throws -> Home {
-        var lastWorkingMirrorCopy = lastWorkingMirror
-        let dashComponents: [KavitaDashComponent] = try await helper.request(
-            path: "api/stream/dashboard?visibleOnly=true",
-            lastWorkingMirror: &lastWorkingMirrorCopy
-        )
-        lastWorkingMirror = lastWorkingMirrorCopy
-
-        let baseUrl = try helper.getConfiguredServer()
-        let apiKey = helper.getApiKey()
-
-        var components: [HomeComponent?] = Array(repeating: nil, count: dashComponents.count)
-
-        try await withThrowingTaskGroup(of: (Int, String, String, URL, [KavitaSeries]).self) { [helper, sourceKey] taskGroup in
-            for (index, c) in dashComponents.enumerated() {
-                taskGroup.addTask { [lastWorkingMirror] in
-                    var lastWorkingMirrorCopy = lastWorkingMirror
-                    switch c.streamType {
-                        case .onDeck:
-                            let series = try await helper.getOnDeck(lastWorkingMirror: &lastWorkingMirrorCopy)
-                            return (index, NSLocalizedString("ON_DECK"), "on_deck", lastWorkingMirrorCopy ?? baseUrl, series)
-                        case .recentlyUpdated:
-                            let series = try await helper.getRecentlyUpdatedSeries(lastWorkingMirror: &lastWorkingMirrorCopy)
-                            return (index, NSLocalizedString("RECENTLY_UPDATED_SERIES"), "recently_updated", lastWorkingMirrorCopy ?? baseUrl, series)
-                        case .newlyAdded:
-                            let series = try await helper.getRecentlyAdded(lastWorkingMirror: &lastWorkingMirrorCopy)
-                            return (index, NSLocalizedString("RECENTLY_ADDED_SERIES"), "recently_added", lastWorkingMirrorCopy ?? baseUrl, series)
-                        case .smartFilter:
-                            if let encodedFilter = c.smartFilterEncoded {
-                                let filter = try await helper.decodeFilter(encodedFilter, lastWorkingMirror: &lastWorkingMirrorCopy)
-                                let series = try await helper.getAllSeriesV2(
-                                    filter: filter,
-                                    context: .dashboard,
-                                    lastWorkingMirror: &lastWorkingMirrorCopy
-                                )
-                                return (index, c.name, "filter-\(encodedFilter)", lastWorkingMirrorCopy ?? baseUrl, series)
-                            } else {
-                                return (index, "", "", baseUrl, [])
-                            }
-                        case .moreInGenre:
-                            let genres = try await helper.getAllGenres(context: .dashboard, lastWorkingMirror: &lastWorkingMirrorCopy)
-                            guard let randomGenre = genres.randomElement() else {
-                                return (index, "", "", baseUrl, [])
-                            }
-                            let series = try await helper.getMoreIn(
-                                genreId: randomGenre.id,
-                                pageNum: 0,
-                                itemsPerPage: 30,
-                                lastWorkingMirror: &lastWorkingMirrorCopy
-                            )
-                            return (
-                                index,
-                                String(format: NSLocalizedString("MORE_IN_%@"), randomGenre.title),
-                                "morein-\(randomGenre.id)",
-                                lastWorkingMirrorCopy ?? baseUrl,
-                                series
-                            )
-                    }
-                }
-            }
-
-            for try await (index, title, listingId, baseUrl, series) in taskGroup where !series.isEmpty {
-                components[index] = .init(
-                    title: title,
-                    value: .scroller(
-                        entries: series.map {
-                            $0.intoManga(sourceKey: sourceKey, baseUrl: baseUrl, apiKey: apiKey).intoLink()
-                        },
-                        listing: .init(id: listingId, name: title)
-                    )
-                )
-            }
-        }
-
-        return .init(components: components.compactMap { $0 })
     }
 }
 

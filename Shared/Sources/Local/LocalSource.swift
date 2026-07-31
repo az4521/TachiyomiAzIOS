@@ -34,7 +34,6 @@ final class LocalSourceRunner: AidokuRunner.Runner {
 
     let features = AidokuRunner.SourceFeatures(
         providesListings: true,
-        providesHome: false, // todo
         dynamicFilters: false,
         dynamicSettings: false,
         dynamicListings: false,

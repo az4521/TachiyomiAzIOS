@@ -24,11 +24,11 @@ class MangaCollectionViewController: BaseCollectionViewController {
 
         var body: some View {
             if usesListLayout {
-                PlaceholderMangaHomeList.mainView(itemCount: 10)
+                MangaListPlaceholder.mainView(itemCount: 10)
                     .redacted(reason: .placeholder)
                     .shimmering()
             } else {
-                HomeGridView.placeholder
+                MangaGridView.placeholder
             }
         }
     }

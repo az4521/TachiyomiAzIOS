@@ -1,5 +1,5 @@
 //
-//  HomeGridView.swift
+//  MangaGridView.swift
 //  Aidoku
 //
 //  Created by Skitty on 5/27/25.
@@ -8,7 +8,7 @@
 import AidokuRunner
 import SwiftUI
 
-struct HomeGridView: View {
+struct MangaGridView: View {
     let source: AidokuRunner.Source
     let entries: [AidokuRunner.Manga]
     @Binding var bookmarkedItems: Set<String>

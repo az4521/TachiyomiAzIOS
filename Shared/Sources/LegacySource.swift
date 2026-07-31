@@ -42,7 +42,6 @@ final class LegacySourceRunner: AidokuRunner.Runner {
         self.source = source
         self.features = .init(
             providesListings: true,
-            providesHome: false,
             dynamicFilters: false,
             dynamicSettings: false,
             dynamicListings: false,
@@ -54,10 +53,6 @@ final class LegacySourceRunner: AidokuRunner.Runner {
             handlesNotifications: true,
             handlesDeepLinks: true
         )
-    }
-
-    func getHome() async throws -> AidokuRunner.Home {
-        throw AidokuRunner.SourceError.unimplemented
     }
 
     func getMangaList(listing: AidokuRunner.Listing, page: Int) async throws -> AidokuRunner.MangaPageResult {

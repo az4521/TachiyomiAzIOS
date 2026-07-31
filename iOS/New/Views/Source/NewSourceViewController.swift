@@ -13,7 +13,7 @@ import SwiftUI
 
 class NewSourceViewController: UIViewController {
     let source: AidokuRunner.Source
-    // if the listings/home should be hidden and the search view shown by default
+    // if listings should be hidden and search shown by default
     private let onlySearch: Bool
 
     private let searchController: UISearchController = .init(searchResultsController: nil)
@@ -146,8 +146,8 @@ class NewSourceViewController: UIViewController {
         )
     }
 
-    private var mainView: SourceHomeContentView {
-        SourceHomeContentView(
+    private var mainView: SourceListingsContentView {
+        SourceListingsContentView(
             source: source,
             holdingViewController: self,
             listings: listingsBinding,
@@ -307,7 +307,7 @@ class NewSourceViewController: UIViewController {
             view.addSubview(mainHostingController.view)
             mainHostingController.didMove(toParent: self)
 
-            // hide search view by default (show home view instead)
+            // hide search by default and show the selected source listing
             searchOverlayView.alpha = 0
             searchOverlayView.isHidden = true
 

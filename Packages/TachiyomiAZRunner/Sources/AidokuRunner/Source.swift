@@ -21,10 +21,9 @@ public final class Source: @unchecked Sendable, Identifiable {
     public var id: String { key }
     public var apiVersion: String { "tachiyomiaz-1" }
     public var features: SourceFeatures { runner.features }
-    public var partialHomePublisher: SinglePublisher<Home>? { runner.partialHomePublisher }
     public var partialMangaPublisher: SinglePublisher<Manga>? { runner.partialMangaPublisher }
     public var hasListings: Bool { features.dynamicListings || !staticListings.isEmpty }
-    public var onlySearch: Bool { !features.providesHome && !hasListings }
+    public var onlySearch: Bool { !hasListings }
     public var supportsArtistSearch: Bool {
         config?.supportsArtistSearch ?? staticFilters.contains {
             if case .text = $0.value { $0.id == "artist" } else { false }
@@ -157,12 +156,6 @@ public final class Source: @unchecked Sendable, Identifiable {
     public func getMangaList(listing: Listing, page: Int) async throws -> MangaPageResult {
         guard features.providesListings else { throw SourceError.unimplemented }
         var result = try await runner.getMangaList(listing: listing, page: page)
-        result.setSourceKey(key)
-        return result
-    }
-    public func getHome() async throws -> Home {
-        guard features.providesHome else { throw SourceError.unimplemented }
-        var result = try await runner.getHome()
         result.setSourceKey(key)
         return result
     }

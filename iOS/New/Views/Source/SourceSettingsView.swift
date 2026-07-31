@@ -155,9 +155,6 @@ struct SourceSettingsView: View {
             }
         }
 
-        // remove cached home layout
-        UserDefaults.standard.removeObject(forKey: "\(source.key).homeComponents")
-
         // reload source
         NotificationCenter.default.post(name: .init("refresh-content"), object: nil)
     }

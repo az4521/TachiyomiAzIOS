@@ -83,11 +83,7 @@ struct ListingsHeaderView: View {
     var headerScrollView: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                let options = if source.features.providesHome {
-                    [NSLocalizedString("HOME")] + listings.map { $0.name }
-                } else {
-                    listings.map { $0.name }
-                }
+                let options = listings.map { $0.name }
                 ForEach(options.indices, id: \.self) { offset in
                     let option = options[offset]
                     let active = selectedListing == offset

@@ -161,14 +161,6 @@ public struct Manga: Sendable, Hashable, Codable {
         )
     }
 
-    public func intoLink() -> HomeComponent.Value.Link {
-        .init(
-            title: title,
-            imageUrl: cover,
-            subtitle: authors?.joined(separator: ", ") ?? description,
-            value: .manga(self)
-        )
-    }
 }
 
 public struct Listing: Sendable, Hashable, Codable {
@@ -283,7 +275,6 @@ public enum SourceError: Error, Equatable {
 
 public struct SourceFeatures: Sendable {
     public let providesListings: Bool
-    public let providesHome: Bool
     public let dynamicFilters: Bool
     public let dynamicSettings: Bool
     public let dynamicListings: Bool
@@ -300,7 +291,6 @@ public struct SourceFeatures: Sendable {
 
     public init(
         providesListings: Bool = false,
-        providesHome: Bool = false,
         dynamicFilters: Bool = false,
         dynamicSettings: Bool = false,
         dynamicListings: Bool = false,
@@ -316,7 +306,6 @@ public struct SourceFeatures: Sendable {
         handlesMigration: Bool = false
     ) {
         self.providesListings = providesListings
-        self.providesHome = providesHome
         self.dynamicFilters = dynamicFilters
         self.dynamicSettings = dynamicSettings
         self.dynamicListings = dynamicListings

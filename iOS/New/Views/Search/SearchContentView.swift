@@ -155,12 +155,9 @@ struct SearchContentView: View {
             }()
             if !result.entries.isEmpty {
                 Section {
-                    HomeScrollerView(
+                    MangaScrollerView(
                         source: source,
-                        component: .init(
-                            title: nil,
-                            value: .scroller(entries: result.entries.map { $0.intoLink() })
-                        )
+                        entries: result.entries
                     )
                     .id("\(source.key).\(id)") // fixes issue with incorrect entries showing
                     .environmentObject(path)
