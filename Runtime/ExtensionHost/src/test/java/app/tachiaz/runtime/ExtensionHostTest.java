@@ -80,6 +80,9 @@ public final class ExtensionHostTest {
         assertContains(decoded, "\\\"name\\\":\\\"Chapter 1\\\"");
         assertContains(decoded, "\\\"name\\\":\\\"Reading\\\"");
         assertContains(decoded, "\\\"name\\\":\\\"Fixture Source\\\"");
+        assertContains(decoded, "\\\"syncId\\\":2");
+        assertContains(decoded, "\\\"mediaIdInt\\\":12345");
+        assertContains(decoded, "\\\"title\\\":\\\"Fixture Tracker\\\"");
         if (!backup.delete()) {
             backup.deleteOnExit();
         }
@@ -99,6 +102,11 @@ public final class ExtensionHostTest {
         stringField(manga, 3, "Fixture Manga");
         messageField(manga, 16, chapter.toByteArray());
         varintField(manga, 17, 7);
+        ByteArrayOutputStream tracking = new ByteArrayOutputStream();
+        varintField(tracking, 1, 2);
+        varintField(tracking, 3, 12345);
+        stringField(tracking, 5, "Fixture Tracker");
+        messageField(manga, 18, tracking.toByteArray());
 
         ByteArrayOutputStream category = new ByteArrayOutputStream();
         stringField(category, 1, "Reading");

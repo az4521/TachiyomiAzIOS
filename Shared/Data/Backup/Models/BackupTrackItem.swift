@@ -15,6 +15,22 @@ struct BackupTrackItem: Codable, Hashable {
     var title: String?
     var chapterOffset: Int?
 
+    init(
+        id: String,
+        trackerId: String,
+        mangaId: String,
+        sourceId: String,
+        title: String? = nil,
+        chapterOffset: Int? = nil
+    ) {
+        self.id = id
+        self.trackerId = trackerId
+        self.mangaId = mangaId
+        self.sourceId = sourceId
+        self.title = title
+        self.chapterOffset = chapterOffset
+    }
+
     init(trackObject: TrackObject) {
         id = trackObject.id ?? ""
         trackerId = trackObject.trackerId ?? ""

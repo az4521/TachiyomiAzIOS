@@ -13,6 +13,7 @@ struct ChapterTableCell: View {
     let sourceKey: String
     let chapter: AidokuRunner.Chapter
     let read: Bool
+    let bookmarked: Bool
     let page: Int?
     let downloadStatus: DownloadStatus
     var downloadProgress: Float?
@@ -55,6 +56,11 @@ struct ChapterTableCell: View {
                 }
             }
             Spacer(minLength: 0)
+            if bookmarked {
+                Image(systemName: "bookmark.fill")
+                    .imageScale(.small)
+                    .foregroundStyle(.tertiary)
+            }
             if downloaded {
                 Image(systemName: "arrow.down.circle.fill")
                     .imageScale(.small)

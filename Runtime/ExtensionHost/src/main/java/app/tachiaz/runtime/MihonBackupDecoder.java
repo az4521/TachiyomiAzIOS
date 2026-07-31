@@ -105,6 +105,9 @@ final class MihonBackupDecoder {
                         value.categories.add(reader.readVarint());
                     }
                     break;
+                case 18:
+                    value.tracking.add(readTracking(reader.readMessage()));
+                    break;
                 case 100:
                     value.favorite = reader.readVarint() != 0;
                     break;
@@ -194,6 +197,32 @@ final class MihonBackupDecoder {
                 value.readDuration = reader.readVarint();
             } else {
                 reader.skip(wire);
+            }
+        }
+        return value;
+    }
+
+    private static Tracking readTracking(Reader reader) throws IOException {
+        Tracking value = new Tracking();
+        while (reader.hasRemaining()) {
+            int tag = reader.readTag();
+            int field = tag >>> 3;
+            int wire = tag & 7;
+            switch (field) {
+                case 1:
+                    value.syncId = (int) reader.readVarint();
+                    break;
+                case 3:
+                    value.mediaIdInt = (int) reader.readVarint();
+                    break;
+                case 5:
+                    value.title = reader.readString();
+                    break;
+                case 100:
+                    value.mediaId = reader.readVarint();
+                    break;
+                default:
+                    reader.skip(wire);
             }
         }
         return value;
@@ -442,6 +471,7 @@ final class MihonBackupDecoder {
         int viewer;
         final List<Chapter> chapters = new ArrayList<>();
         final List<Long> categories = new ArrayList<>();
+        final List<Tracking> tracking = new ArrayList<>();
         boolean favorite = true;
         int chapterFlags;
         Integer viewerFlags;
@@ -469,6 +499,9 @@ final class MihonBackupDecoder {
             appendList(out, chapters);
             out.append(']');
             longList(out, "categories", categories);
+            out.append(",\"tracking\":[");
+            appendList(out, tracking);
+            out.append(']');
             field(out, "favorite", Boolean.toString(favorite), false);
             field(out, "chapterFlags", Integer.toString(chapterFlags), false);
             field(
@@ -533,6 +566,28 @@ final class MihonBackupDecoder {
             field(out, "url", url, true);
             field(out, "lastRead", Long.toString(lastRead), false);
             field(out, "readDuration", Long.toString(readDuration), false);
+            return out.append('}').toString();
+        }
+    }
+
+    private static final class Tracking {
+        int syncId;
+        int mediaIdInt;
+        long mediaId;
+        String title = "";
+
+        @Override
+        public String toString() {
+            StringBuilder out = new StringBuilder("{");
+            field(out, "syncId", Integer.toString(syncId), false);
+            field(
+                out,
+                "mediaIdInt",
+                Integer.toString(mediaIdInt),
+                false
+            );
+            field(out, "mediaId", Long.toString(mediaId), false);
+            field(out, "title", title, true);
             return out.append('}').toString();
         }
     }

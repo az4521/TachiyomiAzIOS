@@ -25,6 +25,8 @@
 "LOADING_ELLIPSIS" = "Loading…";
 "SHARE" = "Share";
 "COPY" = "Copy";
+"BOOKMARK_CHAPTER" = "Bookmark chapter";
+"REMOVE_CHAPTER_BOOKMARK" = "Remove chapter bookmark";
 "WARNING" = "Warning";
 "ENABLE_PERMISSION" = "Enable Permission";
 "PHOTOS_ACCESS_DENIED_TEXT" = "Access was previously denied. Please allow Aidoku access to your Photos to save images to your Camera Roll. You can enable access in privacy settings.";

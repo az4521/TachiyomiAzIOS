@@ -20,6 +20,7 @@ struct BackupChapter: Codable, Hashable {
     var dateUploaded: Date?
     var thumbnail: String?
     var locked: Bool?
+    var bookmarked: Bool?
     var sourceOrder: Int
 
     init(
@@ -35,6 +36,7 @@ struct BackupChapter: Codable, Hashable {
         dateUploaded: Date? = nil,
         thumbnail: String? = nil,
         locked: Bool? = nil,
+        bookmarked: Bool? = nil,
         sourceOrder: Int = 0
     ) {
         self.sourceId = sourceId
@@ -49,6 +51,7 @@ struct BackupChapter: Codable, Hashable {
         self.dateUploaded = dateUploaded
         self.thumbnail = thumbnail
         self.locked = locked
+        self.bookmarked = bookmarked
         self.sourceOrder = sourceOrder
     }
 
@@ -65,6 +68,7 @@ struct BackupChapter: Codable, Hashable {
         dateUploaded = chapterObject.dateUploaded
         thumbnail = chapterObject.thumbnail
         locked = chapterObject.locked
+        bookmarked = chapterObject.bookmarked
         sourceOrder = Int(chapterObject.sourceOrder)
     }
 
@@ -95,6 +99,7 @@ struct BackupChapter: Codable, Hashable {
         obj.dateUploaded = dateUploaded
         obj.thumbnail = thumbnail
         obj.locked = locked ?? false
+        obj.bookmarked = bookmarked ?? false
         obj.sourceOrder = Int16(sourceOrder)
         return obj
     }

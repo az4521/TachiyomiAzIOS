@@ -90,6 +90,7 @@ extension ChapterObject {
     @NSManaged public var dateUploaded: Date?
     @NSManaged public var thumbnail: String?
     @NSManaged public var locked: Bool
+    @NSManaged public var bookmarked: Bool
     @NSManaged public var sourceOrder: Int16
 
     @NSManaged public var manga: MangaObject?

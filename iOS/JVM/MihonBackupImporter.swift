@@ -20,6 +20,7 @@ enum MihonBackupImporter {
         let dateAdded: Int64
         let viewer: Int
         let chapters: [Chapter]
+        let tracking: [Tracking]
         let categories: [Int64]
         let favorite: Bool
         let chapterFlags: Int
@@ -48,6 +49,13 @@ enum MihonBackupImporter {
         let url: String
         let lastRead: Int64
         let readDuration: Int64
+    }
+
+    struct Tracking: Decodable {
+        let syncId: Int
+        let mediaIdInt: Int
+        let mediaId: Int64
+        let title: String
     }
 
     struct Category: Decodable {
@@ -80,6 +88,7 @@ enum MihonBackupImporter {
         var library: [BackupLibraryManga] = []
         var chapters: [BackupChapter] = []
         var history: [BackupHistory] = []
+        var trackItems: [BackupTrackItem] = []
 
         for manga in payload.manga {
             let sourceId = keiyoushiSourceKey(manga.source)
@@ -92,6 +101,31 @@ enum MihonBackupImporter {
                 manga.history.map { ($0.url, $0) },
                 uniquingKeysWith: { first, _ in first }
             )
+            for tracking in manga.tracking {
+                guard
+                    let trackerId = aidokuTrackerId(
+                        mihonId: tracking.syncId
+                    )
+                else {
+                    continue
+                }
+                // Match Mihon's restore behavior for legacy 1.x backups.
+                let remoteId = tracking.mediaIdInt != 0
+                    ? Int64(tracking.mediaIdInt)
+                    : tracking.mediaId
+                guard remoteId != 0 else {
+                    continue
+                }
+                trackItems.append(
+                    BackupTrackItem(
+                        id: String(remoteId),
+                        trackerId: trackerId,
+                        mangaId: mangaId,
+                        sourceId: sourceId,
+                        title: tracking.title
+                    )
+                )
+            }
 
             backupManga.append(
                 BackupManga(
@@ -105,7 +139,9 @@ enum MihonBackupImporter {
                     cover: manga.thumbnailUrl,
                     url: manga.url,
                     status: manga.status,
-                    viewer: manga.viewerFlags ?? manga.viewer,
+                    viewer: aidokuViewer(
+                        mihonFlags: manga.viewerFlags ?? manga.viewer
+                    ),
                     neverUpdate: manga.updateStrategy == 1,
                     chapterFlags: manga.chapterFlags,
                     scanlatorFilter: manga.excludedScanlators
@@ -141,6 +177,7 @@ enum MihonBackupImporter {
                         dateUploaded: optionalDate(
                             milliseconds: chapter.dateUpload
                         ),
+                        bookmarked: chapter.bookmark,
                         sourceOrder: Int(clamping: chapter.sourceOrder)
                     )
                 )
@@ -174,7 +211,7 @@ enum MihonBackupImporter {
             history: history,
             manga: backupManga,
             chapters: chapters,
-            trackItems: [],
+            trackItems: trackItems,
             readingSessions: [],
             updates: [],
             categories: payload.categories
@@ -214,5 +251,27 @@ enum MihonBackupImporter {
             return sourceId
         }
         return "mihon.\(sourceId)"
+    }
+
+    private static func aidokuViewer(mihonFlags: Int) -> Int {
+        // Mihon stores the reading mode in the low three bits. Aidoku's
+        // left-to-right and right-to-left raw values are ordered oppositely.
+        switch mihonFlags & 0x7 {
+            case 1: 2 // left-to-right
+            case 2: 1 // right-to-left
+            case 3: 3 // vertical pager
+            case 4, 5: 4 // webtoon and continuous vertical
+            default: 0
+        }
+    }
+
+    private static func aidokuTrackerId(mihonId: Int) -> String? {
+        switch mihonId {
+            case 1: "myanimelist"
+            case 2: "anilist"
+            case 4: "shikimori"
+            case 5: "bangumi"
+            default: nil
+        }
     }
 }

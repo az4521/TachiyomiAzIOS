@@ -19,6 +19,7 @@ extension MangaView {
         @Published var otherDownloadedChapters: [AidokuRunner.Chapter] = []
 
         @Published var readingHistory: [String: (page: Int, date: Int)] = [:]
+        @Published var chapterBookmarks: Set<String> = []
         @Published var downloadProgress: [String: Float] = [:] // chapterId: progress
         @Published var downloadStatus: [String: DownloadStatus] = [:] // chapterId: status
 
@@ -376,6 +377,7 @@ extension MangaView.ViewModel {
         }
         await fetchDownloadedChapters()
         await loadDownloadStatus()
+        await loadChapterBookmarks()
         updateReadButton()
         initialDataLoaded = true
     }
@@ -588,6 +590,23 @@ extension MangaView.ViewModel {
         )
     }
 
+    private func loadChapterBookmarks() async {
+        let sourceKey = manga.sourceKey
+        let mangaKey = manga.key
+        chapterBookmarks = await CoreDataManager.shared.container.performBackgroundTask {
+            @Sendable context in
+            Set(
+                CoreDataManager.shared.getChapters(
+                    sourceId: sourceKey,
+                    mangaId: mangaKey,
+                    context: context
+                )
+                .filter(\.bookmarked)
+                .map(\.id)
+            )
+        }
+    }
+
     private func checkTrackerSync(item: TrackItem) async {
         guard let tracker = TrackerManager.getTracker(id: item.trackerId) else { return }
 
@@ -638,6 +657,38 @@ extension MangaView.ViewModel {
 }
 
 extension MangaView.ViewModel {
+    func setBookmarked(
+        _ bookmarked: Bool,
+        chapter: AidokuRunner.Chapter
+    ) async {
+        let sourceKey = manga.sourceKey
+        let mangaKey = manga.key
+        let changed = await CoreDataManager.shared.container.performBackgroundTask {
+            @Sendable context in
+            guard let object = CoreDataManager.shared.getChapter(
+                sourceId: sourceKey,
+                mangaId: mangaKey,
+                chapterId: chapter.key,
+                context: context
+            ) else {
+                return false
+            }
+            object.bookmarked = bookmarked
+            do {
+                try context.save()
+                return true
+            } catch {
+                return false
+            }
+        }
+        guard changed else { return }
+        if bookmarked {
+            chapterBookmarks.insert(chapter.key)
+        } else {
+            chapterBookmarks.remove(chapter.key)
+        }
+    }
+
     // mark given chapters as read in coredata
     func markRead(chapters: [AidokuRunner.Chapter]) async {
         // only mark chapters that are readable as read

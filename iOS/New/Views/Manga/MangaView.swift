@@ -340,6 +340,7 @@ extension MangaView {
             sourceKey: viewModel.manga.sourceKey,
             chapter: chapter,
             read: viewModel.readingHistory[chapter.key]?.page == -1,
+            bookmarked: viewModel.chapterBookmarks.contains(chapter.key),
             page: viewModel.readingHistory[chapter.key]?.page,
             downloadStatus: downloadStatus,
             downloadProgress: viewModel.downloadProgress[chapter.key],
@@ -438,6 +439,30 @@ extension MangaView {
         }
 
         Section {
+            if viewModel.bookmarked {
+                let chapterBookmarked = viewModel.chapterBookmarks.contains(
+                    chapter.key
+                )
+                Button {
+                    Task {
+                        await viewModel.setBookmarked(
+                            !chapterBookmarked,
+                            chapter: chapter
+                        )
+                    }
+                } label: {
+                    Label(
+                        NSLocalizedString(
+                            chapterBookmarked
+                                ? "REMOVE_CHAPTER_BOOKMARK"
+                                : "BOOKMARK_CHAPTER"
+                        ),
+                        systemImage: chapterBookmarked
+                            ? "bookmark.slash"
+                            : "bookmark"
+                    )
+                }
+            }
             if viewModel.readingHistory[chapter.key]?.page != nil {
                 Button {
                     Task {
@@ -784,6 +809,7 @@ private struct ChapterCellView<T: View>: View, Equatable {
     let sourceKey: String
     let chapter: AidokuRunner.Chapter
     let read: Bool
+    let bookmarked: Bool
     let page: Int?
     let downloadStatus: DownloadStatus
     let downloadProgress: Float?
@@ -804,6 +830,7 @@ private struct ChapterCellView<T: View>: View, Equatable {
                 sourceKey: sourceKey,
                 chapter: chapter,
                 read: read,
+                bookmarked: bookmarked,
                 page: page,
                 downloadStatus: downloadStatus,
                 downloadProgress: downloadProgress,
@@ -830,6 +857,7 @@ private struct ChapterCellView<T: View>: View, Equatable {
     static nonisolated func == (lhs: ChapterCellView<T>, rhs: ChapterCellView<T>) -> Bool {
         lhs.chapter == rhs.chapter
             && lhs.read == rhs.read
+            && lhs.bookmarked == rhs.bookmarked
             && lhs.page == rhs.page
             && lhs.downloadStatus == rhs.downloadStatus
             && lhs.downloadProgress == rhs.downloadProgress
