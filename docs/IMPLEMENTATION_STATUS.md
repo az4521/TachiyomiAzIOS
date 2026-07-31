@@ -21,8 +21,16 @@ Last updated: 2026-07-31
   a fixture extension.
 - A pinned real-world test against Keiyoushi's
   `tachiyomi-en.asurascans-v1.6.66.jar` and its published SHA-256.
-- Initial dependency-free Android compatibility classes for `Uri`, `Base64`,
-  logging, and Android version/device checks.
+- A reproducible compatibility bootstrap pinned to Suwayomi-Server commit
+  `eb2dc0b19a9571b27c02bebc5c883e404b7bd7fb`, using its AndroidCompat and
+  Mihon source implementations.
+- Reflective Koin/AndroidCompat initialization before extension construction.
+- Direct coroutine invocation and typed Swift DTOs for popular manga pages.
+- Manifest gating for the supported Mihon extension-lib 1.4–1.6 range.
+- A binary fixture compiled against official TachiyomiX 1.4.4 that proves a
+  suspend host call falls back to its Rx-only popular implementation.
+- A live Asura Scans test that constructs the extension and fetches page 1
+  from its public API without APK conversion or `dex2jar`.
 - Gzipped protobuf decoding for current Mihon and TachiyomiAZ `.tachibk`
   backups.
 - Conversion of manga, library membership, categories, chapters, read
@@ -42,17 +50,15 @@ item is complete.
 
 ## Required before calling the fork complete
 
-1. Build a binary-compatible host implementation of Keiyoushi extension-lib
-   1.6 and the Mihon extension API,
-   including `Source`, `SourceFactory`, `HttpSource`, models, filters, RxJava,
-   OkHttp, and Jsoup integration.
-2. Finish the AndroidCompat subset. URI, Base64, logging, and build/version
-   checks exist; context, preferences, resources, cookies, and required
-   graphics behavior remain.
+1. Reduce and audit the currently generated ~57 MB Suwayomi compatibility
+   classpath further, while retaining binary compatibility across a broader
+   extension fixture matrix.
+2. Validate AndroidCompat behavior needed beyond Asura: resources, graphics,
+   WebView/Cloudflare challenges, JavaScript, and persistence on iOS.
 3. Implement repository catalog/update UX over Keiyoushi-style index metadata,
    deriving direct `/jar/*.jar` artifact URLs and persisting checksums.
-4. Add typed JNI operations for popular/latest/search, manga details, chapter
-   lists, pages, filters, preferences, and cookies.
+4. Add typed JNI operations for latest/search, manga details, chapter lists,
+   pages, filters, preferences, and cookies. Popular manga is implemented.
 5. Feed JVM source results into Aidoku's `Source` abstraction, migrate stored
    source keys, then remove AidokuRunner/WASM and delegated-source code.
 6. Preserve bookmarks and supported tracking records during backup import;
@@ -68,6 +74,13 @@ item is complete.
 - The pinned Asura Scans 1.6.66 JAR is downloaded, checksum-verified, inspected,
   and confirmed as Java 11 / class-file version 55 with the expected
   `ExtensionGenerated` entry point.
+- The pinned Suwayomi source API and AndroidCompat build successfully on
+  JDK 21.
+- Asura Scans constructs through the real compatibility layer and reports the
+  expected name, language, source ID, and base URL.
+- Its coroutine popular-manga method reaches
+  `https://api.asurascans.com/api/series`, returns HTTP 200, and decodes 20
+  typed manga summaries with `hasNextPage = true`.
 - JNI C++ bridge compiles with `-std=c++17 -Wall -Wextra -Werror`.
 - Git whitespace checks pass.
 

@@ -146,6 +146,40 @@ actor JVMSourceRuntime {
         return response.result
     }
 
+    func popularManga(
+        extensionId: String,
+        page: Int
+    ) async throws -> KeiyoushiMangaPage {
+        guard page > 0 else {
+            throw RuntimeError.hostRejected(
+                "Popular manga page must be at least 1."
+            )
+        }
+        let response = try await dispatch(
+            .init(
+                operation: "getPopularManga",
+                extensionId: extensionId,
+                argument: String(page)
+            )
+        )
+        try requireSuccess(response)
+        guard let result = response.result else {
+            throw RuntimeError.hostRejected(
+                "The popular manga operation returned no payload."
+            )
+        }
+        do {
+            return try JSONDecoder().decode(
+                KeiyoushiMangaPage.self,
+                from: Data(result.utf8)
+            )
+        } catch {
+            throw RuntimeError.hostRejected(
+                "Unable to decode the manga page: \(error.localizedDescription)"
+            )
+        }
+    }
+
     func unload(extensionId: String) async throws {
         let response = try await dispatch(
             .init(
@@ -196,37 +230,8 @@ actor JVMSourceRuntime {
     }
 
     private func makeRuntime() throws -> JVMRuntime {
-        guard let resources = Bundle.main.resourceURL else {
-            throw RuntimeError.missingBundleResource("resource directory")
-        }
-
-        let javaHome = resources.appendingPathComponent(
-            "java_bundle",
-            isDirectory: true
-        )
-        let hostJar = resources.appendingPathComponent(
-            "tachiaz-extension-host.jar",
-            isDirectory: false
-        )
-        let frameworks = Bundle.main.bundleURL.appendingPathComponent(
-            "Frameworks",
-            isDirectory: true
-        )
-
-        for resource in [javaHome, hostJar, frameworks] where
-            !fileManager.fileExists(atPath: resource.path)
-        {
-            throw RuntimeError.missingBundleResource(
-                resource.lastPathComponent
-            )
-        }
-
         return try JVMRuntime(
-            configuration: .init(
-                javaHomeURL: javaHome,
-                frameworksURL: frameworks,
-                classpathURLs: [hostJar]
-            )
+            configuration: .bundled(in: .main)
         )
     }
 

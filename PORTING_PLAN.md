@@ -392,11 +392,12 @@ Estimate: 1 week.
 
 ### Phase 1: JVM feasibility prototype
 
-- Embed the OpenJDK Zero runtime.
-- Start one VM through `JNI_CreateJavaVM`.
-- Call a bundled Java test facade from Swift.
-- Load one direct extension JAR.
-- Fetch popular entries, manga details, chapters, and pages.
+- [x] Embed the OpenJDK Zero runtime.
+- [x] Start one VM through `JNI_CreateJavaVM`.
+- [x] Call a bundled Java test facade from Swift.
+- [x] Load one direct extension JAR.
+- [x] Fetch popular entries from the pinned Asura Scans JAR.
+- [ ] Fetch manga details, chapters, and pages.
 - Measure startup time, memory, and battery use on physical devices.
 
 Estimate: 1-3 weeks.

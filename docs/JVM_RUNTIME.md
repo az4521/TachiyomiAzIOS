@@ -10,6 +10,8 @@ The first implementation slice consists of:
 
 - `Packages/TachiJVMRunner`: Swift/JNI bridge and persistent VM owner.
 - `Runtime/ExtensionHost`: Java-side classloader and request dispatcher.
+- `Runtime/ExtensionHost/compat`: generated, pinned Suwayomi source API and
+  AndroidCompat runtime.
 - `Vendor/OpenJDK`: checksum-pinned official OpenJDK/mobile Zero runtime.
 
 The existing Aidoku source runtime remains available while feature parity is
@@ -24,7 +26,9 @@ supports:
 
 - `ping`
 - `inspectExtension`
+- `initializeCompatibility`
 - `loadExtension`
+- `getPopularManga`
 - `invoke`
 - `unloadExtension`
 - `decodeBackup`
@@ -40,9 +44,10 @@ in-process VM recreation.
 ## Build prerequisites
 
 1. Run `Scripts/bootstrap-openjdk-ios.sh` on macOS.
-2. Set `TACHIAZ_BUILD_JAVA_HOME` to a JDK 8+ installation.
-3. Run `Scripts/build-extension-host.sh --test`.
-4. Run `Scripts/test-keiyoushi-asurascans.sh`.
+2. Set `TACHIAZ_BUILD_JAVA_HOME` to a JDK 21+ installation.
+3. Run `Scripts/bootstrap-suwayomi-compat.sh`.
+4. Run `Scripts/build-extension-host.sh --test`.
+5. Run `Scripts/test-keiyoushi-asurascans.sh`.
 
 The host itself is compiled as Java 8 bytecode for portability. Extension
 validation is based on the embedded VM's actual class-file ceiling. The pinned
@@ -55,18 +60,37 @@ Keiyoushi JARs contain a textual `AndroidManifest.xml`. The host reads
 version, SDK levels, and bytecode requirements directly from that manifest.
 It does not perform APK or DEX conversion.
 
+The compatibility bootstrap checks out Suwayomi-Server commit
+`eb2dc0b19a9571b27c02bebc5c883e404b7bd7fb`, builds AndroidCompat and the
+Mihon source implementation, and copies a tested 38-JAR runtime subset. The
+generated compatibility directory is about 57 MB before iOS app packaging.
+The Xcode build embeds it as `tachiaz-compat`, ahead of the extension-host JAR
+on the JVM classpath so the full AndroidCompat classes take precedence over
+the host-only fixture stubs.
+
 `KeiyoushiJarRepository` maps an index filename such as
 `tachiyomi-en.asurascans-v1.6.66.apk` to the supplied repository artifact
 `repo/jar/tachiyomi-en.asurascans-v1.6.66.jar`. Path separators are rejected
 before constructing the download URL.
 
+Extension manifests are accepted only when `tachiyomix.extensionLib` is in the
+supported `1.4` through `1.6` range. The host always invokes the suspend
+operation. For extension-lib 1.4 and other legacy sources, the supplied
+Mihon-compatible `CatalogueSource` default delegates that call to the
+extension's Rx `fetch*` implementation. Extension-lib 1.6 sources that
+override the suspend method run directly. Tests cover both paths using a
+fixture compiled against official TachiyomiX 1.4.4 and the real Keiyoushi
+Asura Scans 1.6.66 JAR.
+
 ## Compatibility scope
 
-The next layer must provide the Android and Mihon APIs commonly used by
-Keiyoushi-compatible extensions. It should begin with HTTP, preferences,
-HTML parsing, source models, and basic Android resource access. Unsupported
-Android UI, WebView, and service APIs will fail with explicit compatibility
-errors rather than silent stubs.
+The pinned Suwayomi layer now supplies HTTP, preferences, HTML parsing, source
+models, filters, cookies, and its Android compatibility classes. The first
+typed operation invokes Keiyoushi's coroutine `getPopularManga` method without
+exposing Kotlin objects across JNI and returns a Swift-decodable manga page.
+Latest/search/details/chapters/pages/filter/preference operations still need
+equivalent DTO bridges. Unsupported Android behavior must fail explicitly
+rather than silently returning incorrect data.
 
 ## Security model
 

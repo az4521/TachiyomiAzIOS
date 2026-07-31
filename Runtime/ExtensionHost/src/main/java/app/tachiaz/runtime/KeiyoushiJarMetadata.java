@@ -16,6 +16,8 @@ import java.util.jar.JarFile;
  * performed.
  */
 final class KeiyoushiJarMetadata {
+    private static final Pattern SUPPORTED_EXTENSION_LIBRARY =
+        Pattern.compile("^1\\.(4|5|6)(?:\\..*)?$");
     private static final Pattern PACKAGE = Pattern.compile(
         "<manifest[^>]*\\bpackage=\"([^\"]+)\"",
         Pattern.DOTALL
@@ -63,6 +65,20 @@ final class KeiyoushiJarMetadata {
             optionalMetadata(manifest, "tachiyomix.extensionLib"),
             bytecode
         );
+    }
+
+    static void requireSupportedLibrary(Metadata metadata) {
+        String version = metadata.extensionLibrary;
+        if (
+            version == null ||
+            !SUPPORTED_EXTENSION_LIBRARY.matcher(version).matches()
+        ) {
+            throw new IllegalArgumentException(
+                "Unsupported Mihon extension library " +
+                    (version == null ? "(missing)" : version) +
+                    "; supported range is 1.4 through 1.6"
+            );
+        }
     }
 
     private static String readManifest(File jar) throws IOException {

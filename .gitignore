@@ -24,5 +24,7 @@ buildServer.json
 /Runtime/ExtensionHost/build/
 /Runtime/ExtensionHost/dist/*
 !/Runtime/ExtensionHost/dist/tachiaz-extension-host.jar
+/Runtime/ExtensionHost/compat/*
+!/Runtime/ExtensionHost/compat/README.md
 /Vendor/OpenJDK/*
 !/Vendor/OpenJDK/README.md

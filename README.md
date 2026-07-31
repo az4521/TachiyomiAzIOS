@@ -9,15 +9,16 @@ Mihon/TachiyomiAZ backup
 import, and using a Material Design 1-inspired navigation drawer.
 
 The JVM work is under active development. The Java host, JNI boundary, JAR
-validation/loading, and backup decoder are implemented and tested off-device;
-the full Mihon extension API/Android compatibility surface still needs
-physical-device validation and expansion. See
+validation/loading, pinned Suwayomi source API/AndroidCompat layer, first
+typed source operation, and backup decoder are implemented and tested
+off-device. The remaining source operations and the complete stack still need
+physical-device validation. See
 [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md).
 
 ## Features
 - [x] No ads
 - [x] Aidoku WASM sources during the compatibility transition
-- [ ] Full Mihon/Keiyoushi JAR source compatibility
+- [ ] Full Mihon/Keiyoushi extension-lib 1.4–1.6 source compatibility
 - [x] Online reading through external sources
 - [x] Downloads
 - [x] Tracker integration (AniList, MyAnimeList)
@@ -31,8 +32,9 @@ Before the first device build:
 
 ```sh
 Scripts/bootstrap-openjdk-ios.sh
-TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk8 Scripts/build-extension-host.sh --test
-TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk8 Scripts/test-keiyoushi-asurascans.sh
+TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/bootstrap-suwayomi-compat.sh
+TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/build-extension-host.sh --test
+TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/test-keiyoushi-asurascans.sh
 ```
 
 ## Contributing

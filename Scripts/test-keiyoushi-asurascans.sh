@@ -8,6 +8,8 @@ fixture_name="tachiyomi-en.asurascans-v1.6.66.jar"
 fixture_path="$fixture_root/$fixture_name"
 fixture_url="https://raw.githubusercontent.com/keiyoushi/extensions/repo/jar/$fixture_name"
 expected_sha256="ce8d03b408a6b329b02f9b2c9280badb981ff352703a45749a443f87805c46ff"
+compatibility_root="$repository_root/Runtime/ExtensionHost/compat"
+mihon_14_fixture="$repository_root/Runtime/ExtensionHost/fixtures/mihon-1.4/mihon-extension-lib-1.4-fixture.jar"
 
 if [[ -n "${1:-}" ]]; then
     fixture_path="$1"
@@ -38,5 +40,24 @@ if [[ "$actual_sha256" != "$expected_sha256" ]]; then
     exit 1
 fi
 
+mapfile -t compatibility_jars < <(
+    find "$compatibility_root" -name '*.jar' -type f | sort
+)
+if [[ "${#compatibility_jars[@]}" -eq 0 ]]; then
+    echo "Suwayomi compatibility JARs are missing." >&2
+    echo "Run Scripts/bootstrap-suwayomi-compat.sh first." >&2
+    exit 1
+fi
+if [[ ! -f "$mihon_14_fixture" ]]; then
+    echo "Mihon extension-lib 1.4 fixture is missing." >&2
+    exit 1
+fi
+compatibility_classpath="$(
+    IFS=:
+    echo "${compatibility_jars[*]}"
+)"
+
 TACHIAZ_ASURA_JAR="$fixture_path" \
+TACHIAZ_COMPAT_CLASSPATH="$compatibility_classpath" \
+TACHIAZ_MIHON_14_JAR="$mihon_14_fixture" \
     "$repository_root/Scripts/build-extension-host.sh" --test
