@@ -54,6 +54,8 @@ Last updated: 2026-07-31
 - An iOS-safe `SystemClock` plus a minimal JUL boot shim for OkHttp/Okio,
   removing runtime dependencies on absent `java.logging` and
   `java.management` modules.
+- A regression test proving `SystemClock` alone comes from the mobile boot
+  shim while the complete AndroidCompat API remains ahead of host fixtures.
 - A bundled CA trust store for TLS; the upstream OpenJDK/mobile snapshot only
   contains its `java.base` jimage.
 - Manifest gating for the supported Mihon extension-lib 1.4–1.6 range.
@@ -72,7 +74,8 @@ Last updated: 2026-07-31
   correctly translated viewer settings into Aidoku's backup model.
 - Regression coverage for Mihon's extra publication states and TachiyomiAZ's
   id-less category/order format and extended reader modes.
-- `.tachibk` and legacy `.proto.gz` selection and deep-link import.
+- `.tachibk` and legacy `.proto.gz` selection and deep-link import, including
+  first-class `.tachibk` document registration and `tachiaz://` URLs.
 - Material Design 1-inspired hamburger drawer using the existing Aidoku
   library, browse, history, search, and settings controllers.
 

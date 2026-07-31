@@ -108,13 +108,20 @@ if [[ "${1:-}" == "--test" ]]; then
 
         "$test_java" "${test_java_options[@]}" \
             -cp \
-            "$output_jar:$TACHIAZ_COMPAT_CLASSPATH:$compat_test_classes_root" \
+            "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$compat_test_classes_root" \
             app.tachiaz.runtime.MihonExtensionLib16FallbackTest
+
+        if [[ "${TACHIAZ_VERIFY_MOBILE_SHIMS:-}" == "1" ]]; then
+            "$test_java" "${test_java_options[@]}" \
+                -cp \
+                "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$compat_test_classes_root" \
+                app.tachiaz.runtime.MobileShimPrecedenceTest
+        fi
 
         if [[ -n "${TACHIAZ_MIHON_14_JAR:-}" ]]; then
             "$test_java" "${test_java_options[@]}" \
                 -cp \
-                "$output_jar:$TACHIAZ_COMPAT_CLASSPATH:$compat_test_classes_root" \
+                "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$compat_test_classes_root" \
                 app.tachiaz.runtime.MihonExtensionLib14RuntimeTest \
                 "$TACHIAZ_MIHON_14_JAR"
         fi
@@ -122,14 +129,14 @@ if [[ "${1:-}" == "--test" ]]; then
         if [[ -n "${TACHIAZ_MANGADEX_JAR:-}" ]]; then
             "$test_java" "${test_java_options[@]}" \
                 -cp \
-                "$output_jar:$TACHIAZ_COMPAT_CLASSPATH:$test_classes_root" \
+                "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$test_classes_root" \
                 app.tachiaz.runtime.KeiyoushiMangaDexRuntimeTest \
                 "$TACHIAZ_MANGADEX_JAR"
         fi
 
         if [[ -n "${TACHIAZ_ASURA_JAR:-}" ]]; then
             "$test_java" "${test_java_options[@]}" \
-                -cp "$output_jar:$TACHIAZ_COMPAT_CLASSPATH:$test_classes_root" \
+                -cp "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$test_classes_root" \
                 app.tachiaz.runtime.KeiyoushiAsuraRuntimeTest \
                 "$TACHIAZ_ASURA_JAR"
         fi

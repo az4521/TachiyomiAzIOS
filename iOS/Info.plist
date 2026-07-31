@@ -32,6 +32,16 @@
 		</dict>
 		<dict>
 			<key>CFBundleTypeName</key>
+			<string>Mihon Backup</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>app.tachiaz.mihon-backup</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
 			<string>Comic Book Archive (Zip)</string>
 			<key>LSHandlerRank</key>
 			<string>Default</string>
@@ -68,6 +78,7 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>tachiaz</string>
 				<string>aidoku</string>
 			</array>
 		</dict>
@@ -143,6 +154,27 @@
 				<array>
 					<string>aib</string>
 				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Mihon Backup</string>
+			<key>UTTypeIconFiles</key>
+			<array/>
+			<key>UTTypeIdentifier</key>
+			<string>app.tachiaz.mihon-backup</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>tachibk</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/gzip</string>
 			</dict>
 		</dict>
 		<dict>

@@ -122,10 +122,10 @@ public struct JVMRuntimeConfiguration: Sendable {
         return JVMRuntimeConfiguration(
             javaHomeURL: javaHomeURL,
             frameworksURL: frameworksURL,
-            // The host contains iOS-safe replacements for a small number of
-            // desktop AndroidCompat classes, so it must win parent-first
-            // class loading.
-            classpathURLs: [hostURL] + compatibilityJars,
+            // Keep the complete AndroidCompat/Mihon API ahead of the small
+            // host fixture surface. The iOS-only SystemClock replacement is
+            // loaded from the boot shim before either classpath entry.
+            classpathURLs: compatibilityJars + [hostURL],
             additionalOptions: [
                 "-Xbootclasspath/a:\(mobileShimsURL.path)",
                 "-Duser.home=\(jvmHome.path)",

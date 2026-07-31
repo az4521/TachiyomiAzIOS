@@ -81,10 +81,11 @@ The compatibility bootstrap checks out Suwayomi-Server commit
 `eb2dc0b19a9571b27c02bebc5c883e404b7bd7fb`, builds AndroidCompat and the
 Mihon source implementation, and copies a tested 36-JAR runtime subset. The
 generated compatibility directory is about 57 MB before iOS app packaging.
-The Xcode build embeds it as `tachiaz-compat`. The extension-host JAR is first
-on the JVM classpath so its iOS-safe `SystemClock` replacement wins; all other
-AndroidCompat and Mihon API classes come from the generated compatibility
-subset. Desktop Logback providers are deliberately excluded.
+The Xcode build embeds it as `tachiaz-compat`. The complete AndroidCompat and
+Mihon API compatibility subset is first on the application classpath. Only the
+iOS-safe `SystemClock` replacement is placed in the boot shim, where it wins
+before application class loading. Desktop Logback providers are deliberately
+excluded.
 
 `KeiyoushiJarRepository` maps an index filename such as
 `tachiyomi-en.asurascans-v1.6.66.apk` to the supplied repository artifact

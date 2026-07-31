@@ -500,7 +500,10 @@ extension AppDelegate {
     }
 
     func handleUrl(url: URL) {
-        if url.scheme == "aidoku" { // aidoku://
+        if
+            let scheme = url.scheme?.lowercased(),
+            ["tachiaz", "aidoku"].contains(scheme)
+        {
             if url.host == "addSourceList" { // addSourceList?url=
                 let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
                 if let listUrlString = components?.queryItems?.first(where: { $0.name == "url" })?.value,
@@ -579,7 +582,7 @@ extension AppDelegate {
                     }
                 }
             }
-        } else if url.pathExtension == "aix" {
+        } else if url.pathExtension.lowercased() == "aix" {
             Task {
                 let result = await SourceManager.shared.importSource(from: url)
                 if result == nil {
@@ -590,9 +593,9 @@ extension AppDelegate {
                 }
             }
         } else if
-            url.pathExtension == "json" ||
-            url.pathExtension == "aib" ||
-            url.pathExtension == "tachibk" ||
+            url.pathExtension.lowercased() == "json" ||
+            url.pathExtension.lowercased() == "aib" ||
+            url.pathExtension.lowercased() == "tachibk" ||
             url.lastPathComponent.lowercased().hasSuffix(".proto.gz")
         {
             Task {
