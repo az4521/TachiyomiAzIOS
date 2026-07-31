@@ -38,10 +38,10 @@ func sourceFactoryDescriptorsDecodeFromExtensionHostPayload() throws {
     [
       {
         "id": 2499283573021220255,
-        "name": "MangaDex",
+        "name": "Example Source",
         "lang": "en",
         "supportsLatest": true,
-        "baseURL": "https://mangadex.org"
+        "baseURL": "https://example.org"
       }
     ]
     """
@@ -54,10 +54,10 @@ func sourceFactoryDescriptorsDecodeFromExtensionHostPayload() throws {
     #expect(sources == [
         TachiyomiXSourceDescriptor(
             id: 2499283573021220255,
-            name: "MangaDex",
+            name: "Example Source",
             lang: "en",
             supportsLatest: true,
-            baseURL: "https://mangadex.org"
+            baseURL: "https://example.org"
         )
     ])
 }

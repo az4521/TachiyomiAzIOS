@@ -40,9 +40,9 @@ needed for a physical device. Its bundle identifier is
 Before the first build:
 
 The real-world extension checks do not embed a repository URL. Provide local
-JAR paths to `Scripts/test-tachiyomix-mangadex.sh` and
-`Scripts/test-tachiyomix-asurascans.sh`, or set
-`TACHIYOMIAZ_MANGADEX_FIXTURE_URL` and `TACHIYOMIAZ_ASURA_FIXTURE_URL`.
+JAR paths to `Scripts/test-tachiyomix-1_4.sh` and
+`Scripts/test-tachiyomix-1_6.sh`, or set
+`TACHIYOMIAZ_EXTLIB_1_4_FIXTURE_URL` and `TACHIYOMIAZ_EXTLIB_1_6_FIXTURE_URL`.
 
 ```sh
 Scripts/bootstrap-openjdk-ios.sh

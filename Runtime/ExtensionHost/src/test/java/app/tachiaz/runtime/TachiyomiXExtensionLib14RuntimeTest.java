@@ -4,15 +4,15 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class TachiyomiXMangaDexRuntimeTest {
+public final class TachiyomiXExtensionLib14RuntimeTest {
     private static final String ENGLISH_SOURCE_ID = "2499283573021220255";
 
-    private TachiyomiXMangaDexRuntimeTest() {
+    private TachiyomiXExtensionLib14RuntimeTest() {
     }
 
     public static void main(String[] arguments) {
         if (arguments.length != 1) {
-            throw new AssertionError("Expected the MangaDex JAR path");
+            throw new AssertionError("Expected the extension-lib 1.4 JAR path");
         }
 
         String escapedPath = new File(arguments[0])
@@ -31,14 +31,14 @@ public final class TachiyomiXMangaDexRuntimeTest {
             "{\"operation\":\"initializeCompatibility\"}"
         ));
         String loaded = ExtensionHost.dispatch(
-            "{\"operation\":\"loadExtension\",\"extensionId\":\"mangadex\"," +
+            "{\"operation\":\"loadExtension\",\"extensionId\":\"extlib14\"," +
                 "\"jarPath\":\"" + escapedPath + "\"}"
         );
         assertSuccess(loaded);
         assertContains(loaded, "\"sourceCount\":\"61\"");
 
         String sources = ExtensionHost.dispatch(
-            "{\"operation\":\"listSources\",\"extensionId\":\"mangadex\"}"
+            "{\"operation\":\"listSources\",\"extensionId\":\"extlib14\"}"
         );
         assertSuccess(sources);
         assertContains(sources, "\\\"id\\\":" + ENGLISH_SOURCE_ID);
@@ -50,26 +50,26 @@ public final class TachiyomiXMangaDexRuntimeTest {
         );
         assertSuccess(ExtensionHost.dispatch(
             "{\"operation\":\"setWebLoginCookies\"," +
-                "\"extensionId\":\"mangadex\"," +
+                "\"extensionId\":\"extlib14\"," +
                 "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"," +
                 "\"argument\":\"tachiaz_test\\tworking\"}"
         ));
         String cookieSummary = ExtensionHost.dispatch(
             "{\"operation\":\"getCookieSummary\"," +
-                "\"extensionId\":\"mangadex\"," +
+                "\"extensionId\":\"extlib14\"," +
                 "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"}"
         );
         assertSuccess(cookieSummary);
         assertContains(cookieSummary, "tachiaz_test");
         assertSuccess(ExtensionHost.dispatch(
             "{\"operation\":\"clearCookies\"," +
-                "\"extensionId\":\"mangadex\"," +
+                "\"extensionId\":\"extlib14\"," +
                 "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"}"
         ));
 
         String filters = ExtensionHost.dispatch(
             "{\"operation\":\"getSearchFilters\"," +
-                "\"extensionId\":\"mangadex\"," +
+                "\"extensionId\":\"extlib14\"," +
                 "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"}"
         );
         assertSuccess(filters);
@@ -85,7 +85,7 @@ public final class TachiyomiXMangaDexRuntimeTest {
 
         String settings = ExtensionHost.dispatch(
             "{\"operation\":\"getSettings\"," +
-                "\"extensionId\":\"mangadex\"," +
+                "\"extensionId\":\"extlib14\"," +
                 "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"}"
         );
         assertSuccess(settings);
@@ -99,7 +99,7 @@ public final class TachiyomiXMangaDexRuntimeTest {
         );
         assertSuccess(ExtensionHost.dispatch(
             "{\"operation\":\"setSetting\"," +
-                "\"extensionId\":\"mangadex\"," +
+                "\"extensionId\":\"extlib14\"," +
                 "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"," +
                 "\"settingKey\":\"" +
                 MiniJson.escapeValue(selectKey) + "\"," +
@@ -110,7 +110,7 @@ public final class TachiyomiXMangaDexRuntimeTest {
 
         String popular = ExtensionHost.dispatch(
             "{\"operation\":\"getPopularManga\"," +
-                "\"extensionId\":\"mangadex\"," +
+                "\"extensionId\":\"extlib14\"," +
                 "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"," +
                 "\"argument\":\"1\"}"
         );
@@ -121,7 +121,7 @@ public final class TachiyomiXMangaDexRuntimeTest {
 
         String latest = ExtensionHost.dispatch(
             "{\"operation\":\"getLatestUpdates\"," +
-                "\"extensionId\":\"mangadex\"," +
+                "\"extensionId\":\"extlib14\"," +
                 "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"," +
                 "\"argument\":\"1\"}"
         );
@@ -130,7 +130,7 @@ public final class TachiyomiXMangaDexRuntimeTest {
 
         String search = ExtensionHost.dispatch(
             "{\"operation\":\"searchManga\"," +
-                "\"extensionId\":\"mangadex\"," +
+                "\"extensionId\":\"extlib14\"," +
                 "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"," +
                 "\"query\":\"One Piece\"," +
                 "\"filterStates\":\"" + sortFilterId +
@@ -147,14 +147,14 @@ public final class TachiyomiXMangaDexRuntimeTest {
         String coverURL = firstStringField(latestResult, "thumbnailURL");
         assertSuccess(ExtensionHost.dispatch(
             "{\"operation\":\"getImageRequest\"," +
-                "\"extensionId\":\"mangadex\"," +
+                "\"extensionId\":\"extlib14\"," +
                 "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"," +
                 "\"imageURL\":\"" +
                 MiniJson.escapeValue(coverURL) + "\"}"
         ));
         String update = ExtensionHost.dispatch(
             "{\"operation\":\"getMangaUpdate\"," +
-                "\"extensionId\":\"mangadex\"," +
+                "\"extensionId\":\"extlib14\"," +
                 "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"," +
                 "\"mangaURL\":\"" +
                 MiniJson.escapeValue(mangaURL) +
@@ -179,7 +179,7 @@ public final class TachiyomiXMangaDexRuntimeTest {
         ) {
             String candidate = ExtensionHost.dispatch(
                 "{\"operation\":\"getPageList\"," +
-                    "\"extensionId\":\"mangadex\"," +
+                    "\"extensionId\":\"extlib14\"," +
                     "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"," +
                     "\"chapterURL\":\"" +
                     MiniJson.escapeValue(chapterURLs.get(index)) +
@@ -202,7 +202,7 @@ public final class TachiyomiXMangaDexRuntimeTest {
         String pageURL = firstStringField(pagesResult, "url");
         String imageRequest = ExtensionHost.dispatch(
             "{\"operation\":\"getImageRequest\"," +
-                "\"extensionId\":\"mangadex\"," +
+                "\"extensionId\":\"extlib14\"," +
                 "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"," +
                 "\"imageURL\":\"" +
                 MiniJson.escapeValue(imageURL) + "\"," +
@@ -212,7 +212,7 @@ public final class TachiyomiXMangaDexRuntimeTest {
         assertSuccess(imageRequest);
         assertContains(imageRequest, "\\\"headers\\\":{");
         System.out.println(
-            "TachiyomiX MangaDex extension-lib 1.4 runtime test passed"
+            "TachiyomiX extension-lib 1.4 runtime test passed"
         );
         System.exit(0);
     }

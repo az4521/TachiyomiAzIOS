@@ -4,23 +4,23 @@ set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fixture_root="${TMPDIR:-/tmp}/tachiaz-tachiyomix-fixtures"
-fixture_name="tachiyomi-all.mangadex-v1.4.211.jar"
+fixture_name="tachiyomix-extension-lib-1_6-fixture.jar"
 fixture_path="$fixture_root/$fixture_name"
-fixture_url="${TACHIYOMIAZ_MANGADEX_FIXTURE_URL:-${TACHIAZ_MANGADEX_FIXTURE_URL:-}}"
-expected_sha256="401158e4d00e111998c20243adbddf64b377b95191d1e14d054b1a1a038c51e9"
+fixture_url="${TACHIYOMIAZ_EXTLIB_1_6_FIXTURE_URL:-${TACHIAZ_EXTLIB_1_6_FIXTURE_URL:-}}"
+expected_sha256="ce8d03b408a6b329b02f9b2c9280badb981ff352703a45749a443f87805c46ff"
 compatibility_root="$repository_root/Runtime/ExtensionHost/compat"
 
 if [[ -n "${1:-}" ]]; then
     fixture_path="$1"
 else
     command -v curl >/dev/null || {
-        echo "curl is required to download the MangaDex fixture." >&2
+        echo "curl is required to download the extension-lib 1.6 fixture." >&2
         exit 1
     }
     mkdir -p "$fixture_root"
     if [[ ! -f "$fixture_path" ]]; then
         if [[ -z "$fixture_url" ]]; then
-            echo "Pass the MangaDex extension JAR path or set TACHIYOMIAZ_MANGADEX_FIXTURE_URL." >&2
+            echo "Pass the extension-lib 1.6 JAR path or set TACHIYOMIAZ_EXTLIB_1_6_FIXTURE_URL." >&2
             exit 1
         fi
         curl --fail --location --output "$fixture_path" "$fixture_url"
@@ -37,7 +37,7 @@ else
 fi
 
 if [[ "$actual_sha256" != "$expected_sha256" ]]; then
-    echo "MangaDex fixture checksum mismatch." >&2
+    echo "Extension-lib 1.6 fixture checksum mismatch." >&2
     echo "Expected: $expected_sha256" >&2
     echo "Actual:   $actual_sha256" >&2
     exit 1
@@ -56,6 +56,6 @@ compatibility_classpath="$(
     echo "${compatibility_jars[*]}"
 )"
 
+TACHIAZ_EXTLIB_1_6_JAR="$fixture_path" \
 TACHIAZ_COMPAT_CLASSPATH="$compatibility_classpath" \
-TACHIAZ_MANGADEX_JAR="$fixture_path" \
     "$repository_root/Scripts/build-extension-host.sh" --test

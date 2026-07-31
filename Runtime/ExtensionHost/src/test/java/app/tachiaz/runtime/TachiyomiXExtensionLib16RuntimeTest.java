@@ -2,13 +2,13 @@ package app.tachiaz.runtime;
 
 import java.io.File;
 
-public final class TachiyomiXAsuraRuntimeTest {
-    private TachiyomiXAsuraRuntimeTest() {
+public final class TachiyomiXExtensionLib16RuntimeTest {
+    private TachiyomiXExtensionLib16RuntimeTest() {
     }
 
     public static void main(String[] arguments) {
         if (arguments.length != 1) {
-            throw new AssertionError("Expected the Asura Scans JAR path");
+            throw new AssertionError("Expected the extension-lib 1.6 JAR path");
         }
 
         String escapedPath = new File(arguments[0])
@@ -19,20 +19,20 @@ public final class TachiyomiXAsuraRuntimeTest {
             "{\"operation\":\"initializeCompatibility\"}"
         ));
         assertSuccess(ExtensionHost.dispatch(
-            "{\"operation\":\"loadExtension\",\"extensionId\":\"asura\"," +
+            "{\"operation\":\"loadExtension\",\"extensionId\":\"extlib16\"," +
                 "\"jarPath\":\"" + escapedPath + "\"}"
         ));
 
         String response = ExtensionHost.dispatch(
             "{\"operation\":\"getPopularManga\"," +
-                "\"extensionId\":\"asura\",\"argument\":\"1\"}"
+                "\"extensionId\":\"extlib16\",\"argument\":\"1\"}"
         );
         assertSuccess(response);
         assertContains(response, "\\\"mangas\\\":[{");
         assertContains(response, "\\\"title\\\":");
         assertContains(response, "\\\"thumbnailURL\\\":");
         assertContains(response, "\\\"hasNextPage\\\":");
-        System.out.println("TachiyomiX Asura Scans runtime test passed");
+        System.out.println("TachiyomiX extension-lib 1.6 runtime test passed");
 
         // OkHttp and coroutine pools are deliberately process-wide in the app.
         // End this short-lived command line test without waiting for them.

@@ -15,7 +15,7 @@ Last updated: 2026-07-31
 - TachiyomiX textual Android manifest parsing and automatic entry-class
   discovery, without `dex2jar` or APK conversion.
 - TachiyomiX `/repo/jar` URL mapping from index `.apk` basenames to direct
-  `.jar` artifacts, with a pinned Asura Scans fixture.
+  `.jar` artifacts, with a pinned extension-lib 1.6 fixture.
 - Per-extension `URLClassLoader` lifecycle and a stable JSON dispatch entry
   point.
 - SHA-256-verifying Swift JAR installer and versioned extension storage.
@@ -26,8 +26,7 @@ Last updated: 2026-07-31
   failed final load.
 - Java host integration tests for loading, invoking, replacing, and unloading
   a fixture extension.
-- A pinned real-world test against TachiyomiX's
-  `tachiyomi-en.asurascans-v1.6.66.jar` and its published SHA-256.
+- A pinned real-world extension-lib 1.6 test and published SHA-256.
 - A reproducible compatibility bootstrap pinned to Suwayomi-Server commit
   `eb2dc0b19a9571b27c02bebc5c883e404b7bd7fb`, using its AndroidCompat and
   Mihon source implementations.
@@ -73,10 +72,10 @@ Last updated: 2026-07-31
 - A binary fixture compiled against official TachiyomiX 1.4.4 that proves a
   suspend host call falls back to its Rx-only popular implementation.
 - `SourceFactory` expansion, source enumeration, and source-ID routing, tested
-  against the 61-source TachiyomiX MangaDex 1.4.211 extension.
-- A live MangaDex 1.4 test that selects its English source and fetches page 1
+  against the 61-source extension-lib 1.4 fixture.
+- A live extension-lib 1.4 test that selects its English source and fetches page 1
   through Mihon's suspend-to-Rx compatibility fallback.
-- A live Asura Scans test that constructs the extension and fetches page 1
+- A live extension-lib 1.6 test that constructs the extension and fetches page 1
   from its public API without APK conversion or `dex2jar`.
 - Gzipped protobuf decoding for current Mihon and TachiyomiAZ `.tachibk`
   backups.
@@ -118,7 +117,7 @@ rejected by the local compatibility layer.
    graphics/resource assumptions. JavaScript/login challenges use the native
    WKWebView flow; desktop CEF is deliberately excluded.
 
-The requested MangaDex 1.4 and AsuraScans 1.6 fixtures pass. Physical arm64
+The requested extension-lib 1.4 and 1.6 fixtures pass. Physical arm64
 device validation and a broader compatibility corpus remain desirable, but
 they are not blockers for the simulator-first sideloading target.
 
@@ -127,31 +126,31 @@ they are not blockers for the simulator-first sideloading target.
 - Extension host compiles with Temurin JDK 8 using `-source 8 -target 8`.
 - Fixture JAR load/invoke/unload test passes.
 - Gzipped Mihon protobuf fixture decode test passes.
-- The pinned MangaDex 1.4.211 and Asura Scans 1.6.66 JARs are downloaded and
-  checksum-verified. Asura is confirmed as Java 11 / class-file version 55.
+- The pinned extension-lib 1.4 and 1.6 JARs are downloaded and
+  checksum-verified. The 1.6 fixture uses Java 11 / class-file version 55.
 - The pinned Suwayomi source API and AndroidCompat build successfully on
   JDK 21.
 - A fresh Git checkout with no ignored runtime artifacts successfully
   bootstraps the checksum-pinned OpenJDK/mobile device and simulator bundles,
   rebuilds the pinned Suwayomi runtime, and passes the compact-runtime
-  MangaDex/Asura suites. Shell scripts have repository-pinned LF endings and
+  extension-lib 1.4/1.6 suites. Shell scripts have repository-pinned LF endings and
   executable modes for WSL, macOS, and CI checkouts.
 - A minimal `java.base` + EC-crypto runtime probe, using the same boot shim as
-  iOS and no desktop Logback provider, completes every MangaDex 1.4 and Asura
-  Scans 1.6 integration operation.
-- Asura Scans constructs through the real compatibility layer and reports the
+  iOS and no desktop Logback provider, completes every extension-lib 1.4 and
+  1.6 integration operation.
+- The extension-lib 1.6 fixture constructs through the real compatibility layer and reports the
   expected name, language, source ID, and base URL.
-- MangaDex constructs all 61 sources from `ExtensionGenerated`, selects source
+- The extension-lib 1.4 fixture constructs all 61 sources from `ExtensionGenerated`, selects source
   ID `2499283573021220255` (`en`), reaches `https://api.mangadex.org`, returns
   HTTP 200, and completes popular, latest, search, details, chapter-list, and
   page-list operations through the extension-lib 1.4 fallback path.
-- MangaDex filter descriptors are projected into native filter controls; a
+- Extension-lib 1.4 filter descriptors are projected into native filter controls; a
   sort-state round trip changes its live API request to title/ascending.
-- MangaDex AndroidX preferences are discovered and a select preference is
+- Extension-lib 1.4 AndroidX preferences are discovered and a select preference is
   written back through its persistent `SharedPreferences`.
-- WKWebView-style cookies can be inserted into MangaDex's real persistent
+- WKWebView-style cookies can be inserted into the extension-lib 1.4 fixture's persistent
   OkHttp cookie jar, inspected without exposing values, and cleared.
-- MangaDex page context survives the JNI boundary and reconstructs the
+- Extension-lib 1.4 page context survives the JNI boundary and reconstructs the
   extension-specific image request, headers, and cookie jar for Aidoku's
   native image pipeline.
 - Its coroutine popular-manga method reaches

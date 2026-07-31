@@ -69,12 +69,12 @@ sandbox on both simulator and device.
 6. Run `Scripts/test-mobile-java-base.sh`.
 
 The real-world tests intentionally contain no extension-repository address.
-Supply the fixture JARs directly, or set `TACHIYOMIAZ_MANGADEX_FIXTURE_URL`
-and `TACHIYOMIAZ_ASURA_FIXTURE_URL` before running the final test script.
+Supply the fixture JARs directly, or set `TACHIYOMIAZ_EXTLIB_1_4_FIXTURE_URL`
+and `TACHIYOMIAZ_EXTLIB_1_6_FIXTURE_URL` before running the final test script.
 
 The host itself is compiled as Java 8 bytecode for portability. Extension
 validation is based on the embedded VM's actual class-file ceiling. The pinned
-Asura Scans `1.6.66` fixture uses Java 11 bytecode (major version 55), which is
+extension-lib 1.6 fixture uses Java 11 bytecode (major version 55), which is
 why the old third-party OpenJDK 8 build was replaced with the current official
 OpenJDK/mobile snapshot.
 
@@ -110,10 +110,9 @@ supported `1.4` through `1.6` range. The host always invokes the suspend
 operation. For extension-lib 1.4 and other legacy sources, the supplied
 Mihon-compatible `CatalogueSource` default delegates that call to the
 extension's Rx `fetch*` implementation. Extension-lib 1.6 sources that
-override the suspend method run directly. Tests cover both paths using a
-fixture compiled against official TachiyomiX 1.4.4, the real TachiyomiX
-MangaDex 1.4.211 JAR, and the real TachiyomiX Asura Scans 1.6.66 JAR.
-MangaDex also verifies `SourceFactory` support: its generated entry point
+override the suspend method run directly. Tests cover both paths using pinned
+extension-lib 1.4 and extension-lib 1.6 fixtures. The 1.4 fixture also verifies
+`SourceFactory` support: its generated entry point
 expands into 61 language-specific sources, which Swift can list and address
 by Mihon source ID.
 

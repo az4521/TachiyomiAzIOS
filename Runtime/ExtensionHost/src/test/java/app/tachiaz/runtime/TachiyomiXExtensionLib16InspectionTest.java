@@ -2,13 +2,13 @@ package app.tachiaz.runtime;
 
 import java.io.File;
 
-public final class TachiyomiXAsuraScansTest {
-    private TachiyomiXAsuraScansTest() {
+public final class TachiyomiXExtensionLib16InspectionTest {
+    private TachiyomiXExtensionLib16InspectionTest() {
     }
 
     public static void main(String[] arguments) {
         if (arguments.length != 1) {
-            throw new AssertionError("Expected the Asura Scans JAR path");
+            throw new AssertionError("Expected the extension-lib 1.6 JAR path");
         }
 
         String escapedPath = new File(arguments[0])
@@ -38,7 +38,7 @@ public final class TachiyomiXAsuraScansTest {
         assertContains(response, "\"extensionLibrary\":\"1.6\"");
         assertContains(response, "\"maximumClassVersion\":\"55\"");
         assertContains(response, "\"requiredJavaVersion\":\"11\"");
-        System.out.println("TachiyomiX Asura Scans JAR test passed");
+        System.out.println("TachiyomiX extension-lib 1.6 inspection test passed");
     }
 
     private static void assertContains(String actual, String expected) {

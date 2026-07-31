@@ -93,11 +93,11 @@ if [[ "${1:-}" == "--test" ]]; then
         app.tachiaz.runtime.ExtensionHostTest \
         "$fixture_jar"
 
-    if [[ -n "${TACHIAZ_ASURA_JAR:-}" ]]; then
+    if [[ -n "${TACHIAZ_EXTLIB_1_6_JAR:-}" ]]; then
         "$test_java" "${test_java_options[@]}" \
             -cp "$output_jar:$test_classes_root" \
-            app.tachiaz.runtime.TachiyomiXAsuraScansTest \
-            "$TACHIAZ_ASURA_JAR"
+            app.tachiaz.runtime.TachiyomiXExtensionLib16InspectionTest \
+            "$TACHIAZ_EXTLIB_1_6_JAR"
     fi
 
     if [[ -n "${TACHIAZ_COMPAT_CLASSPATH:-}" ]]; then
@@ -132,19 +132,19 @@ if [[ "${1:-}" == "--test" ]]; then
                 "$TACHIAZ_MIHON_14_JAR"
         fi
 
-        if [[ -n "${TACHIAZ_MANGADEX_JAR:-}" ]]; then
+        if [[ -n "${TACHIAZ_EXTLIB_1_4_JAR:-}" ]]; then
             "$test_java" "${test_java_options[@]}" \
                 -cp \
                 "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$test_classes_root" \
-                app.tachiaz.runtime.TachiyomiXMangaDexRuntimeTest \
-                "$TACHIAZ_MANGADEX_JAR"
+                app.tachiaz.runtime.TachiyomiXExtensionLib14RuntimeTest \
+                "$TACHIAZ_EXTLIB_1_4_JAR"
         fi
 
-        if [[ -n "${TACHIAZ_ASURA_JAR:-}" ]]; then
+        if [[ -n "${TACHIAZ_EXTLIB_1_6_JAR:-}" ]]; then
             "$test_java" "${test_java_options[@]}" \
                 -cp "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$test_classes_root" \
-                app.tachiaz.runtime.TachiyomiXAsuraRuntimeTest \
-                "$TACHIAZ_ASURA_JAR"
+                app.tachiaz.runtime.TachiyomiXExtensionLib16RuntimeTest \
+                "$TACHIAZ_EXTLIB_1_6_JAR"
         fi
     fi
 fi

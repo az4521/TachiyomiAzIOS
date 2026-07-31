@@ -116,8 +116,8 @@ Use the official OpenJDK/mobile iOS Zero build and XCFramework:
   https://github.com/openjdk-mobile/ios-tools
 
 The earlier OpenJDK 8 build demonstrated by Code App proved that the approach
-works, but it cannot load the actual TachiyomiX fixture: Asura Scans 1.6.66 uses
-Java 11 class files.
+works, but it cannot load the extension-lib 1.6 fixture because that fixture
+uses Java 11 class files.
 
 Zero interprets bytecode and does not depend on JIT availability. This allows
 new extension JARs to be downloaded and loaded at runtime.
@@ -140,8 +140,8 @@ the normal lifecycle.
 ### Bytecode compatibility gate
 
 The host must inspect each extension's maximum class-file version and compare
-it to the embedded VM's reported ceiling. The current test baseline is Asura
-Scans 1.6.66 at class-file version 55 (Java 11). Host-side compatibility code
+it to the embedded VM's reported ceiling. The extension-lib 1.6 test baseline
+uses class-file version 55 (Java 11). Host-side compatibility code
 remains Java 8 bytecode where practical, but extensions are not artificially
 restricted to Java 8.
 
@@ -401,9 +401,9 @@ Estimate: 1 week.
 - [x] Start one VM through `JNI_CreateJavaVM`.
 - [x] Call a bundled Java test facade from Swift.
 - [x] Load one direct extension JAR.
-- [x] Fetch popular entries from the pinned Asura Scans JAR.
+- [x] Fetch popular entries from the pinned extension-lib 1.6 fixture.
 - [x] Fetch popular/latest/search/details/chapters/pages from the pinned
-  MangaDex 1.4 JAR.
+  extension-lib 1.4 fixture.
 - [x] Package separate arm64-device and arm64/x86_64-simulator Java bundles.
 - Measure startup time, memory, and battery use on physical devices.
 
