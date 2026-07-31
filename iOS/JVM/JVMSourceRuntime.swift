@@ -761,7 +761,9 @@ private extension AidokuRunner.Source {
             name: descriptor.name,
             version: Int(manifest.versionCode ?? "") ?? 1,
             languages: [descriptor.lang],
-            urls: [],
+            urls: descriptor.baseURL.flatMap(URL.init(string:)).map {
+                [$0]
+            } ?? [],
             contentRating:
                 manifest.isNsfw == true ? .primarilyNsfw : .safe,
             config: .init(

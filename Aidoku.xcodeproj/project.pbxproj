@@ -688,6 +688,7 @@
 		FB0AB8A22F51FD8D00AF1451 /* FilterGroupCreateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterGroupCreateView.swift; sourceTree = "<group>"; };
 		FB0AB8A42F52046F00AF1451 /* FilterGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterGroup.swift; sourceTree = "<group>"; };
 		FB0AB8B42F55D00100AF1451 /* 0.8.3.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = 0.8.3.xcdatamodel; sourceTree = "<group>"; };
+		A12400000000000000000001 /* 0.8.4.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = 0.8.4.xcdatamodel; sourceTree = "<group>"; };
 		FB0C088B280E4D1C00A7332B /* DeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLink.swift; sourceTree = "<group>"; };
 		FB0CAA4B28A2AD480024561A /* CoreDataManager+Manga.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CoreDataManager+Manga.swift"; sourceTree = "<group>"; };
 		FB0CAA4D28A2B9F40024561A /* CoreDataManager+LibraryManga.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CoreDataManager+LibraryManga.swift"; sourceTree = "<group>"; };
@@ -3885,6 +3886,7 @@
 		FB1B482B277CE18D0056D02C /* Aidoku.xcdatamodeld */ = {
 			isa = XCVersionGroup;
 			children = (
+				A12400000000000000000001 /* 0.8.4.xcdatamodel */,
 				FB0AB8B42F55D00100AF1451 /* 0.8.3.xcdatamodel */,
 				FB0AB8922F50B81800AF1451 /* 0.8.2.xcdatamodel */,
 				FB947CF92EF1CC4D00FC6226 /* 0.8.xcdatamodel */,
@@ -3897,7 +3899,7 @@
 				FBCA1B2228889F1D007149C5 /* 0.5.xcdatamodel */,
 				FB1B482C277CE18D0056D02C /* Shared.xcdatamodel */,
 			);
-			currentVersion = FB0AB8B42F55D00100AF1451 /* 0.8.3.xcdatamodel */;
+			currentVersion = A12400000000000000000001 /* 0.8.4.xcdatamodel */;
 			path = Aidoku.xcdatamodeld;
 			sourceTree = "<group>";
 			versionGroupType = wrapper.xcdatamodel;
