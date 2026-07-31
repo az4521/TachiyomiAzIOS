@@ -158,7 +158,14 @@ extension BrowseViewController {
         let containsLocalSource = sources.contains(where: { $0.id == LocalSourceRunner.sourceKey })
 
         func commit() {
+            var removedJVMExtensions: Set<String> = []
             for source in sources {
+                if
+                    let runner = source.runner as? TachiyomiXSourceRunner,
+                    !removedJVMExtensions.insert(runner.extensionId).inserted
+                {
+                    continue
+                }
                 SourceManager.shared.remove(source: source)
             }
             Task {

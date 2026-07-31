@@ -1,17 +1,19 @@
 import Foundation
-import Testing
+import XCTest
 @testable import TachiJVMRunner
 
-struct CompressionTests {
-    @Test func decompressesGzipData() throws {
-        let compressed = try #require(
-            Data(
-                base64Encoded:
-                    "H4sIAAAAAAAC/wtJTM7IrMzPzXSMUigoyi/JTypNUyhJLS4B" +
-                    "AAV4nEEZAAAA"
+final class CompressionTests: XCTestCase {
+    func testDecompressesGzipData() throws {
+        let compressed = try XCTUnwrap(
+            Data(base64Encoded:
+                "H4sIAAAAAAAC/wtJTM7IrMzPzXSMUigoyi/JTypNUyhJLS4B" +
+                "AAV4nEEZAAAA"
             )
         )
         let result = try TachiJVMCompression.gunzip(compressed)
-        #expect(String(data: result, encoding: .utf8) == "TachiyomiAZ protobuf test")
+        XCTAssertEqual(
+            String(data: result, encoding: .utf8),
+            "TachiyomiAZ protobuf test"
+        )
     }
 }

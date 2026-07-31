@@ -331,7 +331,7 @@ extension SourceManager {
         name: String,
         server: URL,
         username: String? = nil,
-        password: String? = nil,
+        password: String? = nil
     ) async -> String {
         let keyPrefix = switch kind {
             case .komga: KomgaSourceRunner.sourceKeyPrefix
@@ -416,20 +416,45 @@ extension SourceManager {
     }
 
     func remove(source: AidokuRunner.Source) {
-        removeSettings(from: source)
-        if let url = source.url {
-            try? FileManager.default.removeItem(at: url)
+#if os(iOS)
+        let jvmRunner = source.runner as? TachiyomiXSourceRunner
+        let removedSources: [AidokuRunner.Source]
+        if let jvmRunner {
+            let matches = sources.filter {
+                ($0.runner as? TachiyomiXSourceRunner)?.extensionId ==
+                    jvmRunner.extensionId
+            }
+            removedSources = matches.isEmpty ? [source] : matches
+        } else {
+            removedSources = [source]
         }
-        sources.removeAll { $0.id == source.id }
+#else
+        let removedSources = [source]
+#endif
+        let removedIds = Set(removedSources.map(\.id))
+        let removedKeys = removedSources.map(\.key)
+        for removedSource in removedSources {
+            removeSettings(from: removedSource)
+            if let url = removedSource.url {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        var pinned = UserDefaults.standard.stringArray(
+            forKey: "Browse.pinnedList"
+        ) ?? []
+        pinned.removeAll { removedIds.contains($0) }
+        UserDefaults.standard.set(pinned, forKey: "Browse.pinnedList")
+        sources.removeAll { removedIds.contains($0.id) }
         Task {
 #if os(iOS)
-            if let runner = source.runner as? TachiyomiXSourceRunner {
-                try? await runner.uninstall()
-                await MainActor.run {
-                    self.sources.removeAll {
-                        ($0.runner as? TachiyomiXSourceRunner)?
-                            .extensionId == runner.extensionId
-                    }
+            if let jvmRunner {
+                do {
+                    try await jvmRunner.uninstall()
+                } catch {
+                    LogManager.logger.error(
+                        "Unable to uninstall JVM extension " +
+                            "\(jvmRunner.extensionId): \(error)"
+                    )
                 }
             }
 #endif
@@ -441,10 +466,20 @@ extension SourceManager {
                 await TrackerManager.suwayomi.removeTrackItems(source: source)
             }
             await CoreDataManager.shared.container.performBackgroundTask { context in
-                CoreDataManager.shared.removeSource(id: source.key, context: context)
+                for key in removedKeys {
+                    CoreDataManager.shared.removeSource(
+                        id: key,
+                        context: context
+                    )
+                }
                 try? context.save()
             }
-            NotificationCenter.default.post(name: .sourceUnloaded, object: source.key)
+            for key in removedKeys {
+                NotificationCenter.default.post(
+                    name: .sourceUnloaded,
+                    object: key
+                )
+            }
             NotificationCenter.default.post(name: .updateSourceList, object: nil)
         }
     }
@@ -453,7 +488,9 @@ extension SourceManager {
         let userDefaults = UserDefaults.standard
         let keys = userDefaults.dictionaryRepresentation().keys
 
-        for key in keys where key.hasPrefix(source.key) {
+        for key in keys where
+            key == source.key || key.hasPrefix(source.key + ".")
+        {
             userDefaults.removeObject(forKey: key)
         }
     }

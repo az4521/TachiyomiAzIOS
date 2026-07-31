@@ -34,7 +34,7 @@ public actor JVMRuntime {
             )
         }
 
-        var immutableOptionPointers = optionPointers.map {
+        let immutableOptionPointers: [UnsafePointer<CChar>?] = optionPointers.map {
             UnsafePointer<CChar>($0)
         }
         let runtime = configuration.javaHomeURL.path.withCString { javaHome in
@@ -90,7 +90,7 @@ public actor JVMRuntime {
                 tjr_string_free(responsePointer)
             }
             throw JVMRuntimeError.dispatchFailed(
-                status: status.rawValue,
+                status: Int(status.rawValue),
                 message: error ?? "Unknown Java error"
             )
         }

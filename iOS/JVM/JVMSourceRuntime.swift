@@ -9,6 +9,7 @@ actor JVMSourceRuntime {
     enum RuntimeError: LocalizedError {
         case missingBundleResource(String)
         case checksumMismatch(expected: String, actual: String)
+        case extensionTooLarge(Int64)
         case invalidExtensionIdentifier
         case extensionIdentityMismatch(expected: String, actual: String)
         case hostRejected(String)
@@ -19,6 +20,8 @@ actor JVMSourceRuntime {
                     "The bundled JVM resource is missing: \(name)"
                 case .checksumMismatch(let expected, let actual):
                     "Extension checksum mismatch. Expected \(expected), got \(actual)."
+                case .extensionTooLarge(let limit):
+                    "The extension JAR exceeds the \(limit / 1_048_576) MB download limit."
                 case .invalidExtensionIdentifier:
                     "The extension identifier is invalid."
                 case .extensionIdentityMismatch(let expected, let actual):
@@ -31,6 +34,9 @@ actor JVMSourceRuntime {
 
     private let fileManager: FileManager
     private var runtime: JVMRuntime?
+    private var cloudflareBypassTasks: [String: Task<Void, Error>] = [:]
+
+    private static let maximumExtensionSize: Int64 = 64 * 1_048_576
 
     private struct WebLoginInfo: Decodable {
         let baseURL: String
@@ -195,14 +201,25 @@ actor JVMSourceRuntime {
         catalogEntry: TachiyomiXJarRepository.Catalog.Extension,
         using session: URLSession = .shared
     ) async throws -> JVMExtensionManifest {
-        let (temporaryJar, response) = try await session.download(
-            from: catalogEntry.resources.jarUrl
-        )
+        var request = URLRequest(url: catalogEntry.resources.jarUrl)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.timeoutInterval = 60
+        let (temporaryJar, response) = try await session.download(for: request)
+        defer { try? fileManager.removeItem(at: temporaryJar) }
         if
             let httpResponse = response as? HTTPURLResponse,
             !(200..<300).contains(httpResponse.statusCode)
         {
             throw URLError(.badServerResponse)
+        }
+        if
+            response.expectedContentLength > Self.maximumExtensionSize ||
+            Int64(
+                (try temporaryJar.resourceValues(forKeys: [.fileSizeKey]))
+                    .fileSize ?? 0
+            ) > Self.maximumExtensionSize
+        {
+            throw RuntimeError.extensionTooLarge(Self.maximumExtensionSize)
         }
         let inspection = try await inspect(jar: temporaryJar)
         guard inspection.packageName == catalogEntry.packageName else {
@@ -215,6 +232,18 @@ actor JVMSourceRuntime {
             throw RuntimeError.extensionIdentityMismatch(
                 expected: catalogEntry.versionName,
                 actual: inspection.version
+            )
+        }
+        guard inspection.versionCode == catalogEntry.versionCode else {
+            throw RuntimeError.extensionIdentityMismatch(
+                expected: catalogEntry.versionCode,
+                actual: inspection.versionCode
+            )
+        }
+        guard inspection.extensionLibrary == catalogEntry.extensionLib else {
+            throw RuntimeError.extensionIdentityMismatch(
+                expected: catalogEntry.extensionLib,
+                actual: inspection.extensionLibrary ?? "missing"
             )
         }
         let checksum = try sha256(of: temporaryJar)
@@ -484,6 +513,15 @@ actor JVMSourceRuntime {
             )
         )
         try requireSuccess(response)
+        if
+            let info = try? await webLoginInfo(
+                extensionId: extensionId,
+                sourceId: sourceId
+            ),
+            let url = URL(string: info.baseURL)
+        {
+            await CloudflareHandler.shared.clearWebSession(for: url)
+        }
     }
 
     func setWebLoginCookies(
@@ -567,6 +605,34 @@ actor JVMSourceRuntime {
             response = try await dispatch(request)
         }
         try requireSuccess(response)
+    }
+
+    func webLoginUserAgent(
+        extensionId: String,
+        sourceId: Int64
+    ) async throws -> String {
+        let info = try await webLoginInfo(
+            extensionId: extensionId,
+            sourceId: sourceId
+        )
+        if !info.userAgent.isEmpty {
+            return info.userAgent
+        }
+        return await UserAgentProvider.shared.getUserAgent()
+    }
+
+    func setWebLoginSession(
+        extensionId: String,
+        sourceId: Int64,
+        cookies: [HTTPCookie],
+        userAgent: String
+    ) async throws {
+        try await setWebLoginCookies(
+            extensionId: extensionId,
+            sourceId: sourceId,
+            cookies: cookies,
+            userAgent: userAgent
+        )
     }
 
     private func pagedManga(
@@ -849,6 +915,26 @@ actor JVMSourceRuntime {
         extensionId: String,
         sourceId: Int64
     ) async throws {
+        let key = "\(extensionId):\(sourceId)"
+        if let existing = cloudflareBypassTasks[key] {
+            try await existing.value
+            return
+        }
+        let task = Task {
+            try await self.performCloudflareChallenge(
+                extensionId: extensionId,
+                sourceId: sourceId
+            )
+        }
+        cloudflareBypassTasks[key] = task
+        defer { cloudflareBypassTasks[key] = nil }
+        try await task.value
+    }
+
+    private func webLoginInfo(
+        extensionId: String,
+        sourceId: Int64
+    ) async throws -> WebLoginInfo {
         let infoResponse = try await rawDispatch(
             .init(
                 operation: "getWebLoginInfo",
@@ -862,6 +948,22 @@ actor JVMSourceRuntime {
             let info = try? JSONDecoder().decode(WebLoginInfo.self, from: payload),
             let url = URL(string: info.baseURL)
         else {
+            throw RuntimeError.hostRejected(
+                "The extension did not provide a valid Cloudflare login URL."
+            )
+        }
+        return info
+    }
+
+    private func performCloudflareChallenge(
+        extensionId: String,
+        sourceId: Int64
+    ) async throws {
+        let info = try await webLoginInfo(
+            extensionId: extensionId,
+            sourceId: sourceId
+        )
+        guard let url = URL(string: info.baseURL) else {
             throw RuntimeError.hostRejected(
                 "The extension did not provide a valid Cloudflare login URL."
             )
@@ -1151,6 +1253,25 @@ actor TachiyomiXSourceRunner: AidokuRunner.Runner {
             cookies: cookies
         )
         return true
+    }
+
+    func webLoginUserAgent() async throws -> String {
+        try await JVMSourceRuntime.shared.webLoginUserAgent(
+            extensionId: extensionId,
+            sourceId: descriptor.id
+        )
+    }
+
+    func commitWebLogin(
+        cookies: [HTTPCookie],
+        userAgent: String
+    ) async throws {
+        try await JVMSourceRuntime.shared.setWebLoginSession(
+            extensionId: extensionId,
+            sourceId: descriptor.id,
+            cookies: cookies,
+            userAgent: userAgent
+        )
     }
 
     func handleNotification(notification: String) async throws {

@@ -1,9 +1,9 @@
 import Foundation
-import Testing
+import XCTest
 @testable import TachiJVMRunner
 
-@Test
-func mangaPageDecodesFromExtensionHostPayload() throws {
+final class TachiyomiXExtensionClientTests: XCTestCase {
+func testMangaPageDecodesFromExtensionHostPayload() throws {
     let payload = """
     {
       "mangas": [
@@ -27,13 +27,12 @@ func mangaPageDecodesFromExtensionHostPayload() throws {
         from: Data(payload.utf8)
     )
 
-    #expect(page.mangas.count == 1)
-    #expect(page.mangas[0].title == "Nano Machine")
-    #expect(page.hasNextPage)
+    XCTAssertEqual(page.mangas.count, 1)
+    XCTAssertEqual(page.mangas[0].title, "Nano Machine")
+    XCTAssertTrue(page.hasNextPage)
 }
 
-@Test
-func sourceFactoryDescriptorsDecodeFromExtensionHostPayload() throws {
+func testSourceFactoryDescriptorsDecodeFromExtensionHostPayload() throws {
     let payload = """
     [
       {
@@ -51,7 +50,7 @@ func sourceFactoryDescriptorsDecodeFromExtensionHostPayload() throws {
         from: Data(payload.utf8)
     )
 
-    #expect(sources == [
+    XCTAssertEqual(sources, [
         TachiyomiXSourceDescriptor(
             id: 2499283573021220255,
             name: "Example Source",
@@ -62,8 +61,7 @@ func sourceFactoryDescriptorsDecodeFromExtensionHostPayload() throws {
     ])
 }
 
-@Test
-func mangaUpdateAndPagesDecodeFromExtensionHostPayloads() throws {
+func testMangaUpdateAndPagesDecodeFromExtensionHostPayloads() throws {
     let updatePayload = """
     {
       "manga": {
@@ -107,8 +105,9 @@ func mangaUpdateAndPagesDecodeFromExtensionHostPayloads() throws {
         from: Data(pagesPayload.utf8)
     )
 
-    #expect(update.manga.title == "Example")
-    #expect(update.chapters[0].chapterNumber == 1)
-    #expect(update.chapters[0].dateUpload == 1_700_000_000_000)
-    #expect(pages[0].imageURL == "https://uploads.example/page-1.jpg")
+    XCTAssertEqual(update.manga.title, "Example")
+    XCTAssertEqual(update.chapters[0].chapterNumber, 1)
+    XCTAssertEqual(update.chapters[0].dateUpload, 1_700_000_000_000)
+    XCTAssertEqual(pages[0].imageURL, "https://uploads.example/page-1.jpg")
+}
 }

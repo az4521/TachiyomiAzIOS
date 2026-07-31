@@ -66,6 +66,8 @@ enum TachiyomiXJarRepository {
         case missingDeepLinkURL
         case malformedProtobuf
         case noCompatibleJars
+        case repositoryTooLarge
+        case invalidArtifactURL
 
         var errorDescription: String? {
             switch self {
@@ -81,11 +83,16 @@ enum TachiyomiXJarRepository {
                     "The extension repository contains malformed protobuf data."
                 case .noCompatibleJars:
                     "The extension repository does not provide compatible JAR artifacts."
+                case .repositoryTooLarge:
+                    "The extension repository exceeds the 16 MB size limit."
+                case .invalidArtifactURL:
+                    "The extension repository contains an invalid JAR URL."
             }
         }
     }
 
     private static let defaultsKey = "extensionRepositories"
+    private static let maximumCatalogSize: Int64 = 16 * 1_048_576
 
     static func repositories(
         defaults: UserDefaults = .standard
@@ -240,8 +247,20 @@ enum TachiyomiXJarRepository {
                 }
             )
         )
-        guard !resolved.extensionList.extensions.isEmpty else {
+        guard resolved.extensionList.extensions.contains(where: {
+            $0.usesSupportedExtensionLibrary &&
+                ["http", "https"].contains(
+                    $0.resources.jarUrl.scheme?.lowercased() ?? ""
+                )
+        }) else {
             throw RepositoryError.noCompatibleJars
+        }
+        guard resolved.extensionList.extensions.allSatisfy({ entry in
+            ["http", "https"].contains(
+                entry.resources.jarUrl.scheme?.lowercased() ?? ""
+            )
+        }) else {
+            throw RepositoryError.invalidArtifactURL
         }
         return resolved
     }
@@ -253,15 +272,31 @@ enum TachiyomiXJarRepository {
         var request = URLRequest(url: url)
         request.cachePolicy = .reloadRevalidatingCacheData
         request.timeoutInterval = 30
-        let (data, response) = try await session.data(for: request)
+        let (temporaryFile, response) = try await session.download(for: request)
+        defer { try? FileManager.default.removeItem(at: temporaryFile) }
         if
             let httpResponse = response as? HTTPURLResponse,
             !(200..<300).contains(httpResponse.statusCode)
         {
             throw URLError(.badServerResponse)
         }
+        let fileSize = Int64(
+            (try temporaryFile.resourceValues(forKeys: [.fileSizeKey]))
+                .fileSize ?? 0
+        )
+        guard
+            response.expectedContentLength <= maximumCatalogSize,
+            fileSize <= maximumCatalogSize
+        else {
+            throw RepositoryError.repositoryTooLarge
+        }
+        let data = try Data(contentsOf: temporaryFile, options: .mappedIfSafe)
         if data.starts(with: [0x1f, 0x8b]) {
-            return try TachiJVMCompression.gunzip(data)
+            let uncompressed = try TachiJVMCompression.gunzip(data)
+            guard uncompressed.count <= maximumCatalogSize else {
+                throw RepositoryError.repositoryTooLarge
+            }
+            return uncompressed
         }
         return data
     }

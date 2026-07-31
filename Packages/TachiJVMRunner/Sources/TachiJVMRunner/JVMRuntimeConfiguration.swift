@@ -1,4 +1,4 @@
-import Foundation
+@preconcurrency import Foundation
 
 public struct JVMRuntimeConfiguration: Sendable {
     public let javaHomeURL: URL

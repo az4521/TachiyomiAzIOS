@@ -1,24 +1,27 @@
 import Foundation
-import Testing
+import XCTest
 @testable import TachiJVMRunner
 
-@Test
-func requestEncodingUsesStableFieldNames() throws {
-    let request = ExtensionHostRequest(
-        operation: "loadExtension",
-        extensionId: "fixture",
-        sourceId: "2499283573021220255",
-        jarPath: "/tmp/fixture.jar",
-        entryClass: "fixture.EchoExtension"
-    )
+final class ExtensionHostMessageTests: XCTestCase {
+    func testRequestEncodingUsesStableFieldNames() throws {
+        let request = ExtensionHostRequest(
+            operation: "loadExtension",
+            extensionId: "fixture",
+            sourceId: "2499283573021220255",
+            jarPath: "/tmp/fixture.jar",
+            entryClass: "fixture.EchoExtension",
+            userAgent: "TachiyomiAZ-Test"
+        )
 
-    let data = try JSONEncoder().encode(request)
-    let object = try #require(
-        JSONSerialization.jsonObject(with: data) as? [String: String]
-    )
+        let data = try JSONEncoder().encode(request)
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: String]
+        )
 
-    #expect(object["operation"] == "loadExtension")
-    #expect(object["extensionId"] == "fixture")
-    #expect(object["sourceId"] == "2499283573021220255")
-    #expect(object["entryClass"] == "fixture.EchoExtension")
+        XCTAssertEqual(object["operation"], "loadExtension")
+        XCTAssertEqual(object["extensionId"], "fixture")
+        XCTAssertEqual(object["sourceId"], "2499283573021220255")
+        XCTAssertEqual(object["entryClass"], "fixture.EchoExtension")
+        XCTAssertEqual(object["userAgent"], "TachiyomiAZ-Test")
+    }
 }

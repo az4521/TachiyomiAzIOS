@@ -2,7 +2,7 @@ import CJVMBridge
 import Foundation
 
 public enum TachiJVMCompressionError: LocalizedError, Sendable {
-    case gzipDecompressionFailed(Int32)
+    case gzipDecompressionFailed(Int)
 
     public var errorDescription: String? {
         switch self {
@@ -26,7 +26,7 @@ public enum TachiJVMCompression {
         }
         guard status == TJRStatusOK, let output else {
             throw TachiJVMCompressionError.gzipDecompressionFailed(
-                status.rawValue
+                Int(status.rawValue)
             )
         }
         defer { tjr_buffer_free(output) }

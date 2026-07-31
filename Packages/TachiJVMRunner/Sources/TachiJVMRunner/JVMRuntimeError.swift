@@ -3,7 +3,7 @@ import Foundation
 public enum JVMRuntimeError: LocalizedError, Sendable {
     case invalidConfiguration(String)
     case startupFailed(String)
-    case dispatchFailed(status: Int32, message: String)
+    case dispatchFailed(status: Int, message: String)
     case invalidUTF8Response
     case encodingFailed
     case decodingFailed(String)

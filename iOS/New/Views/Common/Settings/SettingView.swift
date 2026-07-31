@@ -42,7 +42,11 @@ struct SettingView: View {
     @State private var showButtonConfirm = false
     @State private var showSafari = false
     @State private var loginCookies: [String: String] = [:]
+    @State private var loginDetailedCookies: [HTTPCookie] = []
     @State private var loginLocalStorage: [String: String] = [:]
+    @State private var loginUserAgent = ""
+    @State private var loginPreferredUserAgent = ""
+    @State private var loginWebError: String?
     @State private var username = ""
     @State private var password = ""
     @State private var skippedFirst = false
@@ -789,6 +793,11 @@ extension SettingView {
         .alert(NSLocalizedString("LOGIN_WEBVIEW_WARNING"), isPresented: $showLoginWebConfirm) {
             Button(NSLocalizedString("CANCEL"), role: .cancel) {}
             Button(NSLocalizedString("LOGIN")) {
+                loginCookies = [:]
+                loginDetailedCookies = []
+                loginUserAgent = ""
+                loginPreferredUserAgent = ""
+                loginWebError = nil
                 showLoginWebView = true
             }
         } message: {
@@ -915,7 +924,10 @@ extension SettingView {
                         url,
                         localStorageKeys: value.localStorageKeys ?? [],
                         cookies: $loginCookies,
+                        detailedCookies: $loginDetailedCookies,
                         localStorage: $loginLocalStorage,
+                        userAgent: $loginUserAgent,
+                        preferredUserAgent: loginPreferredUserAgent,
                         reloadToggle: $loginReload
                     )
                     .edgesIgnoringSafeArea(.bottom)
@@ -932,6 +944,16 @@ extension SettingView {
                         loginReload = true
                     } label: {
                         Image(systemName: "arrow.clockwise")
+                    }
+                }
+                if source?.runner is TachiyomiXSourceRunner {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(NSLocalizedString("DONE")) {
+                            commitJVMWebLogin()
+                        }
+                        .disabled(
+                            loginLoading || loginDetailedCookies.isEmpty
+                        )
                     }
                 }
             }
@@ -952,6 +974,9 @@ extension SettingView {
                     }
                 }
 
+                if source?.runner is TachiyomiXSourceRunner {
+                    return
+                }
                 if let source, source.features.handlesWebLogin {
                     Task {
                         do {
@@ -973,6 +998,61 @@ extension SettingView {
                 for (lsKey, lsValue) in newValue {
                     SettingsStore.shared.set(key: key + Self.localStoragePrefix + lsKey, value: lsValue)
                 }
+            }
+            .task {
+                guard
+                    loginPreferredUserAgent.isEmpty,
+                    let runner = source?.runner as? TachiyomiXSourceRunner
+                else { return }
+                do {
+                    loginPreferredUserAgent = try await runner
+                        .webLoginUserAgent()
+                } catch {
+                    LogManager.logger.error(
+                        "Unable to obtain JVM web-login user agent: \(error)"
+                    )
+                }
+            }
+            .alert(
+                NSLocalizedString("LOGIN_FAILED"),
+                isPresented: Binding(
+                    get: { loginWebError != nil },
+                    set: { if !$0 { loginWebError = nil } }
+                )
+            ) {
+                Button(NSLocalizedString("OK"), role: .cancel) {}
+            } message: {
+                Text(loginWebError ?? "")
+            }
+        }
+    }
+
+    private func commitJVMWebLogin() {
+        guard
+            let runner = source?.runner as? TachiyomiXSourceRunner,
+            !loginDetailedCookies.isEmpty
+        else { return }
+        loginLoading = true
+        Task {
+            defer { loginLoading = false }
+            do {
+                try await runner.commitWebLogin(
+                    cookies: loginDetailedCookies,
+                    userAgent: loginUserAgent.isEmpty
+                        ? loginPreferredUserAgent
+                        : loginUserAgent
+                )
+                let settingKey = key(setting.key)
+                SettingsStore.shared.set(
+                    key: settingKey,
+                    value: "logged_in"
+                )
+                showLoginWebView = false
+            } catch {
+                LogManager.logger.error(
+                    "Error committing JVM web login: \(error)"
+                )
+                loginWebError = error.localizedDescription
             }
         }
     }

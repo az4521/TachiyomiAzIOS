@@ -22,6 +22,7 @@ actor CloudflareHandler: NSObject {
     private var proxy: Proxy?
     private var lastMainFrameStatusCode: Int?
     private var completionReason: CompletionReason?
+    private var recentSessions: [String: (Date, Session)] = [:]
 
     @MainActor
     private lazy var webView = WKWebView(frame: .zero)
@@ -131,6 +132,15 @@ actor CloudflareHandler: NSObject {
             try? await Task.sleep(nanoseconds: 100_000_000)
         }
 
+        let sessionKey = cacheKey(for: request)
+        if
+            let cached = recentSessions[sessionKey],
+            Date().timeIntervalSince(cached.0) < 30,
+            cached.1.cookies.contains(where: { $0.name == "cf_clearance" })
+        {
+            return cached.1
+        }
+
         shouldTimeout = true
         completionReason = nil
 
@@ -173,7 +183,30 @@ actor CloudflareHandler: NSObject {
             throw HandleError.missingClearance
         }
         let userAgent = request.value(forHTTPHeaderField: "User-Agent") ?? ""
-        return Session(cookies: cookies, userAgent: userAgent)
+        let session = Session(cookies: cookies, userAgent: userAgent)
+        recentSessions[sessionKey] = (Date(), session)
+        return session
+    }
+
+    func clearWebSession(for url: URL) async {
+        if let host = url.host?.lowercased() {
+            recentSessions = recentSessions.filter {
+                !$0.key.hasPrefix(host + "\n")
+            }
+        }
+        let cookieStore = WKWebsiteDataStore.default().httpCookieStore
+        for cookie in await cookieStore.allCookies()
+        where cookieMatches(cookie, url: url) {
+            await withCheckedContinuation {
+                (continuation: CheckedContinuation<Void, Never>) in
+                cookieStore.delete(cookie) {
+                    continuation.resume()
+                }
+            }
+        }
+        for cookie in HTTPCookieStorage.shared.cookies(for: url) ?? [] {
+            HTTPCookieStorage.shared.deleteCookie(cookie)
+        }
     }
 
     private func finish(reason: CompletionReason) {
@@ -220,6 +253,12 @@ actor CloudflareHandler: NSObject {
             .trimmingCharacters(in: CharacterSet(charactersIn: "."))
             .lowercased()
         return host == domain || host.hasSuffix("." + domain)
+    }
+
+    private nonisolated func cacheKey(for request: URLRequest) -> String {
+        let host = request.url?.host?.lowercased() ?? ""
+        let userAgent = request.value(forHTTPHeaderField: "User-Agent") ?? ""
+        return host + "\n" + userAgent
     }
 
     private func proxy(for request: URLRequest) async -> Proxy {
