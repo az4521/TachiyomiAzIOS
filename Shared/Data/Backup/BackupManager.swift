@@ -70,6 +70,7 @@ actor BackupManager {
     }
 
     func importBackup(from url: URL) async -> Bool {
+        #if os(iOS)
         if
             url.pathExtension.lowercased() == "tachibk" ||
             url.lastPathComponent.lowercased().hasSuffix(".proto.gz")
@@ -85,6 +86,7 @@ actor BackupManager {
                 return false
             }
         }
+        #endif
 
         Self.directory.createDirectory()
         var targetLocation = Self.directory.appendingPathComponent(url.lastPathComponent)
