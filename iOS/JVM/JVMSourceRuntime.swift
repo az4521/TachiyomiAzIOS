@@ -708,7 +708,10 @@ actor JVMSourceRuntime {
         return applicationSupport
             .appendingPathComponent("JVMExtensions", isDirectory: true)
             .appendingPathComponent(manifest.directoryName, isDirectory: true)
-            .appendingPathComponent(manifest.version, isDirectory: true)
+            .appendingPathComponent(
+                manifest.versionDirectoryName,
+                isDirectory: true
+            )
     }
 
     private func removeSupersededVersions(

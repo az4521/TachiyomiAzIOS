@@ -42,6 +42,19 @@ struct JVMExtensionManifest: Codable, Hashable, Sendable {
             }
             .joined()
     }
+
+    var versionDirectoryName: String {
+        let encoded = version.unicodeScalars.map { scalar in
+            CharacterSet.alphanumerics.contains(scalar) ||
+                scalar == "." ||
+                scalar == "-" ||
+                scalar == "_"
+                ? String(scalar)
+                : "_\(String(scalar.value, radix: 16))_"
+        }
+        .joined()
+        return encoded.isEmpty ? "_" : encoded
+    }
 }
 
 struct JVMExtensionInspection: Hashable, Sendable {

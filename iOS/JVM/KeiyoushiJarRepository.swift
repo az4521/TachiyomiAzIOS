@@ -23,6 +23,18 @@ enum KeiyoushiJarRepository {
             var isNsfw: Bool {
                 contentWarning == "CONTENT_WARNING_NSFW"
             }
+
+            var usesSupportedExtensionLibrary: Bool {
+                let components = extensionLib.split(separator: ".")
+                guard
+                    components.count >= 2,
+                    components[0] == "1",
+                    let minor = Int(components[1])
+                else {
+                    return false
+                }
+                return (4...6).contains(minor)
+            }
         }
 
         struct Resources: Decodable, Sendable {

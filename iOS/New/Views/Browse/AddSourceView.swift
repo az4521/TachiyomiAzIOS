@@ -376,14 +376,9 @@ private struct KeiyoushiExtensionCatalogView: View {
 
     private var extensions: [KeiyoushiJarRepository.Catalog.Extension] {
         guard let catalog else { return [] }
-        let supported = catalog.extensionList.extensions.filter {
-            guard
-                let library = Double($0.extensionLib)
-            else {
-                return false
-            }
-            return (1.4...1.6).contains(library)
-        }
+        let supported = catalog.extensionList.extensions.filter(
+            \.usesSupportedExtensionLibrary
+        )
         guard !searchText.isEmpty else { return supported }
         let query = searchText.localizedLowercase
         return supported.filter {
