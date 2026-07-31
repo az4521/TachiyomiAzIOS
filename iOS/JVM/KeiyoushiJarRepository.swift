@@ -1,6 +1,13 @@
 import Foundation
 
 enum KeiyoushiJarRepository {
+    struct Repository: Codable, Identifiable, Sendable, Hashable {
+        let name: String
+        let catalogURL: URL
+
+        var id: String { catalogURL.absoluteString }
+    }
+
     struct Catalog: Decodable, Sendable {
         let name: String
         let extensionList: ExtensionList
@@ -51,58 +58,70 @@ enum KeiyoushiJarRepository {
         }
     }
 
-    struct Artifact: Hashable, Sendable {
-        let fileName: String
-        let sha256: String?
-
-        var url: URL {
-            KeiyoushiJarRepository.repositoryRoot
-                .appendingPathComponent(fileName, isDirectory: false)
-        }
-    }
-
     enum RepositoryError: LocalizedError {
-        case invalidArtifactName(String)
+        case invalidURL
+        case unsupportedScheme
 
         var errorDescription: String? {
             switch self {
-                case .invalidArtifactName(let name):
-                    "Invalid Keiyoushi JAR artifact name: \(name)"
+                case .invalidURL:
+                    "Enter a valid extension repository URL."
+                case .unsupportedScheme:
+                    "Extension repository URLs must use HTTP or HTTPS."
             }
         }
     }
 
-    static let repositoryRoot = URL(
-        string: "https://raw.githubusercontent.com/keiyoushi/extensions/repo/jar/"
-    )!
-    static let catalogURL = URL(
-        string: "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.json"
-    )!
+    private static let defaultsKey = "extensionRepositories"
 
-    /// Pinned real-world compatibility fixture used by the host test script.
-    static let asuraScansFixture = Artifact(
-        fileName: "tachiyomi-en.asurascans-v1.6.66.jar",
-        sha256: "ce8d03b408a6b329b02f9b2c9280badb981ff352703a45749a443f87805c46ff"
-    )
-
-    /// Keiyoushi's JAR directory mirrors the index artifact basename, changing
-    /// only the final `.apk` suffix to `.jar`.
-    static func artifact(fromIndexFileName name: String) throws -> Artifact {
+    static func repositories(
+        defaults: UserDefaults = .standard
+    ) -> [Repository] {
         guard
-            name.hasSuffix(".apk"),
-            !name.contains("/"),
-            !name.contains("\\"),
-            name != ".apk"
+            let data = defaults.data(forKey: defaultsKey),
+            let repositories = try? JSONDecoder().decode(
+                [Repository].self,
+                from: data
+            )
         else {
-            throw RepositoryError.invalidArtifactName(name)
+            return []
         }
-        return Artifact(
-            fileName: String(name.dropLast(4)) + ".jar",
-            sha256: nil
-        )
+        return repositories
+    }
+
+    static func save(
+        repositories: [Repository],
+        defaults: UserDefaults = .standard
+    ) throws {
+        let data = try JSONEncoder().encode(repositories)
+        defaults.set(data, forKey: defaultsKey)
+    }
+
+    static func catalogURL(from input: String) throws -> URL {
+        let value = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard
+            !value.isEmpty,
+            var components = URLComponents(string: value),
+            let scheme = components.scheme?.lowercased(),
+            components.host != nil
+        else {
+            throw RepositoryError.invalidURL
+        }
+        guard scheme == "https" || scheme == "http" else {
+            throw RepositoryError.unsupportedScheme
+        }
+        components.fragment = nil
+        guard var url = components.url else {
+            throw RepositoryError.invalidURL
+        }
+        if url.pathExtension.lowercased() != "json" {
+            url.appendPathComponent("index.json", isDirectory: false)
+        }
+        return url
     }
 
     static func fetchCatalog(
+        from catalogURL: URL,
         using session: URLSession = .shared
     ) async throws -> Catalog {
         var request = URLRequest(url: catalogURL)
@@ -115,6 +134,53 @@ enum KeiyoushiJarRepository {
         {
             throw URLError(.badServerResponse)
         }
-        return try JSONDecoder().decode(Catalog.self, from: data)
+        let catalog = try JSONDecoder().decode(Catalog.self, from: data)
+        let baseURL = catalogURL.deletingLastPathComponent()
+        return Catalog(
+            name: catalog.name,
+            extensionList: .init(
+                extensions: catalog.extensionList.extensions.map { entry in
+                    .init(
+                        name: entry.name,
+                        packageName: entry.packageName,
+                        resources: .init(
+                            apkUrl: absolute(
+                                entry.resources.apkUrl,
+                                relativeTo: baseURL
+                            ),
+                            iconUrl: entry.resources.iconUrl.map {
+                                absolute($0, relativeTo: baseURL)
+                            },
+                            jarUrl: absolute(
+                                entry.resources.jarUrl,
+                                relativeTo: baseURL
+                            )
+                        ),
+                        extensionLib: entry.extensionLib,
+                        versionCode: entry.versionCode,
+                        versionName: entry.versionName,
+                        contentWarning: entry.contentWarning,
+                        sources: entry.sources.map { source in
+                            .init(
+                                id: source.id,
+                                name: source.name,
+                                language: source.language,
+                                homeUrl: source.homeUrl.map {
+                                    absolute($0, relativeTo: baseURL)
+                                }
+                            )
+                        }
+                    )
+                }
+            )
+        )
+    }
+
+    private static func absolute(_ url: URL, relativeTo baseURL: URL) -> URL {
+        guard url.scheme == nil else { return url }
+        return URL(
+            string: url.relativeString,
+            relativeTo: baseURL
+        )?.absoluteURL ?? url
     }
 }

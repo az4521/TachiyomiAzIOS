@@ -12,13 +12,14 @@ struct AddSourceView: View {
     @State private var showLocalSetup = false
     @State private var showKomgaSetup = false
     @State private var showKavitaSetup = false
-    @State private var showKeiyoushiExtensions = false
+    @State private var showExtensionRepositories = false
 
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         PlatformNavigationStack {
             List {
+                extensionRepositories
                 builtInSources
             }
             .contentMarginsPlease(.top, 4)
@@ -34,22 +35,30 @@ struct AddSourceView: View {
         }
     }
 
-    var builtInSources: some View {
-        Section(NSLocalizedString("BUILT_IN_SOURCES")) {
+    var extensionRepositories: some View {
+        Section {
             Button {
-                showKeiyoushiExtensions = true
+                showExtensionRepositories = true
             } label: {
-                Label("Keiyoushi Extensions", systemImage: "shippingbox.fill")
+                Label("Extension Repositories", systemImage: "shippingbox.fill")
             }
             .background(
                 NavigationLink(
                     "",
-                    destination: KeiyoushiExtensionCatalogView(),
-                    isActive: $showKeiyoushiExtensions
+                    destination: ExtensionRepositoryListView(),
+                    isActive: $showExtensionRepositories
                 )
                 .hidden()
             )
+        } header: {
+            Text("Extensions")
+        } footer: {
+            Text("No extension repositories are included with TachiAZ.")
+        }
+    }
 
+    var builtInSources: some View {
+        Section(NSLocalizedString("BUILT_IN_SOURCES")) {
             if !SourceManager.shared.sources.contains(where: { $0.key == LocalSourceRunner.sourceKey }) {
                 ExternalSourceTableCell(
                     source: .init(
@@ -105,7 +114,139 @@ struct AddSourceView: View {
 
 }
 
-private struct KeiyoushiExtensionCatalogView: View {
+private struct ExtensionRepositoryListView: View {
+    @State private var repositories = KeiyoushiJarRepository.repositories()
+    @State private var repositoryURL = ""
+    @State private var validating = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        List {
+            Section {
+                if repositories.isEmpty {
+                    Text(
+                        "No extension repositories are configured. " +
+                            "Add a repository URL below to browse extensions."
+                    )
+                    .foregroundStyle(.secondary)
+                } else {
+                    ForEach(repositories) { repository in
+                        NavigationLink {
+                            ExtensionCatalogView(repository: repository)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(repository.name)
+                                Text(repository.catalogURL.absoluteString)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                    .onDelete(perform: deleteRepositories)
+                }
+            } header: {
+                Text("Repositories")
+            } footer: {
+                Text(
+                    "TachiAZ does not include or recommend any extension " +
+                        "repository. Only add repositories you trust."
+                )
+            }
+
+            Section {
+                TextField("Repository URL", text: $repositoryURL)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+
+                Button {
+                    addRepository()
+                } label: {
+                    if validating {
+                        ProgressView()
+                    } else {
+                        Label("Add Repository", systemImage: "plus")
+                    }
+                }
+                .disabled(
+                    validating ||
+                        repositoryURL.trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        ).isEmpty
+                )
+            } header: {
+                Text("Add Repository")
+            } footer: {
+                Text(
+                    "Enter an index.json URL or the directory containing it. " +
+                        "The repository is validated before it is saved."
+                )
+            }
+        }
+        .navigationTitle("Extension Repositories")
+        .navigationBarTitleDisplayMode(.inline)
+        .alert(
+            "Repository Error",
+            isPresented: Binding(
+                get: { errorMessage != nil },
+                set: { if !$0 { errorMessage = nil } }
+            )
+        ) {
+            Button(NSLocalizedString("OK"), role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "")
+        }
+    }
+
+    private func addRepository() {
+        validating = true
+        Task {
+            defer {
+                validating = false
+            }
+            do {
+                let catalogURL = try KeiyoushiJarRepository.catalogURL(
+                    from: repositoryURL
+                )
+                guard !repositories.contains(where: {
+                    $0.catalogURL == catalogURL
+                }) else {
+                    errorMessage = "That extension repository is already added."
+                    return
+                }
+                let catalog = try await KeiyoushiJarRepository.fetchCatalog(
+                    from: catalogURL
+                )
+                let repository = KeiyoushiJarRepository.Repository(
+                    name: catalog.name,
+                    catalogURL: catalogURL
+                )
+                let updated = repositories + [repository]
+                try KeiyoushiJarRepository.save(repositories: updated)
+                repositories = updated
+                repositoryURL = ""
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func deleteRepositories(at offsets: IndexSet) {
+        var updated = repositories
+        updated.remove(atOffsets: offsets)
+        do {
+            try KeiyoushiJarRepository.save(repositories: updated)
+            repositories = updated
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+private struct ExtensionCatalogView: View {
+    let repository: KeiyoushiJarRepository.Repository
+
     @State private var catalog: KeiyoushiJarRepository.Catalog?
     @State private var installedVersions: [String: String] = [:]
     @State private var unhealthyExtensions: Set<String> = []
@@ -194,7 +335,7 @@ private struct KeiyoushiExtensionCatalogView: View {
                 }
             }
         }
-        .navigationTitle("Keiyoushi")
+        .navigationTitle(repository.name)
         .navigationBarTitleDisplayMode(.inline)
         .searchable(
             text: $searchText,
@@ -235,7 +376,9 @@ private struct KeiyoushiExtensionCatalogView: View {
 
     private func reload() async {
         do {
-            async let catalog = KeiyoushiJarRepository.fetchCatalog()
+            async let catalog = KeiyoushiJarRepository.fetchCatalog(
+                from: repository.catalogURL
+            )
             let manifests = try await JVMSourceRuntime.shared
                 .installedManifests()
             let verifiedManifests = try await JVMSourceRuntime.shared

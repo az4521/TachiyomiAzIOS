@@ -21,7 +21,8 @@ still needs an Xcode simulator build on macOS. See
 - [x] Keiyoushi JAR sources as the iOS extension path (AIX/WASM and delegated
   source lists are disabled on iOS)
 - [x] Core Mihon/Keiyoushi extension-lib 1.4–1.6 source compatibility
-- [x] Keiyoushi JAR catalog installation and updates
+- [x] User-configured JAR repository installation and updates; no extension
+  repositories are included or recommended by the app
 - [x] Mihon/TachiyomiAZ `.tachibk` import
 - [x] Online reading through external sources
 - [x] Downloads

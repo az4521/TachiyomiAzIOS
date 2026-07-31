@@ -88,13 +88,11 @@ iOS-safe `SystemClock` replacement is placed in the boot shim, where it wins
 before application class loading. Desktop Logback providers are deliberately
 excluded.
 
-`KeiyoushiJarRepository` maps an index filename such as
-`tachiyomi-en.asurascans-v1.6.66.apk` to the supplied repository artifact
-`repo/jar/tachiyomi-en.asurascans-v1.6.66.jar`. Path separators are rejected
-before constructing the download URL.
-
-The app also consumes Keiyoushi's current extension-lib 1.6 `index.json`
-format. Catalog entries provide direct `jarUrl` artifacts. Before installation,
+The app consumes the extension-lib `index.json` format only from repositories
+explicitly configured by the user. No repository URL is built into the app.
+Users may enter an `index.json` URL or its containing directory; the catalog is
+validated before the URL is persisted. Catalog entries provide direct
+`jarUrl` artifacts. Before installation,
 the downloaded JAR is inspected and its package/version must match the
 catalog metadata; its locally computed SHA-256 is then persisted with the
 manifest. Installed `SourceFactory` entries become individual Aidoku sources

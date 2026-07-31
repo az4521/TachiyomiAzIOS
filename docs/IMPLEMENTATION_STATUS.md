@@ -38,11 +38,13 @@ Last updated: 2026-07-31
 - First-class Aidoku `Runner` adapters for installed Mihon source IDs, mapping
   browse/search/details/chapters/pages into the existing library, download,
   and reader models.
-- Keiyoushi's extension-lib 1.6 `index.json` catalog, direct JAR
+- User-configured extension-lib `index.json` repositories, direct JAR
   download/identity verification, installation, update detection, persisted
-  discovery, and uninstall support.
-- In-app searchable Keiyoushi extension catalog with icons, languages, NSFW
-  labeling, install progress, and update actions.
+  discovery, and uninstall support. A new install has no configured repository
+  and the app embeds no repository URL.
+- In-app searchable extension catalogs with icons, languages, NSFW labeling,
+  install progress, and update actions. Repository URLs are validated before
+  being persisted and can be removed by the user.
 - Dynamic Mihon filter discovery and state application for text, checkbox,
   tri-state, select, grouped, and sort filters.
 - AndroidX extension preference discovery and persisted editing for switches,
