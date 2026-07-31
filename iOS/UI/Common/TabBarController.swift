@@ -7,7 +7,6 @@
 
 import Combine
 import SwiftUI
-import SwiftUIIntrospect
 
 class TabBarController: UITabBarController {
     private struct DrawerDestination {
@@ -117,24 +116,14 @@ class TabBarController: UITabBarController {
         let historyViewController = NavigationController(rootViewController: historyHostingController)
 
         let settingsPath = NavigationCoordinator(rootViewController: nil)
-        let settingsViewController: UIViewController
-        if #available(iOS 26.0, *), UIDevice.current.userInterfaceIdiom != .pad {
-            settingsViewController = UIHostingController(
-                rootView: NavigationStack {
-                    SettingsView()
-                        .environmentObject(settingsPath)
-                }.introspect(.navigationStack, on: .iOS(.v26, .v27)) { entity in
-                    settingsPath.rootViewController = entity
-                }
-            )
-        } else {
-            // this breaks the zoom transitions from the toolbar buttons in the backups setting page on ios 18 / ipads
-            let hosting = UIHostingController(rootView: SettingsView().environmentObject(settingsPath))
-            let entity = NavigationController(rootViewController: hosting)
-            entity.navigationBar.prefersLargeTitles = true
-            settingsPath.rootViewController = entity
-            settingsViewController = entity
-        }
+        let settingsHostingController = UIHostingController(
+            rootView: SettingsView().environmentObject(settingsPath)
+        )
+        let settingsViewController = NavigationController(
+            rootViewController: settingsHostingController
+        )
+        settingsViewController.navigationBar.prefersLargeTitles = true
+        settingsPath.rootViewController = settingsViewController
         self.settingsPath = settingsPath
 
         libraryViewController.navigationBar.prefersLargeTitles = true
