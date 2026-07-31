@@ -7,6 +7,7 @@ source_root="$repository_root/Runtime/MobileShims/src/main/java"
 build_root="$repository_root/Runtime/MobileShims/build"
 output_root="$repository_root/Runtime/MobileShims/dist"
 output_jar="$output_root/tachiaz-mobile-shims.jar"
+output_cacerts="$output_root/cacerts"
 
 if [[ -n "${TACHIAZ_BUILD_JAVA_HOME:-}" ]]; then
     java_home="$TACHIAZ_BUILD_JAVA_HOME"
@@ -28,5 +29,10 @@ mapfile -t sources < <(find "$source_root" -name '*.java' -type f | sort)
     -d "$build_root" \
     "${sources[@]}"
 "$java_home/bin/jar" cf "$output_jar" -C "$build_root" .
+if [[ ! -f "$java_home/lib/security/cacerts" ]]; then
+    echo "JDK trust store is missing: $java_home/lib/security/cacerts" >&2
+    exit 1
+fi
+cp "$java_home/lib/security/cacerts" "$output_cacerts"
 
 echo "$output_jar"

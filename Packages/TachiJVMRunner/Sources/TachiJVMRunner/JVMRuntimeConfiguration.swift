@@ -53,6 +53,15 @@ public struct JVMRuntimeConfiguration: Sendable {
                 "Bundled java_bundle is missing"
             )
         }
+        guard fileManager.fileExists(
+            atPath: javaHomeURL
+                .appendingPathComponent("lib/security/cacerts")
+                .path
+        ) else {
+            throw JVMRuntimeError.invalidConfiguration(
+                "Bundled JVM trust store is missing"
+            )
+        }
         guard fileManager.fileExists(atPath: hostURL.path) else {
             throw JVMRuntimeError.invalidConfiguration(
                 "Bundled extension host JAR is missing"
