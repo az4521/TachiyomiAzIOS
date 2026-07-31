@@ -7,11 +7,15 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.net.URLClassLoader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.LinkedHashSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -21,6 +25,7 @@ public final class ExtensionHost {
     private static final ConcurrentHashMap<String, LoadedExtension> EXTENSIONS =
         new ConcurrentHashMap<>();
     private static boolean compatibilityInitialized;
+    private static Object compatibilityApplication;
 
     private ExtensionHost() {
     }
@@ -48,6 +53,12 @@ public final class ExtensionHost {
                     return getLatestUpdates(request);
                 case "searchManga":
                     return searchManga(request);
+                case "getSearchFilters":
+                    return getSearchFilters(request);
+                case "getSettings":
+                    return getSettings(request);
+                case "setSetting":
+                    return setSetting(request);
                 case "getMangaUpdate":
                     return getMangaUpdate(request);
                 case "getPageList":
@@ -261,6 +272,7 @@ public final class ExtensionHost {
         }
 
         compatibilityInitialized = true;
+        compatibilityApplication = app;
         return true;
     }
 
@@ -322,7 +334,7 @@ public final class ExtensionHost {
         throws Exception {
         String extensionId = require(request, "extensionId");
         int page = Integer.parseInt(require(request, "argument"));
-        String query = require(request, "query");
+        String query = defaultValue(request.get("query"), "");
         if (page < 1) {
             throw new IllegalArgumentException("Page must be at least 1");
         }
@@ -336,6 +348,7 @@ public final class ExtensionHost {
 
         Object source = extension.source(request.get("sourceId"));
         Object filters = getter(source, "getFilterList");
+        applyFilterStates(filters, request.get("filterStates"));
         Object mangasPage = invokeSuspend(
             source,
             "getSearchManga",
@@ -354,6 +367,481 @@ public final class ExtensionHost {
             null,
             null
         );
+    }
+
+    private static String getSearchFilters(Map<String, String> request)
+        throws Exception {
+        Object source = requireSource(request);
+        Object filters = getter(source, "getFilterList");
+        return MiniJson.response(
+            true,
+            serializeFilters(filters),
+            null,
+            null
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String serializeFilters(Object filters) throws Exception {
+        List<Object> list = (List<Object>) filters;
+        List<String> serialized = new ArrayList<>();
+        for (int index = 0; index < list.size(); index++) {
+            serializeFilter(
+                list.get(index),
+                Integer.toString(index),
+                null,
+                serialized
+            );
+        }
+        StringBuilder output = new StringBuilder("[");
+        for (int index = 0; index < serialized.size(); index++) {
+            if (index > 0) {
+                output.append(',');
+            }
+            output.append(serialized.get(index));
+        }
+        return output.append(']').toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void serializeFilter(
+        Object filter,
+        String path,
+        String parentName,
+        List<String> output
+    ) throws Exception {
+        String name = String.valueOf(getter(filter, "getName"));
+        String title = parentName == null || parentName.isEmpty()
+            ? name
+            : parentName + " — " + name;
+        ClassLoader loader = ExtensionHost.class.getClassLoader();
+        if (isFilterType(loader, filter, "Group")) {
+            List<Object> children = (List<Object>) getter(filter, "getState");
+            for (int index = 0; index < children.size(); index++) {
+                serializeFilter(
+                    children.get(index),
+                    path + "." + index,
+                    title,
+                    output
+                );
+            }
+            return;
+        }
+        if (isFilterType(loader, filter, "Separator")) {
+            return;
+        }
+        if (isFilterType(loader, filter, "Header")) {
+            output.add(filterJson(path, "note", title, null, null, null));
+            return;
+        }
+        if (isFilterType(loader, filter, "Text")) {
+            output.add(filterJson(
+                path,
+                "text",
+                title,
+                null,
+                getter(filter, "getState"),
+                null
+            ));
+            return;
+        }
+        if (isFilterType(loader, filter, "CheckBox")) {
+            output.add(filterJson(
+                path,
+                "check",
+                title,
+                null,
+                getter(filter, "getState"),
+                "false"
+            ));
+            return;
+        }
+        if (isFilterType(loader, filter, "TriState")) {
+            output.add(filterJson(
+                path,
+                "check",
+                title,
+                null,
+                getter(filter, "getState"),
+                "true"
+            ));
+            return;
+        }
+        if (isFilterType(loader, filter, "Sort")) {
+            Object state = getter(filter, "getState");
+            Object index = state == null ? null : getter(state, "getIndex");
+            Object ascending = state == null
+                ? null
+                : getter(state, "getAscending");
+            output.add(filterJson(
+                path,
+                "sort",
+                title,
+                (Object[]) getter(filter, "getValues"),
+                index,
+                ascending
+            ));
+            return;
+        }
+        if (isFilterType(loader, filter, "Select")) {
+            List<String> values = (List<String>) getter(
+                filter,
+                "getDisplayValues"
+            );
+            output.add(filterJson(
+                path,
+                "select",
+                title,
+                values.toArray(new Object[0]),
+                getter(filter, "getState"),
+                null
+            ));
+        }
+    }
+
+    private static boolean isFilterType(
+        ClassLoader loader,
+        Object filter,
+        String nestedName
+    ) throws Exception {
+        return Class.forName(
+            "eu.kanade.tachiyomi.source.model.Filter$" + nestedName,
+            true,
+            loader
+        ).isInstance(filter);
+    }
+
+    private static String filterJson(
+        String id,
+        String type,
+        String name,
+        Object[] options,
+        Object defaultValue,
+        Object auxiliary
+    ) {
+        StringBuilder output = new StringBuilder("{");
+        appendJsonField(output, "id", id, false);
+        appendJsonField(output, "type", type, true);
+        appendJsonField(output, "name", name, true);
+        if (options != null) {
+            output.append(",\"options\":[");
+            for (int index = 0; index < options.length; index++) {
+                if (index > 0) {
+                    output.append(',');
+                }
+                output.append('"')
+                    .append(MiniJson.escapeValue(String.valueOf(options[index])))
+                    .append('"');
+            }
+            output.append(']');
+        }
+        if (defaultValue != null) {
+            appendJsonField(
+                output,
+                "defaultValue",
+                defaultValue,
+                true
+            );
+        }
+        if (auxiliary != null) {
+            appendJsonField(output, "auxiliary", auxiliary, true);
+        }
+        return output.append('}').toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void applyFilterStates(
+        Object filters,
+        String encodedStates
+    ) throws Exception {
+        if (encodedStates == null || encodedStates.isEmpty()) {
+            return;
+        }
+        List<Object> roots = (List<Object>) filters;
+        String[] lines = encodedStates.split("\\n");
+        for (String line : lines) {
+            String[] fields = line.split("\\t", -1);
+            if (fields.length < 3) {
+                continue;
+            }
+            Object filter = filterAtPath(roots, fields[0]);
+            String kind = fields[1];
+            String value = URLDecoder.decode(
+                fields[2],
+                StandardCharsets.UTF_8.name()
+            );
+            Object state;
+            switch (kind) {
+                case "text":
+                    state = value;
+                    break;
+                case "check":
+                case "select":
+                    state = Integer.valueOf(value);
+                    if ("check".equals(kind) && isFilterType(
+                        ExtensionHost.class.getClassLoader(),
+                        filter,
+                        "CheckBox"
+                    )) {
+                        state = Integer.parseInt(value) != 0;
+                    }
+                    break;
+                case "sort":
+                    boolean ascending =
+                        fields.length > 3 &&
+                        Boolean.parseBoolean(fields[3]);
+                    Class<?> selection = Class.forName(
+                        "eu.kanade.tachiyomi.source.model.Filter$Sort$Selection",
+                        true,
+                        ExtensionHost.class.getClassLoader()
+                    );
+                    state = selection
+                        .getConstructor(int.class, boolean.class)
+                        .newInstance(Integer.parseInt(value), ascending);
+                    break;
+                default:
+                    continue;
+            }
+            filter.getClass()
+                .getMethod("setState", Object.class)
+                .invoke(filter, state);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object filterAtPath(
+        List<Object> roots,
+        String path
+    ) throws Exception {
+        String[] components = path.split("\\.");
+        Object filter = roots.get(Integer.parseInt(components[0]));
+        for (int index = 1; index < components.length; index++) {
+            List<Object> children =
+                (List<Object>) getter(filter, "getState");
+            filter = children.get(Integer.parseInt(components[index]));
+        }
+        return filter;
+    }
+
+    private static String getSettings(Map<String, String> request)
+        throws Exception {
+        Object source = requireSource(request);
+        List<Object> preferences = sourcePreferences(source);
+        StringBuilder output = new StringBuilder("[");
+        int count = 0;
+        for (Object preference : preferences) {
+            String type = preferenceType(preference);
+            String key = String.valueOf(getter(preference, "getKey"));
+            if (type == null || key == null || "null".equals(key)) {
+                continue;
+            }
+            if (count++ > 0) {
+                output.append(',');
+            }
+            output.append('{');
+            appendJsonField(output, "key", key, false);
+            appendJsonField(
+                output,
+                "title",
+                getter(preference, "getTitle"),
+                true
+            );
+            appendJsonField(
+                output,
+                "summary",
+                getter(preference, "getSummary"),
+                true
+            );
+            appendJsonField(output, "type", type, true);
+            appendJsonField(
+                output,
+                "enabled",
+                getter(preference, "isEnabled"),
+                true
+            );
+            appendJsonField(
+                output,
+                "currentValue",
+                serializePreferenceValue(
+                    getter(preference, "getCurrentValue")
+                ),
+                true
+            );
+            if ("select".equals(type) || "multiselect".equals(type)) {
+                appendStringArray(
+                    output,
+                    "options",
+                    (Object[]) getter(preference, "getEntries")
+                );
+                appendStringArray(
+                    output,
+                    "values",
+                    (Object[]) getter(preference, "getEntryValues")
+                );
+            }
+            output.append('}');
+        }
+        output.append(']');
+        return MiniJson.response(true, output.toString(), null, null);
+    }
+
+    private static String setSetting(Map<String, String> request)
+        throws Exception {
+        Object source = requireSource(request);
+        String key = require(request, "settingKey");
+        String type = require(request, "settingType");
+        String value = defaultValue(request.get("settingValue"), "");
+        for (Object preference : sourcePreferences(source)) {
+            if (!key.equals(String.valueOf(getter(preference, "getKey")))) {
+                continue;
+            }
+            Object newValue;
+            switch (type) {
+                case "toggle":
+                    newValue = Boolean.valueOf(value);
+                    break;
+                case "multiselect":
+                    Set<String> values = new LinkedHashSet<>();
+                    if (!value.isEmpty()) {
+                        for (String item : value.split("\\n", -1)) {
+                            values.add(item);
+                        }
+                    }
+                    newValue = values;
+                    break;
+                default:
+                    newValue = value;
+                    break;
+            }
+            preference.getClass()
+                .getMethod("saveNewValue", Object.class)
+                .invoke(preference, newValue);
+            return MiniJson.response(true, key, null, null);
+        }
+        throw new IllegalArgumentException(
+            "Unknown extension preference: " + key
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Object> sourcePreferences(Object source)
+        throws Exception {
+        ClassLoader loader = ExtensionHost.class.getClassLoader();
+        Class<?> configurable = Class.forName(
+            "eu.kanade.tachiyomi.source.ConfigurableSource",
+            true,
+            loader
+        );
+        if (!configurable.isInstance(source)) {
+            return new ArrayList<>();
+        }
+        if (compatibilityApplication == null) {
+            initializeSuwayomiIfPresent();
+        }
+        Class<?> context = Class.forName(
+            "android.content.Context",
+            true,
+            loader
+        );
+        Class<?> screenType = Class.forName(
+            "androidx.preference.PreferenceScreen",
+            true,
+            loader
+        );
+        Object screen = screenType
+            .getConstructor(context)
+            .newInstance(compatibilityApplication);
+        source.getClass()
+            .getMethod("setupPreferenceScreen", screenType)
+            .invoke(source, screen);
+        List<Object> preferences = (List<Object>) screenType
+            .getMethod("getPreferences")
+            .invoke(screen);
+        Object sharedPreferences = getter(
+            source,
+            "getSourcePreferences"
+        );
+        Class<?> sharedPreferencesType = Class.forName(
+            "android.content.SharedPreferences",
+            true,
+            loader
+        );
+        for (Object preference : preferences) {
+            preference.getClass()
+                .getMethod(
+                    "setSharedPreferences",
+                    sharedPreferencesType
+                )
+                .invoke(preference, sharedPreferences);
+        }
+        return preferences;
+    }
+
+    private static String preferenceType(Object preference)
+        throws Exception {
+        ClassLoader loader = ExtensionHost.class.getClassLoader();
+        if (Class.forName(
+            "androidx.preference.SwitchPreferenceCompat",
+            true,
+            loader
+        ).isInstance(preference)) {
+            return "toggle";
+        }
+        if (Class.forName(
+            "androidx.preference.ListPreference",
+            true,
+            loader
+        ).isInstance(preference)) {
+            return "select";
+        }
+        if (Class.forName(
+            "androidx.preference.MultiSelectListPreference",
+            true,
+            loader
+        ).isInstance(preference)) {
+            return "multiselect";
+        }
+        if (Class.forName(
+            "androidx.preference.EditTextPreference",
+            true,
+            loader
+        ).isInstance(preference)) {
+            return "text";
+        }
+        return null;
+    }
+
+    private static String serializePreferenceValue(Object value) {
+        if (!(value instanceof Set)) {
+            return value == null ? null : String.valueOf(value);
+        }
+        StringBuilder output = new StringBuilder();
+        for (Object item : (Set<?>) value) {
+            if (output.length() > 0) {
+                output.append('\n');
+            }
+            output.append(String.valueOf(item));
+        }
+        return output.toString();
+    }
+
+    private static void appendStringArray(
+        StringBuilder output,
+        String key,
+        Object[] values
+    ) {
+        output.append(",\"")
+            .append(MiniJson.escapeValue(key))
+            .append("\":[");
+        for (int index = 0; index < values.length; index++) {
+            if (index > 0) {
+                output.append(',');
+            }
+            output.append('"')
+                .append(MiniJson.escapeValue(String.valueOf(values[index])))
+                .append('"');
+        }
+        output.append(']');
     }
 
     private static String getMangaUpdate(Map<String, String> request)

@@ -33,6 +33,9 @@ supports:
 - `getPopularManga`
 - `getLatestUpdates`
 - `searchManga`
+- `getSearchFilters`
+- `getSettings`
+- `setSetting`
 - `getMangaUpdate`
 - `getPageList`
 - `invoke`
@@ -83,7 +86,7 @@ before constructing the download URL.
 
 The app also consumes Keiyoushi's current extension-lib 1.6 `index.json`
 format. Catalog entries provide direct `jarUrl` artifacts. Before installation,
-the downloaded JAR is inspected and its package/version must match the signed
+the downloaded JAR is inspected and its package/version must match the
 catalog metadata; its locally computed SHA-256 is then persisted with the
 manifest. Installed `SourceFactory` entries become individual Aidoku sources
 using stable `mihon.<sourceId>` keys.
@@ -104,12 +107,13 @@ by Mihon source ID.
 
 The pinned Suwayomi layer now supplies HTTP, preferences, HTML parsing, source
 models, filters, cookies, and its Android compatibility classes. Typed popular,
-latest, text-search, combined manga-details/chapter-update, and page-list
-operations invoke Keiyoushi's coroutine API without exposing Kotlin objects
-across JNI. On 1.4 extensions, Mihon's default implementations bridge these
-calls to the legacy Rx methods. Filter editing and preference operations still
-need equivalent DTO bridges. Unsupported Android behavior must fail explicitly
-rather than silently returning incorrect data.
+latest, search/filter, combined manga-details/chapter-update, page-list, and
+preference operations invoke Keiyoushi's API without exposing Kotlin objects
+across JNI. On 1.4 extensions, Mihon's default implementations bridge source
+calls to the legacy Rx methods. AndroidX preferences are projected into native
+Aidoku settings and written back to the extension's `SharedPreferences`.
+Unsupported Android behavior must fail explicitly rather than silently
+returning incorrect data.
 
 ## Security model
 

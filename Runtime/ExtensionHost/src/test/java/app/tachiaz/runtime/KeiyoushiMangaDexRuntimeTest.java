@@ -45,6 +45,47 @@ public final class KeiyoushiMangaDexRuntimeTest {
         assertContains(sources, "\\\"lang\\\":\\\"en\\\"");
         assertContains(sources, "\\\"supportsLatest\\\":true");
 
+        String filters = ExtensionHost.dispatch(
+            "{\"operation\":\"getSearchFilters\"," +
+                "\"extensionId\":\"mangadex\"," +
+                "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"}"
+        );
+        assertSuccess(filters);
+        assertContains(filters, "\\\"type\\\":\\\"sort\\\"");
+        assertContains(filters, "\\\"type\\\":\\\"select\\\"");
+        assertContains(filters, "\\\"type\\\":\\\"check\\\"");
+        String filterResult = MiniJson.parseObject(filters).get("result");
+        String sortFilterId = fieldForType(
+            filterResult,
+            "sort",
+            "id"
+        );
+
+        String settings = ExtensionHost.dispatch(
+            "{\"operation\":\"getSettings\"," +
+                "\"extensionId\":\"mangadex\"," +
+                "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"}"
+        );
+        assertSuccess(settings);
+        assertContains(settings, "\\\"type\\\":\\\"select\\\"");
+        String settingsResult = MiniJson.parseObject(settings).get("result");
+        String selectKey = fieldForType(settingsResult, "select", "key");
+        String selectValue = fieldForType(
+            settingsResult,
+            "select",
+            "currentValue"
+        );
+        assertSuccess(ExtensionHost.dispatch(
+            "{\"operation\":\"setSetting\"," +
+                "\"extensionId\":\"mangadex\"," +
+                "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"," +
+                "\"settingKey\":\"" +
+                MiniJson.escapeValue(selectKey) + "\"," +
+                "\"settingType\":\"select\"," +
+                "\"settingValue\":\"" +
+                MiniJson.escapeValue(selectValue) + "\"}"
+        ));
+
         String popular = ExtensionHost.dispatch(
             "{\"operation\":\"getPopularManga\"," +
                 "\"extensionId\":\"mangadex\"," +
@@ -70,6 +111,8 @@ public final class KeiyoushiMangaDexRuntimeTest {
                 "\"extensionId\":\"mangadex\"," +
                 "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"," +
                 "\"query\":\"One Piece\"," +
+                "\"filterStates\":\"" + sortFilterId +
+                "\\tsort\\t0\\ttrue\"," +
                 "\"argument\":\"1\"}"
         );
         assertSuccess(search);
@@ -153,6 +196,20 @@ public final class KeiyoushiMangaDexRuntimeTest {
             );
         }
         return values.get(0);
+    }
+
+    private static String fieldForType(
+        String json,
+        String type,
+        String field
+    ) {
+        String marker = "\"type\":\"" + type + "\"";
+        int markerIndex = json.indexOf(marker);
+        if (markerIndex < 0) {
+            throw new AssertionError("No " + type + " filter in " + json);
+        }
+        int objectStart = json.lastIndexOf('{', markerIndex);
+        return firstStringField(json.substring(objectStart), field);
     }
 
     private static List<String> stringFields(String json, String field) {

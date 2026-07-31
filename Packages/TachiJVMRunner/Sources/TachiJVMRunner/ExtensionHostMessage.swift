@@ -9,6 +9,10 @@ public struct ExtensionHostRequest: Codable, Sendable {
     public let method: String?
     public let argument: String?
     public let query: String?
+    public let filterStates: String?
+    public let settingKey: String?
+    public let settingType: String?
+    public let settingValue: String?
     public let mangaURL: String?
     public let mangaTitle: String?
     public let chapterURL: String?
@@ -24,6 +28,10 @@ public struct ExtensionHostRequest: Codable, Sendable {
         method: String? = nil,
         argument: String? = nil,
         query: String? = nil,
+        filterStates: String? = nil,
+        settingKey: String? = nil,
+        settingType: String? = nil,
+        settingValue: String? = nil,
         mangaURL: String? = nil,
         mangaTitle: String? = nil,
         chapterURL: String? = nil,
@@ -38,6 +46,10 @@ public struct ExtensionHostRequest: Codable, Sendable {
         self.method = method
         self.argument = argument
         self.query = query
+        self.filterStates = filterStates
+        self.settingKey = settingKey
+        self.settingType = settingType
+        self.settingValue = settingValue
         self.mangaURL = mangaURL
         self.mangaTitle = mangaTitle
         self.chapterURL = chapterURL

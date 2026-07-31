@@ -38,6 +38,10 @@ Last updated: 2026-07-31
   discovery, and uninstall support.
 - In-app searchable Keiyoushi extension catalog with icons, languages, NSFW
   labeling, install progress, and update actions.
+- Dynamic Mihon filter discovery and state application for text, checkbox,
+  tri-state, select, grouped, and sort filters.
+- AndroidX extension preference discovery and persisted editing for switches,
+  text, single-select, and multi-select values.
 - Manifest gating for the supported Mihon extension-lib 1.4–1.6 range.
 - A binary fixture compiled against official TachiyomiX 1.4.4 that proves a
   suspend host call falls back to its Rx-only popular implementation.
@@ -71,9 +75,9 @@ item is complete.
    extension fixture matrix.
 2. Validate AndroidCompat behavior needed beyond Asura: resources, graphics,
    WebView/Cloudflare challenges, JavaScript, and persistence on iOS.
-3. Add typed JNI operations for editable filters, preferences, and cookie
-   management. Core browse/search/details/chapters/pages are implemented.
-4. Migrate old source keys, then remove AidokuRunner/WASM and delegated-source
+3. Audit persistent cookie-store paths and add explicit cookie inspection and
+   clearing controls for sources that need login troubleshooting.
+4. Remove AidokuRunner/WASM and delegated-source
    code after the JVM adapter has passed Xcode/simulator integration tests.
 5. Preserve bookmarks and supported tracking records during backup import;
    they currently have no lossless one-to-one mapping in Aidoku's backup model.
@@ -95,6 +99,10 @@ item is complete.
   ID `2499283573021220255` (`en`), reaches `https://api.mangadex.org`, returns
   HTTP 200, and completes popular, latest, search, details, chapter-list, and
   page-list operations through the extension-lib 1.4 fallback path.
+- MangaDex filter descriptors are projected into native filter controls; a
+  sort-state round trip changes its live API request to title/ascending.
+- MangaDex AndroidX preferences are discovered and a select preference is
+  written back through its persistent `SharedPreferences`.
 - Its coroutine popular-manga method reaches
   `https://api.asurascans.com/api/series`, returns HTTP 200, and decodes 20
   typed manga summaries with `hasNextPage = true`.

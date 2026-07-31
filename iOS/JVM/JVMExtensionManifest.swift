@@ -8,11 +8,17 @@ struct JVMExtensionManifest: Codable, Hashable, Sendable {
     let entryClass: String
     let sourceURL: URL?
     let sha256: String
+    let versionCode: String?
+    let extensionLibrary: String?
+    let isNsfw: Bool?
 
     init(
         inspection: JVMExtensionInspection,
         sourceURL: URL?,
-        sha256: String
+        sha256: String,
+        versionCode: String? = nil,
+        extensionLibrary: String? = nil,
+        isNsfw: Bool? = nil
     ) {
         id = inspection.packageName
         name = inspection.name
@@ -20,6 +26,10 @@ struct JVMExtensionManifest: Codable, Hashable, Sendable {
         entryClass = inspection.entryClass
         self.sourceURL = sourceURL
         self.sha256 = sha256
+        self.versionCode = versionCode ?? inspection.versionCode
+        self.extensionLibrary =
+            extensionLibrary ?? inspection.extensionLibrary
+        self.isNsfw = isNsfw
     }
 
     var directoryName: String {

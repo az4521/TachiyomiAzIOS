@@ -153,9 +153,13 @@ actor JVMSourceRuntime {
         let manifest = JVMExtensionManifest(
             inspection: inspection,
             sourceURL: catalogEntry.resources.jarUrl,
-            sha256: sha256
+            sha256: sha256,
+            versionCode: catalogEntry.versionCode,
+            extensionLibrary: catalogEntry.extensionLib,
+            isNsfw: catalogEntry.isNsfw
         )
         try await install(jar: temporaryJar, manifest: manifest)
+        try removeSupersededVersions(of: manifest)
         return manifest
     }
 
@@ -302,20 +306,65 @@ actor JVMSourceRuntime {
         extensionId: String,
         sourceId: Int64? = nil,
         query: String,
-        page: Int
+        page: Int,
+        filters: [AidokuRunner.FilterValue] = []
     ) async throws -> KeiyoushiMangaPage {
-        guard !query.isEmpty else {
-            throw RuntimeError.hostRejected(
-                "Search query must not be empty."
-            )
-        }
         return try await pagedManga(
             operation: "searchManga",
             extensionId: extensionId,
             sourceId: sourceId,
             page: page,
-            query: query
+            query: query,
+            filterStates: Self.encode(filters: filters)
         )
+    }
+
+    func searchFilters(
+        extensionId: String,
+        sourceId: Int64
+    ) async throws -> [KeiyoushiFilterDescriptor] {
+        try await decodedResult(
+            .init(
+                operation: "getSearchFilters",
+                extensionId: extensionId,
+                sourceId: String(sourceId)
+            ),
+            as: [KeiyoushiFilterDescriptor].self
+        )
+    }
+
+    func settings(
+        extensionId: String,
+        sourceId: Int64
+    ) async throws -> [KeiyoushiSettingDescriptor] {
+        try await decodedResult(
+            .init(
+                operation: "getSettings",
+                extensionId: extensionId,
+                sourceId: String(sourceId)
+            ),
+            as: [KeiyoushiSettingDescriptor].self
+        )
+    }
+
+    func setSetting(
+        extensionId: String,
+        sourceId: Int64,
+        key: String,
+        type: String,
+        value: String
+    ) async throws {
+        let response = try await dispatch(
+            .init(
+                operation: "setSetting",
+                extensionId: extensionId,
+                sourceId: String(sourceId),
+                settingKey: key,
+                settingType: type,
+                settingValue: value
+            )
+        )
+        try requireSuccess(response)
     }
 
     private func pagedManga(
@@ -323,7 +372,8 @@ actor JVMSourceRuntime {
         extensionId: String,
         sourceId: Int64?,
         page: Int,
-        query: String? = nil
+        query: String? = nil,
+        filterStates: String? = nil
     ) async throws -> KeiyoushiMangaPage {
         guard page > 0 else {
             throw RuntimeError.hostRejected(
@@ -336,7 +386,8 @@ actor JVMSourceRuntime {
                 extensionId: extensionId,
                 sourceId: sourceId.map(String.init),
                 argument: String(page),
-                query: query
+                query: query,
+                filterStates: filterStates
             )
         )
         try requireSuccess(response)
@@ -355,6 +406,59 @@ actor JVMSourceRuntime {
                 "Unable to decode the manga page: \(error.localizedDescription)"
             )
         }
+    }
+
+    private nonisolated static func encode(
+        filters: [AidokuRunner.FilterValue]
+    ) -> String? {
+        let allowed = CharacterSet.alphanumerics.union(
+            CharacterSet(charactersIn: "-._~")
+        )
+        let lines = filters.compactMap { filter -> String? in
+            let id: String
+            let kind: String
+            let value: String
+            let auxiliary: String?
+            switch filter {
+                case .text(let filterId, let text):
+                    (id, kind, value, auxiliary) = (
+                        filterId,
+                        "text",
+                        text,
+                        nil
+                    )
+                case .check(let filterId, let state):
+                    (id, kind, value, auxiliary) = (
+                        filterId,
+                        "check",
+                        String(state),
+                        nil
+                    )
+                case .select(let filterId, let selected):
+                    (id, kind, value, auxiliary) = (
+                        filterId,
+                        "select",
+                        selected,
+                        nil
+                    )
+                case .sort(let selection):
+                    (id, kind, value, auxiliary) = (
+                        selection.id,
+                        "sort",
+                        String(selection.index),
+                        String(selection.ascending)
+                    )
+                case .multiselect, .range:
+                    return nil
+            }
+            let escaped = value.addingPercentEncoding(
+                withAllowedCharacters: allowed
+            ) ?? ""
+            return [id, kind, escaped, auxiliary]
+                .compactMap { $0 }
+                .joined(separator: "\t")
+        }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
     func sources(
@@ -531,6 +635,20 @@ actor JVMSourceRuntime {
             .appendingPathComponent(manifest.version, isDirectory: true)
     }
 
+    private func removeSupersededVersions(
+        of manifest: JVMExtensionManifest
+    ) throws {
+        let installed = try extensionDirectory(for: manifest)
+        let packageDirectory = installed.deletingLastPathComponent()
+        for directory in try fileManager.contentsOfDirectory(
+            at: packageDirectory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) where directory.lastPathComponent != installed.lastPathComponent {
+            try fileManager.removeItem(at: directory)
+        }
+    }
+
     private func requireSuccess(
         _ response: ExtensionHostResponse
     ) throws {
@@ -565,10 +683,11 @@ private extension AidokuRunner.Source {
             url: nil,
             key: KeiyoushiSourceRunner.key(for: descriptor.id),
             name: descriptor.name,
-            version: 1,
+            version: Int(manifest.versionCode ?? "") ?? 1,
             languages: [descriptor.lang],
             urls: [],
-            contentRating: .safe,
+            contentRating:
+                manifest.isNsfw == true ? .primarilyNsfw : .safe,
             config: .init(
                 languageSelectType: .single,
                 supportsTagSearch: true
@@ -586,7 +705,10 @@ private extension AidokuRunner.Source {
 
 actor KeiyoushiSourceRunner: AidokuRunner.Runner {
     let features = AidokuRunner.SourceFeatures(
-        providesListings: true
+        providesListings: true,
+        dynamicFilters: true,
+        dynamicSettings: true,
+        handlesNotifications: true
     )
 
     nonisolated let extensionId: String
@@ -623,7 +745,16 @@ actor KeiyoushiSourceRunner: AidokuRunner.Runner {
                 extensionId: extensionId,
                 sourceId: descriptor.id,
                 query: query,
-                page: page
+                page: page,
+                filters: filters
+            )
+        } else if !filters.isEmpty {
+            result = try await JVMSourceRuntime.shared.searchManga(
+                extensionId: extensionId,
+                sourceId: descriptor.id,
+                query: "",
+                page: page,
+                filters: filters
             )
         } else {
             result = try await JVMSourceRuntime.shared.popularManga(
@@ -633,6 +764,63 @@ actor KeiyoushiSourceRunner: AidokuRunner.Runner {
             )
         }
         return result.intoAidoku(sourceKey: sourceKey)
+    }
+
+    func getSearchFilters() async throws -> [AidokuRunner.Filter] {
+        try await JVMSourceRuntime.shared.searchFilters(
+            extensionId: extensionId,
+            sourceId: descriptor.id
+        ).map(\.intoAidoku)
+    }
+
+    func getSettings() async throws -> [AidokuRunner.Setting] {
+        let settings = try await JVMSourceRuntime.shared.settings(
+            extensionId: extensionId,
+            sourceId: descriptor.id
+        )
+        let items = settings.map {
+            $0.intoAidoku(sourceKey: sourceKey)
+        }
+        guard !items.isEmpty else {
+            return []
+        }
+        return [
+            .init(
+                value: .group(.init(items: items))
+            )
+        ]
+    }
+
+    func handleNotification(notification: String) async throws {
+        let prefix = "keiyoushi-setting:"
+        guard notification.hasPrefix(prefix) else {
+            return
+        }
+        let key = String(notification.dropFirst(prefix.count))
+        let settings = try await JVMSourceRuntime.shared.settings(
+            extensionId: extensionId,
+            sourceId: descriptor.id
+        )
+        guard let setting = settings.first(where: { $0.key == key }) else {
+            return
+        }
+        let storedKey = "\(sourceKey).\(key)"
+        let value: String = switch setting.type {
+            case "toggle":
+                String(UserDefaults.standard.bool(forKey: storedKey))
+            case "multiselect":
+                (UserDefaults.standard.stringArray(forKey: storedKey) ?? [])
+                    .joined(separator: "\n")
+            default:
+                UserDefaults.standard.string(forKey: storedKey) ?? ""
+        }
+        try await JVMSourceRuntime.shared.setSetting(
+            extensionId: extensionId,
+            sourceId: descriptor.id,
+            key: key,
+            type: setting.type,
+            value: value
+        )
     }
 
     func getMangaList(
@@ -689,6 +877,158 @@ actor KeiyoushiSourceRunner: AidokuRunner.Runner {
             chapterName: chapter.title ?? ""
         )
         return try pages.map(\.intoAidoku)
+    }
+}
+
+struct KeiyoushiFilterDescriptor: Decodable, Sendable {
+    let id: String
+    let type: String
+    let name: String
+    let options: [String]?
+    let defaultValue: String?
+    let auxiliary: String?
+
+    var intoAidoku: AidokuRunner.Filter {
+        let value = switch type {
+            case "text":
+                AidokuRunner.Filter(
+                    id: id,
+                    title: name,
+                    value: .text(placeholder: nil)
+                )
+            case "check":
+                AidokuRunner.Filter(
+                    id: id,
+                    title: name,
+                    value: .check(
+                        name: nil,
+                        canExclude: auxiliary == "true",
+                        defaultValue: defaultState
+                    )
+                )
+            case "select":
+                AidokuRunner.Filter(
+                    id: id,
+                    title: name,
+                    value: .select(.init(
+                        options: options ?? [],
+                        ids: (options ?? []).indices.map(String.init),
+                        defaultValue: defaultValue
+                    ))
+                )
+            case "sort":
+                AidokuRunner.Filter(
+                    id: id,
+                    title: name,
+                    value: .sort(
+                        canAscend: true,
+                        options: options ?? [],
+                        defaultValue: defaultValue
+                            .flatMap(Int.init)
+                            .map {
+                                .init(
+                                    index: $0,
+                                    ascending: auxiliary == "true"
+                                )
+                            }
+                    )
+                )
+            default:
+                AidokuRunner.Filter(
+                    id: id,
+                    title: nil,
+                    value: .note(name)
+                )
+        }
+        return value
+    }
+
+    private var defaultState: Bool? {
+        switch defaultValue {
+            case "true", "1": true
+            case "false", "0": false
+            case .some: nil
+            case .none: nil
+        }
+    }
+}
+
+struct KeiyoushiSettingDescriptor: Decodable, Sendable {
+    let key: String
+    let title: String?
+    let summary: String?
+    let type: String
+    let enabled: Bool
+    let currentValue: String?
+    let options: [String]?
+    let values: [String]?
+
+    func intoAidoku(sourceKey: String) -> AidokuRunner.Setting {
+        seedCurrentValue(sourceKey: sourceKey)
+        let notification = "keiyoushi-setting:\(key)"
+        switch type {
+            case "toggle":
+                return .init(
+                    key: key,
+                    title: title ?? key,
+                    notification: notification,
+                    refreshes: ["content", "listings", "filters", "settings"],
+                    value: .toggle(.init(subtitle: summary))
+                )
+            case "select":
+                return .init(
+                    key: key,
+                    title: title ?? key,
+                    notification: notification,
+                    refreshes: ["content", "listings", "filters", "settings"],
+                    value: .select(.init(
+                        values: values ?? [],
+                        titles: options ?? []
+                    ))
+                )
+            case "multiselect":
+                return .init(
+                    key: key,
+                    title: title ?? key,
+                    notification: notification,
+                    refreshes: ["content", "listings", "filters", "settings"],
+                    value: .multiselect(.init(
+                        values: values ?? [],
+                        titles: options ?? []
+                    ))
+                )
+            default:
+                return .init(
+                    key: key,
+                    title: title ?? key,
+                    notification: notification,
+                    refreshes: ["content", "listings", "filters", "settings"],
+                    value: .text(.init(
+                        placeholder: summary,
+                        autocorrectionDisabled: true,
+                        defaultValue: currentValue
+                    ))
+                )
+        }
+    }
+
+    private func seedCurrentValue(sourceKey: String) {
+        let defaults = UserDefaults.standard
+        let namespacedKey = "\(sourceKey).\(key)"
+        guard defaults.object(forKey: namespacedKey) == nil else {
+            return
+        }
+        switch type {
+            case "toggle":
+                defaults.set(currentValue == "true", forKey: namespacedKey)
+            case "multiselect":
+                defaults.set(
+                    currentValue?.components(separatedBy: "\n") ?? [],
+                    forKey: namespacedKey
+                )
+            default:
+                defaults.set(currentValue ?? "", forKey: namespacedKey)
+        }
     }
 }
 
