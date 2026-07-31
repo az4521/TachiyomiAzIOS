@@ -32,6 +32,11 @@ actor JVMSourceRuntime {
     private let fileManager: FileManager
     private var runtime: JVMRuntime?
 
+    private struct WebLoginInfo: Decodable {
+        let baseURL: String
+        let userAgent: String
+    }
+
     init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
     }
@@ -510,6 +515,60 @@ actor JVMSourceRuntime {
         try requireSuccess(response)
     }
 
+    private func setWebLoginCookies(
+        extensionId: String,
+        sourceId: Int64,
+        cookies: [HTTPCookie],
+        userAgent: String,
+        usingRawDispatch: Bool = false
+    ) async throws {
+        let allowed = CharacterSet.alphanumerics.union(
+            CharacterSet(charactersIn: "-._~")
+        )
+        let encoded = cookies.sorted { $0.name < $1.name }.map { cookie in
+            let name = cookie.name.addingPercentEncoding(
+                withAllowedCharacters: allowed
+            ) ?? ""
+            let value = cookie.value.addingPercentEncoding(
+                withAllowedCharacters: allowed
+            ) ?? ""
+            let domain = cookie.domain.addingPercentEncoding(
+                withAllowedCharacters: allowed
+            ) ?? ""
+            let path = cookie.path.addingPercentEncoding(
+                withAllowedCharacters: allowed
+            ) ?? ""
+            let expires = cookie.expiresDate.map {
+                String(Int64($0.timeIntervalSince1970 * 1_000))
+            } ?? ""
+            return [
+                name,
+                value,
+                domain,
+                path,
+                expires,
+                String(cookie.isSecure),
+                String(cookie.isHTTPOnly),
+                String(!cookie.domain.hasPrefix("."))
+            ].joined(separator: "\t")
+        }
+        .joined(separator: "\n")
+        let request = ExtensionHostRequest(
+            operation: "setWebLoginCookies",
+            extensionId: extensionId,
+            sourceId: String(sourceId),
+            argument: encoded,
+            userAgent: userAgent
+        )
+        let response: ExtensionHostResponse
+        if usingRawDispatch {
+            response = try await rawDispatch(request)
+        } else {
+            response = try await dispatch(request)
+        }
+        try requireSuccess(response)
+    }
+
     private func pagedManga(
         operation: String,
         extensionId: String,
@@ -744,6 +803,26 @@ actor JVMSourceRuntime {
     private func dispatch(
         _ request: ExtensionHostRequest
     ) async throws -> ExtensionHostResponse {
+        let response = try await rawDispatch(request)
+        guard
+            shouldAttemptCloudflareBypass(response),
+            let extensionId = request.extensionId,
+            let sourceIdValue = request.sourceId,
+            let sourceId = Int64(sourceIdValue)
+        else {
+            return response
+        }
+
+        try await solveCloudflareChallenge(
+            extensionId: extensionId,
+            sourceId: sourceId
+        )
+        return try await rawDispatch(request)
+    }
+
+    private func rawDispatch(
+        _ request: ExtensionHostRequest
+    ) async throws -> ExtensionHostResponse {
         let activeRuntime: JVMRuntime
         if let runtime {
             activeRuntime = runtime
@@ -754,6 +833,57 @@ actor JVMSourceRuntime {
         return try await activeRuntime.dispatch(
             request,
             as: ExtensionHostResponse.self
+        )
+    }
+
+    private func shouldAttemptCloudflareBypass(
+        _ response: ExtensionHostResponse
+    ) -> Bool {
+        guard !response.success else { return false }
+        let message = response.error?.lowercased() ?? ""
+        return message.contains("tachiyomiazcloudflarechallenge") ||
+            message.contains("cloudflare bypass currently disabled")
+    }
+
+    private func solveCloudflareChallenge(
+        extensionId: String,
+        sourceId: Int64
+    ) async throws {
+        let infoResponse = try await rawDispatch(
+            .init(
+                operation: "getWebLoginInfo",
+                extensionId: extensionId,
+                sourceId: String(sourceId)
+            )
+        )
+        try requireSuccess(infoResponse)
+        guard
+            let payload = infoResponse.result?.data(using: .utf8),
+            let info = try? JSONDecoder().decode(WebLoginInfo.self, from: payload),
+            let url = URL(string: info.baseURL)
+        else {
+            throw RuntimeError.hostRejected(
+                "The extension did not provide a valid Cloudflare login URL."
+            )
+        }
+
+        let userAgent: String
+        if info.userAgent.isEmpty {
+            userAgent = await UserAgentProvider.shared.getUserAgent()
+        } else {
+            userAgent = info.userAgent
+        }
+        var request = URLRequest(url: url)
+        if !userAgent.isEmpty {
+            request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        }
+        let session = try await CloudflareHandler.shared.solve(request: request)
+        try await setWebLoginCookies(
+            extensionId: extensionId,
+            sourceId: sourceId,
+            cookies: session.cookies,
+            userAgent: session.userAgent,
+            usingRawDispatch: true
         )
     }
 

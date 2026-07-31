@@ -8,6 +8,7 @@ public struct ExtensionHostRequest: Codable, Sendable {
     public let entryClass: String?
     public let method: String?
     public let argument: String?
+    public let userAgent: String?
     public let query: String?
     public let filterStates: String?
     public let settingKey: String?
@@ -29,6 +30,7 @@ public struct ExtensionHostRequest: Codable, Sendable {
         entryClass: String? = nil,
         method: String? = nil,
         argument: String? = nil,
+        userAgent: String? = nil,
         query: String? = nil,
         filterStates: String? = nil,
         settingKey: String? = nil,
@@ -49,6 +51,7 @@ public struct ExtensionHostRequest: Codable, Sendable {
         self.entryClass = entryClass
         self.method = method
         self.argument = argument
+        self.userAgent = userAgent
         self.query = query
         self.filterStates = filterStates
         self.settingKey = settingKey

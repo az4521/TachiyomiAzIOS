@@ -48,11 +48,21 @@ public final class TachiyomiXExtensionLib14RuntimeTest {
             sources,
             "\\\"baseURL\\\":\\\"https://mangadex.org\\\""
         );
+        String webLoginInfo = ExtensionHost.dispatch(
+            "{\"operation\":\"getWebLoginInfo\"," +
+                "\"extensionId\":\"extlib14\"," +
+                "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"}"
+        );
+        assertSuccess(webLoginInfo);
+        assertContains(webLoginInfo, "https://mangadex.org");
         assertSuccess(ExtensionHost.dispatch(
             "{\"operation\":\"setWebLoginCookies\"," +
                 "\"extensionId\":\"extlib14\"," +
                 "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"," +
-                "\"argument\":\"tachiaz_test\\tworking\"}"
+                "\"userAgent\":\"TachiyomiAZ-iOS-Test\"," +
+                "\"argument\":\"tachiaz_test\\tworking\\t" +
+                "mangadex.org\\t%2F\\t4102444800000\\ttrue\\t" +
+                "true\\ttrue\"}"
         ));
         String cookieSummary = ExtensionHost.dispatch(
             "{\"operation\":\"getCookieSummary\"," +

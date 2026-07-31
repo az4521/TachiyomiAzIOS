@@ -21,6 +21,7 @@ actor CloudflareHandler: NSObject {
     private var timeoutTask: Task<Void, Never>?
     private var proxy: Proxy?
     private var lastMainFrameStatusCode: Int?
+    private var completionReason: CompletionReason?
 
     @MainActor
     private lazy var webView = WKWebView(frame: .zero)
@@ -61,8 +62,35 @@ actor CloudflareHandler: NSObject {
     }
 #endif
 
-    enum HandleError: Error {
+    struct Session {
+        let cookies: [HTTPCookie]
+        let userAgent: String
+    }
+
+    enum HandleError: LocalizedError {
         case missingParentView
+        case cancelled
+        case timedOut
+        case missingClearance
+
+        var errorDescription: String? {
+            switch self {
+                case .missingParentView:
+                    "Cloudflare verification needs a visible app window."
+                case .cancelled:
+                    "Cloudflare verification was cancelled."
+                case .timedOut:
+                    "Cloudflare verification timed out."
+                case .missingClearance:
+                    "Cloudflare did not issue a clearance cookie."
+            }
+        }
+    }
+
+    private enum CompletionReason {
+        case solved
+        case cancelled
+        case timedOut
     }
 
     nonisolated func shouldHandle(response: HTTPURLResponse, data: Data) -> Bool {
@@ -88,12 +116,26 @@ actor CloudflareHandler: NSObject {
     }
 
     func handle(request: URLRequest) async throws -> (Data, URLResponse) {
+        _ = try await solve(request: request)
+        let newRequest = if let url = request.url {
+            await AidokuRunner.Source.modify(url: url, request: request)
+        } else {
+            request
+        }
+        return try await URLSession.shared.data(for: newRequest)
+    }
+
+    func solve(request: URLRequest) async throws -> Session {
         // wait until previous request finishes
         while finishContinuation != nil {
             try? await Task.sleep(nanoseconds: 100_000_000)
         }
 
         shouldTimeout = true
+        completionReason = nil
+
+        guard let url = request.url else { throw HandleError.missingClearance }
+        await removeStaleClearanceCookies(for: url)
 
         guard await addWebView(for: request) else { throw HandleError.missingParentView }
 
@@ -107,21 +149,36 @@ actor CloudflareHandler: NSObject {
                 try? await Task.sleep(nanoseconds: 12_000_000_000)
                 guard !Task.isCancelled else { return }
                 if self.shouldTimeout, finishContinuation != nil {
-                    self.finish()
+                    self.finish(reason: .timedOut)
                 }
             }
         }
 
-        let newRequest = if let url = request.url {
-            await AidokuRunner.Source.modify(url: url, request: request)
-        } else {
-            request
+        switch completionReason {
+            case .cancelled:
+                throw HandleError.cancelled
+            case .timedOut:
+                throw HandleError.timedOut
+            case .solved:
+                break
+            case nil:
+                throw HandleError.missingClearance
         }
-        return try await URLSession.shared.data(for: newRequest)
+
+        let cookies = await WKWebsiteDataStore.default()
+            .httpCookieStore
+            .allCookies()
+            .filter { cookieMatches($0, url: url) }
+        guard cookies.contains(where: { $0.name == "cf_clearance" }) else {
+            throw HandleError.missingClearance
+        }
+        let userAgent = request.value(forHTTPHeaderField: "User-Agent") ?? ""
+        return Session(cookies: cookies, userAgent: userAgent)
     }
 
-    private func finish() {
+    private func finish(reason: CompletionReason) {
         guard let continuation = finishContinuation else { return }
+        completionReason = reason
 
         Task { @MainActor in
             webView.removeFromSuperview()
@@ -138,6 +195,31 @@ actor CloudflareHandler: NSObject {
         lastMainFrameStatusCode = nil
 
         continuation.resume()
+    }
+
+    private func removeStaleClearanceCookies(for url: URL) async {
+        let cookieStore = WKWebsiteDataStore.default().httpCookieStore
+        for cookie in await cookieStore.allCookies()
+        where cookie.name == "cf_clearance" && cookieMatches(cookie, url: url) {
+            await withCheckedContinuation {
+                (continuation: CheckedContinuation<Void, Never>) in
+                cookieStore.delete(cookie) {
+                    continuation.resume()
+                }
+            }
+        }
+        for cookie in HTTPCookieStorage.shared.cookies(for: url) ?? []
+        where cookie.name == "cf_clearance" {
+            HTTPCookieStorage.shared.deleteCookie(cookie)
+        }
+    }
+
+    private nonisolated func cookieMatches(_ cookie: HTTPCookie, url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return false }
+        let domain = cookie.domain
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+            .lowercased()
+        return host == domain || host.hasSuffix("." + domain)
     }
 
     private func proxy(for request: URLRequest) async -> Proxy {
@@ -184,7 +266,7 @@ actor CloudflareHandler: NSObject {
 
 #if os(macOS)
         // todo
-        await finish()
+        await finish(reason: .cancelled)
 #else
         popupController?.dismiss(animated: true)
         let popup = WebViewViewController(request: request, handler: await proxy(for: request))
@@ -331,11 +413,11 @@ extension CloudflareHandler {
         await self.popupController?.dismiss(animated: true)
 #endif
 
-        await self.finish()
+        await self.finish(reason: .solved)
     }
 
     // handle user popover dismiss
     nonisolated func canceled(request: URLRequest) async {
-        await finish()
+        await finish(reason: .cancelled)
     }
 }

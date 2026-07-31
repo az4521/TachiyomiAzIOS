@@ -69,6 +69,8 @@ public final class ExtensionHost {
                     return getCookieSummary(request);
                 case "clearCookies":
                     return clearCookies(request);
+                case "getWebLoginInfo":
+                    return getWebLoginInfo(request);
                 case "setWebLoginCookies":
                     return setWebLoginCookies(request);
                 case "listSources":
@@ -85,7 +87,11 @@ public final class ExtensionHost {
                     );
             }
         } catch (Throwable error) {
-            return MiniJson.response(false, null, describe(error), null);
+            String description = describe(error);
+            if (isCloudflareChallenge(error)) {
+                description += " [TachiyomiAZCloudflareChallenge]";
+            }
+            return MiniJson.response(false, null, description, null);
         }
     }
 
@@ -1108,6 +1114,19 @@ public final class ExtensionHost {
         return MiniJson.response(true, "cleared", null, null);
     }
 
+    private static String getWebLoginInfo(Map<String, String> request)
+        throws Exception {
+        Object source = requireSource(request);
+        Object client = getter(source, "getClient");
+        String baseURL = String.valueOf(getter(source, "getBaseUrl"));
+        String userAgent = sourceUserAgent(source, client);
+        String result = "{\"baseURL\":\"" +
+            MiniJson.escapeValue(baseURL) +
+            "\",\"userAgent\":\"" +
+            MiniJson.escapeValue(userAgent) + "\"}";
+        return MiniJson.response(true, result, null, null);
+    }
+
     private static String setWebLoginCookies(Map<String, String> request)
         throws Exception {
         Object source = requireSource(request);
@@ -1133,7 +1152,7 @@ public final class ExtensionHost {
         if (!encoded.isEmpty()) {
             for (String line : encoded.split("\\n")) {
                 String[] fields = line.split("\\t", -1);
-                if (fields.length != 2) {
+                if (fields.length != 2 && fields.length != 8) {
                     continue;
                 }
                 String name = URLDecoder.decode(
@@ -1149,22 +1168,133 @@ public final class ExtensionHost {
                     .invoke(builder, name);
                 builderType.getMethod("value", String.class)
                     .invoke(builder, value);
-                builderType.getMethod("domain", String.class)
-                    .invoke(builder, host);
+                String domain = fields.length == 8
+                    ? decodeCookieField(fields[2])
+                    : host;
+                String path = fields.length == 8
+                    ? decodeCookieField(fields[3])
+                    : "/";
+                if (domain.startsWith(".")) {
+                    domain = domain.substring(1);
+                }
+                boolean hostOnly = fields.length != 8 ||
+                    Boolean.parseBoolean(fields[7]);
+                builderType.getMethod(
+                    hostOnly ? "hostOnlyDomain" : "domain",
+                    String.class
+                ).invoke(builder, domain.isEmpty() ? host : domain);
                 builderType.getMethod("path", String.class)
-                    .invoke(builder, "/");
+                    .invoke(builder, path.isEmpty() ? "/" : path);
+                if (fields.length == 8) {
+                    if (!fields[4].isEmpty()) {
+                        builderType.getMethod("expiresAt", long.class)
+                            .invoke(builder, Long.parseLong(fields[4]));
+                    }
+                    if (Boolean.parseBoolean(fields[5])) {
+                        builderType.getMethod("secure").invoke(builder);
+                    }
+                    if (Boolean.parseBoolean(fields[6])) {
+                        builderType.getMethod("httpOnly").invoke(builder);
+                    }
+                }
                 cookies.add(builderType.getMethod("build").invoke(builder));
             }
         }
         cookieJar.getClass()
             .getMethod("saveFromResponse", httpUrlType, List.class)
             .invoke(cookieJar, httpUrl, cookies);
+        String userAgent = defaultValue(request.get("userAgent"), "");
+        if (!userAgent.isEmpty()) {
+            updateCloudflareUserAgent(client, userAgent);
+        }
         return MiniJson.response(
             true,
             Integer.toString(cookies.size()),
             null,
             null
         );
+    }
+
+    private static String decodeCookieField(String value) throws Exception {
+        return URLDecoder.decode(value, StandardCharsets.UTF_8.name());
+    }
+
+    private static String sourceUserAgent(Object source, Object client) {
+        try {
+            Object headers = getter(source, "getHeaders");
+            Object value = headers.getClass()
+                .getMethod("get", String.class)
+                .invoke(headers, "User-Agent");
+            if (value != null && !String.valueOf(value).isEmpty()) {
+                return String.valueOf(value);
+            }
+        } catch (Throwable ignored) {
+            // Some sources do not override headers.
+        }
+        try {
+            for (Object interceptor : clientInterceptors(client)) {
+                if (!interceptor.getClass().getName().endsWith(
+                    "UserAgentInterceptor"
+                )) {
+                    continue;
+                }
+                Object provider = reflectedField(
+                    interceptor,
+                    "userAgentProvider"
+                );
+                Object value = provider.getClass().getMethod("invoke")
+                    .invoke(provider);
+                if (value != null) {
+                    return String.valueOf(value);
+                }
+            }
+        } catch (Throwable ignored) {
+            // The WebKit user agent is a safe fallback on the Swift side.
+        }
+        return "";
+    }
+
+    private static void updateCloudflareUserAgent(
+        Object client,
+        String userAgent
+    ) {
+        try {
+            for (Object interceptor : clientInterceptors(client)) {
+                if (!interceptor.getClass().getName().endsWith(
+                    "CloudflareInterceptor"
+                )) {
+                    continue;
+                }
+                Object setter = reflectedField(interceptor, "setUserAgent");
+                setter.getClass().getMethod("invoke", Object.class)
+                    .invoke(setter, userAgent);
+            }
+        } catch (Throwable ignored) {
+            // Older extension libraries have no mutable Cloudflare UA hook.
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Object> clientInterceptors(Object client)
+        throws Exception {
+        return (List<Object>) client.getClass()
+            .getMethod("interceptors")
+            .invoke(client);
+    }
+
+    private static Object reflectedField(Object value, String name)
+        throws Exception {
+        Class<?> current = value.getClass();
+        while (current != null) {
+            try {
+                java.lang.reflect.Field field = current.getDeclaredField(name);
+                field.setAccessible(true);
+                return field.get(value);
+            } catch (NoSuchFieldException ignored) {
+                current = current.getSuperclass();
+            }
+        }
+        throw new NoSuchFieldException(value.getClass().getName() + "." + name);
     }
 
     private static boolean invokeCookieClear(Object value) throws Exception {
@@ -1688,6 +1818,52 @@ public final class ExtensionHost {
         String message = cause.getMessage();
         return cause.getClass().getName() +
             (message == null ? "" : ": " + message);
+    }
+
+    private static boolean isCloudflareChallenge(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            String message = current.getMessage();
+            if (
+                message != null &&
+                message.toLowerCase().contains(
+                    "cloudflare bypass currently disabled"
+                )
+            ) {
+                return true;
+            }
+            try {
+                Object response = current.getClass()
+                    .getMethod("response")
+                    .invoke(current);
+                if (response != null && isCloudflareResponse(response)) {
+                    return true;
+                }
+            } catch (Throwable ignored) {
+                // Not an HTTP exception carrying an OkHttp response.
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private static boolean isCloudflareResponse(Object response) {
+        try {
+            int code = ((Number) response.getClass()
+                .getMethod("code")
+                .invoke(response)).intValue();
+            if (code != 403 && code != 503) {
+                return false;
+            }
+            Object server = response.getClass()
+                .getMethod("header", String.class)
+                .invoke(response, "Server");
+            return server != null && String.valueOf(server)
+                .toLowerCase()
+                .contains("cloudflare");
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     private static final class LoadedExtension {
