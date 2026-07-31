@@ -187,7 +187,7 @@ actor JVMSourceRuntime {
 
     @discardableResult
     func install(
-        catalogEntry: KeiyoushiJarRepository.Catalog.Extension,
+        catalogEntry: TachiyomiXJarRepository.Catalog.Extension,
         using session: URLSession = .shared
     ) async throws -> JVMExtensionManifest {
         let (temporaryJar, response) = try await session.download(
@@ -330,7 +330,7 @@ actor JVMSourceRuntime {
                     extensionId: manifest.id
                 )
                 result.append(contentsOf: descriptors.map {
-                    .keiyoushi(
+                    .tachiyomix(
                         manifest: manifest,
                         descriptor: $0
                     )
@@ -365,7 +365,7 @@ actor JVMSourceRuntime {
         extensionId: String,
         sourceId: Int64? = nil,
         page: Int
-    ) async throws -> KeiyoushiMangaPage {
+    ) async throws -> TachiyomiXMangaPage {
         try await pagedManga(
             operation: "getPopularManga",
             extensionId: extensionId,
@@ -378,7 +378,7 @@ actor JVMSourceRuntime {
         extensionId: String,
         sourceId: Int64? = nil,
         page: Int
-    ) async throws -> KeiyoushiMangaPage {
+    ) async throws -> TachiyomiXMangaPage {
         try await pagedManga(
             operation: "getLatestUpdates",
             extensionId: extensionId,
@@ -393,7 +393,7 @@ actor JVMSourceRuntime {
         query: String,
         page: Int,
         filters: [AidokuRunner.FilterValue] = []
-    ) async throws -> KeiyoushiMangaPage {
+    ) async throws -> TachiyomiXMangaPage {
         return try await pagedManga(
             operation: "searchManga",
             extensionId: extensionId,
@@ -407,28 +407,28 @@ actor JVMSourceRuntime {
     func searchFilters(
         extensionId: String,
         sourceId: Int64
-    ) async throws -> [KeiyoushiFilterDescriptor] {
+    ) async throws -> [TachiyomiXFilterDescriptor] {
         try await decodedResult(
             .init(
                 operation: "getSearchFilters",
                 extensionId: extensionId,
                 sourceId: String(sourceId)
             ),
-            as: [KeiyoushiFilterDescriptor].self
+            as: [TachiyomiXFilterDescriptor].self
         )
     }
 
     func settings(
         extensionId: String,
         sourceId: Int64
-    ) async throws -> [KeiyoushiSettingDescriptor] {
+    ) async throws -> [TachiyomiXSettingDescriptor] {
         try await decodedResult(
             .init(
                 operation: "getSettings",
                 extensionId: extensionId,
                 sourceId: String(sourceId)
             ),
-            as: [KeiyoushiSettingDescriptor].self
+            as: [TachiyomiXSettingDescriptor].self
         )
     }
 
@@ -517,7 +517,7 @@ actor JVMSourceRuntime {
         page: Int,
         query: String? = nil,
         filterStates: String? = nil
-    ) async throws -> KeiyoushiMangaPage {
+    ) async throws -> TachiyomiXMangaPage {
         guard page > 0 else {
             throw RuntimeError.hostRejected(
                 "Manga page must be at least 1."
@@ -541,7 +541,7 @@ actor JVMSourceRuntime {
         }
         do {
             return try JSONDecoder().decode(
-                KeiyoushiMangaPage.self,
+                TachiyomiXMangaPage.self,
                 from: Data(result.utf8)
             )
         } catch {
@@ -606,7 +606,7 @@ actor JVMSourceRuntime {
 
     func sources(
         extensionId: String
-    ) async throws -> [KeiyoushiSourceDescriptor] {
+    ) async throws -> [TachiyomiXSourceDescriptor] {
         let response = try await dispatch(
             .init(
                 operation: "listSources",
@@ -621,7 +621,7 @@ actor JVMSourceRuntime {
         }
         do {
             return try JSONDecoder().decode(
-                [KeiyoushiSourceDescriptor].self,
+                [TachiyomiXSourceDescriptor].self,
                 from: Data(result.utf8)
             )
         } catch {
@@ -636,7 +636,7 @@ actor JVMSourceRuntime {
         sourceId: Int64? = nil,
         mangaURL: String,
         mangaTitle: String
-    ) async throws -> KeiyoushiMangaUpdate {
+    ) async throws -> TachiyomiXMangaUpdate {
         let response = try await dispatch(
             .init(
                 operation: "getMangaUpdate",
@@ -647,7 +647,7 @@ actor JVMSourceRuntime {
             )
         )
         try requireSuccess(response)
-        return try decodeResult(response, as: KeiyoushiMangaUpdate.self)
+        return try decodeResult(response, as: TachiyomiXMangaUpdate.self)
     }
 
     func pages(
@@ -655,7 +655,7 @@ actor JVMSourceRuntime {
         sourceId: Int64? = nil,
         chapterURL: String,
         chapterName: String
-    ) async throws -> [KeiyoushiPage] {
+    ) async throws -> [TachiyomiXPage] {
         let response = try await dispatch(
             .init(
                 operation: "getPageList",
@@ -666,7 +666,7 @@ actor JVMSourceRuntime {
             )
         )
         try requireSuccess(response)
-        return try decodeResult(response, as: [KeiyoushiPage].self)
+        return try decodeResult(response, as: [TachiyomiXPage].self)
     }
 
     private func decodeResult<Value: Decodable>(
@@ -762,7 +762,7 @@ actor JVMSourceRuntime {
         sourceId: Int64,
         imageURL: String,
         pageURL: String?
-    ) async throws -> KeiyoushiImageRequest {
+    ) async throws -> TachiyomiXImageRequest {
         try await decodedResult(
             .init(
                 operation: "getImageRequest",
@@ -771,7 +771,7 @@ actor JVMSourceRuntime {
                 imageURL: imageURL,
                 pageURL: pageURL
             ),
-            as: KeiyoushiImageRequest.self
+            as: TachiyomiXImageRequest.self
         )
     }
 
@@ -832,9 +832,9 @@ actor JVMSourceRuntime {
 }
 
 private extension AidokuRunner.Source {
-    static func keiyoushi(
+    static func tachiyomix(
         manifest: JVMExtensionManifest,
-        descriptor: KeiyoushiSourceDescriptor
+        descriptor: TachiyomiXSourceDescriptor
     ) -> AidokuRunner.Source {
         let language = descriptor.lang == "all"
             ? "multi"
@@ -855,7 +855,7 @@ private extension AidokuRunner.Source {
         }
         return .init(
             url: nil,
-            key: KeiyoushiSourceRunner.key(for: descriptor.id),
+            key: TachiyomiXSourceRunner.key(for: descriptor.id),
             name: descriptor.name,
             version: Int(manifest.versionCode ?? "") ?? 1,
             languages: [language],
@@ -871,7 +871,7 @@ private extension AidokuRunner.Source {
             staticListings: listings,
             staticFilters: [],
             staticSettings: [],
-            runner: KeiyoushiSourceRunner(
+            runner: TachiyomiXSourceRunner(
                 extensionId: manifest.id,
                 descriptor: descriptor
             )
@@ -879,7 +879,7 @@ private extension AidokuRunner.Source {
     }
 }
 
-actor KeiyoushiSourceRunner: AidokuRunner.Runner {
+actor TachiyomiXSourceRunner: AidokuRunner.Runner {
     let features = AidokuRunner.SourceFeatures(
         providesListings: true,
         dynamicFilters: true,
@@ -891,12 +891,12 @@ actor KeiyoushiSourceRunner: AidokuRunner.Runner {
     )
 
     nonisolated let extensionId: String
-    private let descriptor: KeiyoushiSourceDescriptor
+    private let descriptor: TachiyomiXSourceDescriptor
     private let sourceKey: String
 
     init(
         extensionId: String,
-        descriptor: KeiyoushiSourceDescriptor
+        descriptor: TachiyomiXSourceDescriptor
     ) {
         self.extensionId = extensionId
         self.descriptor = descriptor
@@ -918,7 +918,7 @@ actor KeiyoushiSourceRunner: AidokuRunner.Runner {
         page: Int,
         filters: [AidokuRunner.FilterValue]
     ) async throws -> AidokuRunner.MangaPageResult {
-        let result: KeiyoushiMangaPage
+        let result: TachiyomiXMangaPage
         if let query, !query.isEmpty {
             result = try await JVMSourceRuntime.shared.searchManga(
                 extensionId: extensionId,
@@ -986,7 +986,7 @@ actor KeiyoushiSourceRunner: AidokuRunner.Runner {
                             ),
                             .init(
                                 title: "Clear Cookies",
-                                notification: "keiyoushi-clear-cookies",
+                                notification: "tachiyomix-clear-cookies",
                                 refreshes: ["settings"],
                                 value: .button(
                                     .init(
@@ -1024,14 +1024,14 @@ actor KeiyoushiSourceRunner: AidokuRunner.Runner {
     }
 
     func handleNotification(notification: String) async throws {
-        if notification == "keiyoushi-clear-cookies" {
+        if notification == "tachiyomix-clear-cookies" {
             try await JVMSourceRuntime.shared.clearCookies(
                 extensionId: extensionId,
                 sourceId: descriptor.id
             )
             return
         }
-        let prefix = "keiyoushi-setting:"
+        let prefix = "tachiyomix-setting:"
         guard notification.hasPrefix(prefix) else {
             return
         }
@@ -1143,7 +1143,7 @@ actor KeiyoushiSourceRunner: AidokuRunner.Runner {
     }
 }
 
-struct KeiyoushiFilterDescriptor: Decodable, Sendable {
+struct TachiyomiXFilterDescriptor: Decodable, Sendable {
     let id: String
     let type: String
     let name: String
@@ -1216,7 +1216,7 @@ struct KeiyoushiFilterDescriptor: Decodable, Sendable {
     }
 }
 
-struct KeiyoushiSettingDescriptor: Decodable, Sendable {
+struct TachiyomiXSettingDescriptor: Decodable, Sendable {
     let key: String
     let title: String?
     let summary: String?
@@ -1228,7 +1228,7 @@ struct KeiyoushiSettingDescriptor: Decodable, Sendable {
 
     func intoAidoku(sourceKey: String) -> AidokuRunner.Setting {
         seedCurrentValue(sourceKey: sourceKey)
-        let notification = "keiyoushi-setting:\(key)"
+        let notification = "tachiyomix-setting:\(key)"
         switch type {
             case "toggle":
                 return .init(
@@ -1295,12 +1295,12 @@ struct KeiyoushiSettingDescriptor: Decodable, Sendable {
     }
 }
 
-struct KeiyoushiImageRequest: Decodable, Sendable {
+struct TachiyomiXImageRequest: Decodable, Sendable {
     let url: URL
     let headers: [String: String]
 }
 
-private extension KeiyoushiMangaPage {
+private extension TachiyomiXMangaPage {
     func intoAidoku(sourceKey: String) -> AidokuRunner.MangaPageResult {
         .init(
             entries: mangas.map { $0.intoAidoku(sourceKey: sourceKey) },
@@ -1309,7 +1309,7 @@ private extension KeiyoushiMangaPage {
     }
 }
 
-private extension KeiyoushiManga {
+private extension TachiyomiXManga {
     func intoAidoku(sourceKey: String) -> AidokuRunner.Manga {
         let publishingStatus: AidokuRunner.PublishingStatus = switch status {
             case 1: .ongoing
@@ -1335,7 +1335,7 @@ private extension KeiyoushiManga {
     }
 }
 
-private extension KeiyoushiChapter {
+private extension TachiyomiXChapter {
     var intoAidoku: AidokuRunner.Chapter {
         .init(
             key: url,
@@ -1352,7 +1352,7 @@ private extension KeiyoushiChapter {
     }
 }
 
-private extension KeiyoushiPage {
+private extension TachiyomiXPage {
     var intoAidoku: AidokuRunner.Page {
         get throws {
             let candidates = [imageURL, uri, url.isEmpty ? nil : url]

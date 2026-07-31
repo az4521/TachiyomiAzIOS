@@ -32,12 +32,12 @@ TACHIYOMIAZ_BUILD_JAVA_HOME="$java_home" \
 TACHIAZ_TEST_JAVA_HOME="$probe_root" \
 TACHIAZ_TEST_JAVA_OPTIONS="-Xbootclasspath/a:$shims" \
 TACHIAZ_VERIFY_MOBILE_SHIMS=1 \
-    "$repository_root/Scripts/test-keiyoushi-mangadex.sh"
+    "$repository_root/Scripts/test-tachiyomix-mangadex.sh"
 
 TACHIYOMIAZ_BUILD_JAVA_HOME="$java_home" \
 TACHIAZ_TEST_JAVA_HOME="$probe_root" \
 TACHIAZ_TEST_JAVA_OPTIONS="-Xbootclasspath/a:$shims" \
 TACHIAZ_VERIFY_MOBILE_SHIMS=1 \
-    "$repository_root/Scripts/test-keiyoushi-asurascans.sh"
+    "$repository_root/Scripts/test-tachiyomix-asurascans.sh"
 
 echo "java.base-style MangaDex 1.4 and Asura Scans 1.6 tests passed"

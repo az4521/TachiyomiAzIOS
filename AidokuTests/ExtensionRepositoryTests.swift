@@ -9,25 +9,25 @@ struct ExtensionRepositoryTests {
         defer { defaults.removePersistentDomain(forName: suite) }
 
         #expect(
-            KeiyoushiJarRepository.repositories(defaults: defaults).isEmpty
+            TachiyomiXJarRepository.repositories(defaults: defaults).isEmpty
         )
     }
 
     @Test func normalizesRepositoryDirectoryAndIndexURLs() throws {
         #expect(
-            try KeiyoushiJarRepository.catalogURL(
+            try TachiyomiXJarRepository.catalogURL(
                 from: "https://example.com/extensions"
             ).absoluteString ==
                 "https://example.com/extensions/index.pb"
         )
         #expect(
-            try KeiyoushiJarRepository.catalogURL(
+            try TachiyomiXJarRepository.catalogURL(
                 from: "https://example.com/custom.json?token=preserved#section"
             ).absoluteString ==
                 "https://example.com/custom.json?token=preserved"
         )
         #expect(throws: (any Error).self) {
-            try KeiyoushiJarRepository.catalogURL(
+            try TachiyomiXJarRepository.catalogURL(
                 from: "file:///tmp/index.json"
             )
         }
@@ -37,28 +37,28 @@ struct ExtensionRepositoryTests {
         let encoded =
             "https%3A%2F%2Fexample.com%2Fextensions%2Findex.pb"
         #expect(
-            try KeiyoushiJarRepository.repositoryURL(
+            try TachiyomiXJarRepository.repositoryURL(
                 fromDeepLink: URL(
                     string: "mihon://extension-store?url=\(encoded)"
                 )!
             ) == "https://example.com/extensions/index.pb"
         )
         #expect(
-            try KeiyoushiJarRepository.repositoryURL(
+            try TachiyomiXJarRepository.repositoryURL(
                 fromDeepLink: URL(
                     string: "tachiyomiaz://extension-store?url=\(encoded)"
                 )!
             ) == "https://example.com/extensions/index.pb"
         )
         #expect(
-            try KeiyoushiJarRepository.repositoryURL(
+            try TachiyomiXJarRepository.repositoryURL(
                 fromDeepLink: URL(
                     string: "tachiyomi://add-repo?url=\(encoded)"
                 )!
             ) == "https://example.com/extensions/index.pb"
         )
         #expect(
-            try KeiyoushiJarRepository.repositoryURL(
+            try TachiyomiXJarRepository.repositoryURL(
                 fromDeepLink: URL(string: "tachiyomiaz://source")!
             ) == nil
         )
@@ -92,7 +92,7 @@ struct ExtensionRepositoryTests {
             bytesField(101, list),
         ])
 
-        let catalog = try await KeiyoushiJarRepository.decodeCatalogData(
+        let catalog = try await TachiyomiXJarRepository.decodeCatalogData(
             store,
             catalogURL: URL(string: "https://example.com/index.pb")!
         )
@@ -135,7 +135,7 @@ struct ExtensionRepositoryTests {
           }
         }
         """
-        let catalog = try await KeiyoushiJarRepository.decodeCatalogData(
+        let catalog = try await TachiyomiXJarRepository.decodeCatalogData(
             Data(json.utf8),
             catalogURL: URL(string: "https://example.com/index.json")!
         )
@@ -151,17 +151,17 @@ struct ExtensionRepositoryTests {
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
 
-        let repository = KeiyoushiJarRepository.Repository(
+        let repository = TachiyomiXJarRepository.Repository(
             name: "User Repository",
             catalogURL: URL(string: "https://example.com/index.json")!
         )
-        try KeiyoushiJarRepository.save(
+        try TachiyomiXJarRepository.save(
             repositories: [repository],
             defaults: defaults
         )
 
         #expect(
-            KeiyoushiJarRepository.repositories(defaults: defaults) ==
+            TachiyomiXJarRepository.repositories(defaults: defaults) ==
                 [repository]
         )
     }

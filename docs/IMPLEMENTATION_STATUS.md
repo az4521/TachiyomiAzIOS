@@ -12,9 +12,9 @@ Last updated: 2026-07-31
 - Xcode integration for the static VM on arm64 devices and arm64/x86_64 iOS
   simulators, embedding the destination-specific Java bundle.
 - Runtime-aware bytecode validation before an extension JAR is loaded.
-- Keiyoushi textual Android manifest parsing and automatic entry-class
+- TachiyomiX textual Android manifest parsing and automatic entry-class
   discovery, without `dex2jar` or APK conversion.
-- Keiyoushi `/repo/jar` URL mapping from index `.apk` basenames to direct
+- TachiyomiX `/repo/jar` URL mapping from index `.apk` basenames to direct
   `.jar` artifacts, with a pinned Asura Scans fixture.
 - Per-extension `URLClassLoader` lifecycle and a stable JSON dispatch entry
   point.
@@ -26,7 +26,7 @@ Last updated: 2026-07-31
   failed final load.
 - Java host integration tests for loading, invoking, replacing, and unloading
   a fixture extension.
-- A pinned real-world test against Keiyoushi's
+- A pinned real-world test against TachiyomiX's
   `tachiyomi-en.asurascans-v1.6.66.jar` and its published SHA-256.
 - A reproducible compatibility bootstrap pinned to Suwayomi-Server commit
   `eb2dc0b19a9571b27c02bebc5c883e404b7bd7fb`, using its AndroidCompat and
@@ -73,7 +73,7 @@ Last updated: 2026-07-31
 - A binary fixture compiled against official TachiyomiX 1.4.4 that proves a
   suspend host call falls back to its Rx-only popular implementation.
 - `SourceFactory` expansion, source enumeration, and source-ID routing, tested
-  against the 61-source Keiyoushi MangaDex 1.4.211 extension.
+  against the 61-source TachiyomiX MangaDex 1.4.211 extension.
 - A live MangaDex 1.4 test that selects its English source and fetches page 1
   through Mihon's suspend-to-Rx compatibility fallback.
 - A live Asura Scans test that constructs the extension and fetches page 1
@@ -93,7 +93,7 @@ Last updated: 2026-07-31
   library, browse, history, search, and settings controllers.
 - The iOS AIX/WASM importer, installed-interpreter reload path, delegated
   source-list bootstrap/settings, and source-list backup restore are disabled
-  after Keiyoushi parity. Local files, Komga, and Kavita remain available.
+  after TachiyomiX parity. Local files, Komga, and Kavita remain available.
 - Fork-specific `app.tachiyomiaz.TachiyomiAZ` app and test bundle identifiers avoid
   Aidoku signing collisions and allow both apps to coexist.
 - The source-available external AidokuRunner package is no longer a dependency.
@@ -107,7 +107,7 @@ The app still imports a module named `AidokuRunner` for source compatibility,
 but that name now resolves to `Packages/TachiyomiAZRunner`, which is owned by
 this fork and implements only shared manga/chapter/filter/setting models plus
 the `Runner` protocol. The external AidokuRunner repository is not fetched or
-linked. Keiyoushi sources use `KeiyoushiSourceRunner`; AIX/WASM loading is
+linked. TachiyomiX sources use `TachiyomiXSourceRunner`; AIX/WASM loading is
 rejected by the local compatibility layer.
 
 ## External validation

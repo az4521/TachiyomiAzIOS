@@ -2,8 +2,8 @@ package app.tachiaz.runtime;
 
 import java.io.File;
 
-public final class KeiyoushiAsuraScansTest {
-    private KeiyoushiAsuraScansTest() {
+public final class TachiyomiXAsuraScansTest {
+    private TachiyomiXAsuraScansTest() {
     }
 
     public static void main(String[] arguments) {
@@ -38,7 +38,7 @@ public final class KeiyoushiAsuraScansTest {
         assertContains(response, "\"extensionLibrary\":\"1.6\"");
         assertContains(response, "\"maximumClassVersion\":\"55\"");
         assertContains(response, "\"requiredJavaVersion\":\"11\"");
-        System.out.println("Keiyoushi Asura Scans JAR test passed");
+        System.out.println("TachiyomiX Asura Scans JAR test passed");
     }
 
     private static void assertContains(String actual, String expected) {

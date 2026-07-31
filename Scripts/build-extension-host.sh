@@ -96,7 +96,7 @@ if [[ "${1:-}" == "--test" ]]; then
     if [[ -n "${TACHIAZ_ASURA_JAR:-}" ]]; then
         "$test_java" "${test_java_options[@]}" \
             -cp "$output_jar:$test_classes_root" \
-            app.tachiaz.runtime.KeiyoushiAsuraScansTest \
+            app.tachiaz.runtime.TachiyomiXAsuraScansTest \
             "$TACHIAZ_ASURA_JAR"
     fi
 
@@ -136,14 +136,14 @@ if [[ "${1:-}" == "--test" ]]; then
             "$test_java" "${test_java_options[@]}" \
                 -cp \
                 "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$test_classes_root" \
-                app.tachiaz.runtime.KeiyoushiMangaDexRuntimeTest \
+                app.tachiaz.runtime.TachiyomiXMangaDexRuntimeTest \
                 "$TACHIAZ_MANGADEX_JAR"
         fi
 
         if [[ -n "${TACHIAZ_ASURA_JAR:-}" ]]; then
             "$test_java" "${test_java_options[@]}" \
                 -cp "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$test_classes_root" \
-                app.tachiaz.runtime.KeiyoushiAsuraRuntimeTest \
+                app.tachiaz.runtime.TachiyomiXAsuraRuntimeTest \
                 "$TACHIAZ_ASURA_JAR"
         fi
     fi

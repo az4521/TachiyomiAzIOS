@@ -103,8 +103,8 @@ public final class ExtensionHost {
     private static String inspectExtension(Map<String, String> request)
         throws Exception {
         File jar = new File(require(request, "jarPath"));
-        KeiyoushiJarMetadata.Metadata metadata =
-            KeiyoushiJarMetadata.inspect(jar);
+        TachiyomiXJarMetadata.Metadata metadata =
+            TachiyomiXJarMetadata.inspect(jar);
         Map<String, String> response = metadataMap(metadata);
         return MiniJson.response(true, metadata.entryClass, null, response);
     }
@@ -113,9 +113,9 @@ public final class ExtensionHost {
         throws Exception {
         String extensionId = require(request, "extensionId");
         File jar = new File(require(request, "jarPath"));
-        KeiyoushiJarMetadata.Metadata metadata =
-            KeiyoushiJarMetadata.inspect(jar);
-        KeiyoushiJarMetadata.requireSupportedLibrary(metadata);
+        TachiyomiXJarMetadata.Metadata metadata =
+            TachiyomiXJarMetadata.inspect(jar);
+        TachiyomiXJarMetadata.requireSupportedLibrary(metadata);
         String entryClass = request.get("entryClass");
         if (entryClass == null || entryClass.isEmpty()) {
             entryClass = metadata.entryClass;
@@ -1643,7 +1643,7 @@ public final class ExtensionHost {
     }
 
     private static Map<String, String> metadataMap(
-        KeiyoushiJarMetadata.Metadata metadata
+        TachiyomiXJarMetadata.Metadata metadata
     ) {
         Map<String, String> response = new LinkedHashMap<>();
         response.put("packageName", metadata.packageName);

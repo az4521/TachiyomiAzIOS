@@ -23,7 +23,7 @@ func mangaPageDecodesFromExtensionHostPayload() throws {
     """
 
     let page = try JSONDecoder().decode(
-        KeiyoushiMangaPage.self,
+        TachiyomiXMangaPage.self,
         from: Data(payload.utf8)
     )
 
@@ -47,12 +47,12 @@ func sourceFactoryDescriptorsDecodeFromExtensionHostPayload() throws {
     """
 
     let sources = try JSONDecoder().decode(
-        [KeiyoushiSourceDescriptor].self,
+        [TachiyomiXSourceDescriptor].self,
         from: Data(payload.utf8)
     )
 
     #expect(sources == [
-        KeiyoushiSourceDescriptor(
+        TachiyomiXSourceDescriptor(
             id: 2499283573021220255,
             name: "MangaDex",
             lang: "en",
@@ -99,11 +99,11 @@ func mangaUpdateAndPagesDecodeFromExtensionHostPayloads() throws {
     """
 
     let update = try JSONDecoder().decode(
-        KeiyoushiMangaUpdate.self,
+        TachiyomiXMangaUpdate.self,
         from: Data(updatePayload.utf8)
     )
     let pages = try JSONDecoder().decode(
-        [KeiyoushiPage].self,
+        [TachiyomiXPage].self,
         from: Data(pagesPayload.utf8)
     )
 

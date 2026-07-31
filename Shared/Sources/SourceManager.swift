@@ -41,7 +41,7 @@ class SourceManager {
 
     init() {
         #if os(iOS)
-        // Keiyoushi's signed catalog replaces delegated Aidoku source lists.
+        // User-supplied TachiyomiX catalogs replace delegated Aidoku source lists.
         sourceListURLs = []
         #else
         sourceListURLs = (UserDefaults.standard.array(forKey: "Browse.sourceLists") as? [String] ?? [])
@@ -147,8 +147,8 @@ class SourceManager {
 extension SourceManager {
 #if os(iOS)
     @discardableResult
-    func installKeiyoushiExtension(
-        _ entry: KeiyoushiJarRepository.Catalog.Extension
+    func installTachiyomiXExtension(
+        _ entry: TachiyomiXJarRepository.Catalog.Extension
     ) async throws -> JVMExtensionManifest {
         let manifest = try await JVMSourceRuntime.shared.install(
             catalogEntry: entry
@@ -423,11 +423,11 @@ extension SourceManager {
         sources.removeAll { $0.id == source.id }
         Task {
 #if os(iOS)
-            if let runner = source.runner as? KeiyoushiSourceRunner {
+            if let runner = source.runner as? TachiyomiXSourceRunner {
                 try? await runner.uninstall()
                 await MainActor.run {
                     self.sources.removeAll {
-                        ($0.runner as? KeiyoushiSourceRunner)?
+                        ($0.runner as? TachiyomiXSourceRunner)?
                             .extensionId == runner.extensionId
                     }
                 }

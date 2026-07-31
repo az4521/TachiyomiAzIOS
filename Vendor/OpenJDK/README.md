@@ -23,7 +23,7 @@ classpath for the small JUL surface used by OkHttp/Okio, and installs a JDK
 CA trust store into `java_bundle/lib/security/cacerts`. Run
 `Scripts/build-mobile-shims.sh` before building outside CI.
 
-The current Keiyoushi Asura Scans JAR uses Java 11 class files. The former
+The current TachiyomiX Asura Scans JAR uses Java 11 class files. The former
 OpenJDK 8 experiment cannot load it, so it is deliberately unsupported.
 
 This runtime is for sideloaded builds. The Java interpreter is initialized once

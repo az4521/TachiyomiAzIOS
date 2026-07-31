@@ -4,7 +4,7 @@ An experimental, sideload-only iOS/iPadOS manga reader forked from
 [Aidoku](https://github.com/Aidoku/Aidoku).
 
 This branch is replacing Aidoku's source runtime with the official
-OpenJDK/mobile Zero runtime for direct Keiyoushi JVM extension JARs, adding
+OpenJDK/mobile Zero runtime for direct TachiyomiX JVM extension JARs, adding
 Mihon/TachiyomiAZ backup
 import, and using a Material Design 1-inspired navigation drawer.
 
@@ -18,9 +18,9 @@ still needs an Xcode simulator build on macOS. See
 
 ## Features
 - [x] No ads
-- [x] Keiyoushi JAR sources as the iOS extension path (AIX/WASM and delegated
+- [x] TachiyomiX JAR sources as the iOS extension path (AIX/WASM and delegated
   source lists are disabled on iOS)
-- [x] Core Mihon/Keiyoushi extension-lib 1.4–1.6 source compatibility
+- [x] Core Mihon/TachiyomiX extension-lib 1.4–1.6 source compatibility
 - [x] User-configured JAR repository installation and updates; no extension
   repositories are included or recommended by the app
 - [x] Current `index.pb`/`index.json` stores and Mihon-compatible
@@ -38,6 +38,11 @@ needed for a physical device. Its bundle identifier is
 `app.tachiyomiaz.TachiyomiAZ`, so it can coexist with Aidoku.
 
 Before the first build:
+
+The real-world extension checks do not embed a repository URL. Provide local
+JAR paths to `Scripts/test-tachiyomix-mangadex.sh` and
+`Scripts/test-tachiyomix-asurascans.sh`, or set
+`TACHIYOMIAZ_MANGADEX_FIXTURE_URL` and `TACHIYOMIAZ_ASURA_FIXTURE_URL`.
 
 ```sh
 Scripts/bootstrap-openjdk-ios.sh

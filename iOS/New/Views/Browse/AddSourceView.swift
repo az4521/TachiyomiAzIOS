@@ -115,7 +115,7 @@ struct AddSourceView: View {
 }
 
 private struct ExtensionRepositoryListView: View {
-    @State private var repositories = KeiyoushiJarRepository.repositories()
+    @State private var repositories = TachiyomiXJarRepository.repositories()
     @State private var repositoryURL = ""
     @State private var validating = false
     @State private var errorMessage: String?
@@ -206,10 +206,10 @@ private struct ExtensionRepositoryListView: View {
                 validating = false
             }
             do {
-                _ = try await KeiyoushiJarRepository.addRepository(
+                _ = try await TachiyomiXJarRepository.addRepository(
                     from: repositoryURL
                 )
-                repositories = KeiyoushiJarRepository.repositories()
+                repositories = TachiyomiXJarRepository.repositories()
                 repositoryURL = ""
             } catch {
                 errorMessage = error.localizedDescription
@@ -221,7 +221,7 @@ private struct ExtensionRepositoryListView: View {
         var updated = repositories
         updated.remove(atOffsets: offsets)
         do {
-            try KeiyoushiJarRepository.save(repositories: updated)
+            try TachiyomiXJarRepository.save(repositories: updated)
             repositories = updated
         } catch {
             errorMessage = error.localizedDescription
@@ -230,16 +230,16 @@ private struct ExtensionRepositoryListView: View {
 }
 
 private struct ExtensionCatalogView: View {
-    let repository: KeiyoushiJarRepository.Repository
+    let repository: TachiyomiXJarRepository.Repository
 
-    @State private var catalog: KeiyoushiJarRepository.Catalog?
+    @State private var catalog: TachiyomiXJarRepository.Catalog?
     @State private var installedVersions: [String: String] = [:]
     @State private var unhealthyExtensions: Set<String> = []
     @State private var installing: Set<String> = []
     @State private var searchText = ""
     @State private var errorMessage: String?
 
-    private var extensions: [KeiyoushiJarRepository.Catalog.Extension] {
+    private var extensions: [TachiyomiXJarRepository.Catalog.Extension] {
         guard let catalog else { return [] }
         let supported = catalog.extensionList.extensions.filter(
             \.usesSupportedExtensionLibrary
@@ -346,7 +346,7 @@ private struct ExtensionCatalogView: View {
     }
 
     private func buttonTitle(
-        for entry: KeiyoushiJarRepository.Catalog.Extension
+        for entry: TachiyomiXJarRepository.Catalog.Extension
     ) -> String {
         guard let installed = installedVersions[entry.packageName] else {
             return "Get"
@@ -361,7 +361,7 @@ private struct ExtensionCatalogView: View {
 
     private func reload() async {
         do {
-            async let catalog = KeiyoushiJarRepository.fetchCatalog(
+            async let catalog = TachiyomiXJarRepository.fetchCatalog(
                 from: repository.catalogURL
             )
             let manifests = try await JVMSourceRuntime.shared
@@ -382,7 +382,7 @@ private struct ExtensionCatalogView: View {
     }
 
     private func install(
-        _ entry: KeiyoushiJarRepository.Catalog.Extension
+        _ entry: TachiyomiXJarRepository.Catalog.Extension
     ) {
         installing.insert(entry.packageName)
         Task {
@@ -391,7 +391,7 @@ private struct ExtensionCatalogView: View {
             }
             do {
                 let manifest = try await SourceManager.shared
-                    .installKeiyoushiExtension(entry)
+                    .installTachiyomiXExtension(entry)
                 installedVersions[entry.packageName] = manifest.version
                 unhealthyExtensions.remove(entry.packageName)
             } catch {

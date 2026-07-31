@@ -11,11 +11,11 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
 /**
- * Reads the Android-style manifest shipped inside Keiyoushi's prebuilt JARs.
+ * Reads the Android-style manifest shipped inside TachiyomiX's prebuilt JARs.
  * These artifacts are already JVM class archives; no APK or DEX conversion is
  * performed.
  */
-final class KeiyoushiJarMetadata {
+final class TachiyomiXJarMetadata {
     private static final Pattern SUPPORTED_EXTENSION_LIBRARY =
         Pattern.compile("^1\\.(4|5|6)(?:\\..*)?$");
     private static final Pattern PACKAGE = Pattern.compile(
@@ -35,7 +35,7 @@ final class KeiyoushiJarMetadata {
         "\\bandroid:targetSdkVersion=\"([^\"]+)\""
     );
 
-    private KeiyoushiJarMetadata() {
+    private TachiyomiXJarMetadata() {
     }
 
     static Metadata inspect(File jar) throws IOException {
@@ -107,7 +107,7 @@ final class KeiyoushiJarMetadata {
                 if (!value.trim().startsWith("<?xml")) {
                     throw new IllegalArgumentException(
                         "AndroidManifest.xml is not the textual manifest " +
-                            "used by Keiyoushi JAR artifacts"
+                            "used by TachiyomiX JAR artifacts"
                     );
                 }
                 return value;

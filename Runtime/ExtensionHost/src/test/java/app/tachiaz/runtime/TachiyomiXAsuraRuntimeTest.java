@@ -2,8 +2,8 @@ package app.tachiaz.runtime;
 
 import java.io.File;
 
-public final class KeiyoushiAsuraRuntimeTest {
-    private KeiyoushiAsuraRuntimeTest() {
+public final class TachiyomiXAsuraRuntimeTest {
+    private TachiyomiXAsuraRuntimeTest() {
     }
 
     public static void main(String[] arguments) {
@@ -32,7 +32,7 @@ public final class KeiyoushiAsuraRuntimeTest {
         assertContains(response, "\\\"title\\\":");
         assertContains(response, "\\\"thumbnailURL\\\":");
         assertContains(response, "\\\"hasNextPage\\\":");
-        System.out.println("Keiyoushi Asura Scans runtime test passed");
+        System.out.println("TachiyomiX Asura Scans runtime test passed");
 
         // OkHttp and coroutine pools are deliberately process-wide in the app.
         // End this short-lived command line test without waiting for them.

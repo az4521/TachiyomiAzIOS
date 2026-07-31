@@ -12,7 +12,7 @@
 		A12100000000000000000003 /* JVMExtensionManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12100000000000000000001 /* JVMExtensionManifest.swift */; };
 		A12100000000000000000004 /* JVMSourceRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12100000000000000000002 /* JVMSourceRuntime.swift */; };
 		A12100000000000000000007 /* MihonBackupImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12100000000000000000006 /* MihonBackupImporter.swift */; };
-		A12300000000000000000002 /* KeiyoushiJarRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12300000000000000000001 /* KeiyoushiJarRepository.swift */; };
+		A12300000000000000000002 /* TachiyomiXJarRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12300000000000000000001 /* TachiyomiXJarRepository.swift */; };
 		002C0AC12EC0F44D0071CE82 /* LAPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002C0AC02EC0F44D0071CE82 /* LAPolicy.swift */; };
 		002C0AC22EC0F44D0071CE82 /* LAPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002C0AC02EC0F44D0071CE82 /* LAPolicy.swift */; };
 		04B48CF82CD6836100F719D0 /* ShikimoriTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04B48CF72CD6835D00F719D0 /* ShikimoriTracker.swift */; };
@@ -620,7 +620,7 @@
 		A12100000000000000000001 /* JVMExtensionManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JVMExtensionManifest.swift; sourceTree = "<group>"; };
 		A12100000000000000000002 /* JVMSourceRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JVMSourceRuntime.swift; sourceTree = "<group>"; };
 		A12100000000000000000006 /* MihonBackupImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MihonBackupImporter.swift; sourceTree = "<group>"; };
-		A12300000000000000000001 /* KeiyoushiJarRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeiyoushiJarRepository.swift; sourceTree = "<group>"; };
+		A12300000000000000000001 /* TachiyomiXJarRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TachiyomiXJarRepository.swift; sourceTree = "<group>"; };
 		002C0AC02EC0F44D0071CE82 /* LAPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LAPolicy.swift; sourceTree = "<group>"; };
 		04B48CF72CD6835D00F719D0 /* ShikimoriTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShikimoriTracker.swift; sourceTree = "<group>"; };
 		04B48CFA2CD6838600F719D0 /* ShikimoriApi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShikimoriApi.swift; sourceTree = "<group>"; };
@@ -1457,7 +1457,7 @@
 				A12100000000000000000001 /* JVMExtensionManifest.swift */,
 				A12100000000000000000002 /* JVMSourceRuntime.swift */,
 				A12100000000000000000006 /* MihonBackupImporter.swift */,
-				A12300000000000000000001 /* KeiyoushiJarRepository.swift */,
+				A12300000000000000000001 /* TachiyomiXJarRepository.swift */,
 			);
 			path = JVM;
 			sourceTree = "<group>";
@@ -2661,7 +2661,7 @@
 				A12100000000000000000003 /* JVMExtensionManifest.swift in Sources */,
 				A12100000000000000000004 /* JVMSourceRuntime.swift in Sources */,
 				A12100000000000000000007 /* MihonBackupImporter.swift in Sources */,
-				A12300000000000000000002 /* KeiyoushiJarRepository.swift in Sources */,
+				A12300000000000000000002 /* TachiyomiXJarRepository.swift in Sources */,
 				FB4B0AEE285D2EE30066A13B /* MyAnimeListModels.swift in Sources */,
 				FB8E48D52DBFCEFB002A3621 /* SourceListingsContentView.swift in Sources */,
 				FBF9259D2F4DFB810049CB43 /* MangaBakaModels.swift in Sources */,

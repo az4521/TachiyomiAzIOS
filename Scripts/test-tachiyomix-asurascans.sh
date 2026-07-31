@@ -3,10 +3,10 @@
 set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-fixture_root="${TMPDIR:-/tmp}/tachiaz-keiyoushi-fixtures"
+fixture_root="${TMPDIR:-/tmp}/tachiaz-tachiyomix-fixtures"
 fixture_name="tachiyomi-en.asurascans-v1.6.66.jar"
 fixture_path="$fixture_root/$fixture_name"
-fixture_url="https://raw.githubusercontent.com/keiyoushi/extensions/repo/jar/$fixture_name"
+fixture_url="${TACHIYOMIAZ_ASURA_FIXTURE_URL:-${TACHIAZ_ASURA_FIXTURE_URL:-}}"
 expected_sha256="ce8d03b408a6b329b02f9b2c9280badb981ff352703a45749a443f87805c46ff"
 compatibility_root="$repository_root/Runtime/ExtensionHost/compat"
 mihon_14_fixture="$repository_root/Runtime/ExtensionHost/fixtures/mihon-1.4/mihon-extension-lib-1.4-fixture.jar"
@@ -20,6 +20,10 @@ else
     }
     mkdir -p "$fixture_root"
     if [[ ! -f "$fixture_path" ]]; then
+        if [[ -z "$fixture_url" ]]; then
+            echo "Pass the Asura Scans extension JAR path or set TACHIYOMIAZ_ASURA_FIXTURE_URL." >&2
+            exit 1
+        fi
         curl --fail --location --output "$fixture_path" "$fixture_url"
     fi
 fi

@@ -3,10 +3,10 @@
 set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-fixture_root="${TMPDIR:-/tmp}/tachiaz-keiyoushi-fixtures"
+fixture_root="${TMPDIR:-/tmp}/tachiaz-tachiyomix-fixtures"
 fixture_name="tachiyomi-all.mangadex-v1.4.211.jar"
 fixture_path="$fixture_root/$fixture_name"
-fixture_url="https://raw.githubusercontent.com/keiyoushi/extensions/repo/jar/$fixture_name"
+fixture_url="${TACHIYOMIAZ_MANGADEX_FIXTURE_URL:-${TACHIAZ_MANGADEX_FIXTURE_URL:-}}"
 expected_sha256="401158e4d00e111998c20243adbddf64b377b95191d1e14d054b1a1a038c51e9"
 compatibility_root="$repository_root/Runtime/ExtensionHost/compat"
 
@@ -19,6 +19,10 @@ else
     }
     mkdir -p "$fixture_root"
     if [[ ! -f "$fixture_path" ]]; then
+        if [[ -z "$fixture_url" ]]; then
+            echo "Pass the MangaDex extension JAR path or set TACHIYOMIAZ_MANGADEX_FIXTURE_URL." >&2
+            exit 1
+        fi
         curl --fail --location --output "$fixture_path" "$fixture_url"
     fi
 fi

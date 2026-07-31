@@ -509,7 +509,7 @@ extension AppDelegate {
 
     func handleUrl(url: URL) {
         do {
-            if let repositoryURL = try KeiyoushiJarRepository
+            if let repositoryURL = try TachiyomiXJarRepository
                 .repositoryURL(fromDeepLink: url)
             {
                 confirmExtensionRepository(repositoryURL)
@@ -648,7 +648,7 @@ extension AppDelegate {
                         self.showLoadingIndicator()
                         do {
                             let repository = try await
-                                KeiyoushiJarRepository.addRepository(
+                                TachiyomiXJarRepository.addRepository(
                                     from: repositoryURL
                                 )
                             await self.hideLoadingIndicator()

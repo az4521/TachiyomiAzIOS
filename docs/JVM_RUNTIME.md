@@ -68,13 +68,17 @@ sandbox on both simulator and device.
 5. Run `Scripts/build-extension-host.sh --test`.
 6. Run `Scripts/test-mobile-java-base.sh`.
 
+The real-world tests intentionally contain no extension-repository address.
+Supply the fixture JARs directly, or set `TACHIYOMIAZ_MANGADEX_FIXTURE_URL`
+and `TACHIYOMIAZ_ASURA_FIXTURE_URL` before running the final test script.
+
 The host itself is compiled as Java 8 bytecode for portability. Extension
 validation is based on the embedded VM's actual class-file ceiling. The pinned
 Asura Scans `1.6.66` fixture uses Java 11 bytecode (major version 55), which is
 why the old third-party OpenJDK 8 build was replaced with the current official
 OpenJDK/mobile snapshot.
 
-Keiyoushi JARs contain a textual `AndroidManifest.xml`. The host reads
+TachiyomiX JARs contain a textual `AndroidManifest.xml`. The host reads
 `tachiyomi.extension.class`, package name, display name, version, extension-lib
 version, SDK levels, and bytecode requirements directly from that manifest.
 It does not perform APK or DEX conversion.
@@ -107,8 +111,8 @@ operation. For extension-lib 1.4 and other legacy sources, the supplied
 Mihon-compatible `CatalogueSource` default delegates that call to the
 extension's Rx `fetch*` implementation. Extension-lib 1.6 sources that
 override the suspend method run directly. Tests cover both paths using a
-fixture compiled against official TachiyomiX 1.4.4, the real Keiyoushi
-MangaDex 1.4.211 JAR, and the real Keiyoushi Asura Scans 1.6.66 JAR.
+fixture compiled against official TachiyomiX 1.4.4, the real TachiyomiX
+MangaDex 1.4.211 JAR, and the real TachiyomiX Asura Scans 1.6.66 JAR.
 MangaDex also verifies `SourceFactory` support: its generated entry point
 expands into 61 language-specific sources, which Swift can list and address
 by Mihon source ID.
@@ -118,7 +122,7 @@ by Mihon source ID.
 The pinned Suwayomi layer now supplies HTTP, preferences, HTML parsing, source
 models, filters, cookies, and its Android compatibility classes. Typed popular,
 latest, search/filter, combined manga-details/chapter-update, page-list, and
-preference operations invoke Keiyoushi's API without exposing Kotlin objects
+preference operations invoke TachiyomiX's API without exposing Kotlin objects
 across JNI. On 1.4 extensions, Mihon's default implementations bridge source
 calls to the legacy Rx methods. AndroidX preferences are projected into native
 Aidoku settings and written back to the extension's `SharedPreferences`.

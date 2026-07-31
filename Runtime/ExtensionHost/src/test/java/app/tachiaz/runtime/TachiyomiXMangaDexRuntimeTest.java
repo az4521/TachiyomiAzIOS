@@ -4,10 +4,10 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class KeiyoushiMangaDexRuntimeTest {
+public final class TachiyomiXMangaDexRuntimeTest {
     private static final String ENGLISH_SOURCE_ID = "2499283573021220255";
 
-    private KeiyoushiMangaDexRuntimeTest() {
+    private TachiyomiXMangaDexRuntimeTest() {
     }
 
     public static void main(String[] arguments) {
@@ -212,7 +212,7 @@ public final class KeiyoushiMangaDexRuntimeTest {
         assertSuccess(imageRequest);
         assertContains(imageRequest, "\\\"headers\\\":{");
         System.out.println(
-            "Keiyoushi MangaDex extension-lib 1.4 runtime test passed"
+            "TachiyomiX MangaDex extension-lib 1.4 runtime test passed"
         );
         System.exit(0);
     }

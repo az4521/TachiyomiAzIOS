@@ -1,7 +1,7 @@
 import Foundation
 import TachiJVMRunner
 
-enum KeiyoushiJarRepository {
+enum TachiyomiXJarRepository {
     struct Repository: Codable, Identifiable, Sendable, Hashable {
         let name: String
         let catalogURL: URL
@@ -505,7 +505,7 @@ private struct ProtobufReader {
         let tag = try readVarint()
         let number = Int(tag >> 3)
         guard number > 0 else {
-            throw KeiyoushiJarRepository.RepositoryError.malformedProtobuf
+            throw TachiyomiXJarRepository.RepositoryError.malformedProtobuf
         }
         switch tag & 0x07 {
             case 0:
@@ -516,7 +516,7 @@ private struct ProtobufReader {
             case 2:
                 let count = try readVarint()
                 guard count <= UInt64(Int.max) else {
-                    throw KeiyoushiJarRepository.RepositoryError
+                    throw TachiyomiXJarRepository.RepositoryError
                         .malformedProtobuf
                 }
                 let value = try readBytes(Int(count))
@@ -525,7 +525,7 @@ private struct ProtobufReader {
                 try skip(4)
                 return (number, .ignored)
             default:
-                throw KeiyoushiJarRepository.RepositoryError
+                throw TachiyomiXJarRepository.RepositoryError
                     .malformedProtobuf
         }
     }
@@ -542,12 +542,12 @@ private struct ProtobufReader {
             }
             shift += 7
         }
-        throw KeiyoushiJarRepository.RepositoryError.malformedProtobuf
+        throw TachiyomiXJarRepository.RepositoryError.malformedProtobuf
     }
 
     private mutating func readBytes(_ count: Int) throws -> [UInt8] {
         guard count >= 0, offset <= bytes.count - count else {
-            throw KeiyoushiJarRepository.RepositoryError.malformedProtobuf
+            throw TachiyomiXJarRepository.RepositoryError.malformedProtobuf
         }
         defer { offset += count }
         return Array(bytes[offset..<(offset + count)])
@@ -555,7 +555,7 @@ private struct ProtobufReader {
 
     private mutating func skip(_ count: Int) throws {
         guard count >= 0, offset <= bytes.count - count else {
-            throw KeiyoushiJarRepository.RepositoryError.malformedProtobuf
+            throw TachiyomiXJarRepository.RepositoryError.malformedProtobuf
         }
         offset += count
     }

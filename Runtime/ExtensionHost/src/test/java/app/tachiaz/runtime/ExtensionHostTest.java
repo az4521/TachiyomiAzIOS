@@ -38,14 +38,14 @@ public final class ExtensionHostTest {
                 Base64.NO_WRAP | Base64.NO_PADDING
             )
         );
-        assertTrue(KeiyoushiJarMetadata.supportsExtensionLibrary("1.4"));
-        assertTrue(KeiyoushiJarMetadata.supportsExtensionLibrary("1.4.211"));
-        assertTrue(KeiyoushiJarMetadata.supportsExtensionLibrary("1.5"));
-        assertTrue(KeiyoushiJarMetadata.supportsExtensionLibrary("1.5.2"));
-        assertTrue(KeiyoushiJarMetadata.supportsExtensionLibrary("1.6"));
-        assertTrue(!KeiyoushiJarMetadata.supportsExtensionLibrary("1.3"));
-        assertTrue(!KeiyoushiJarMetadata.supportsExtensionLibrary("1.7"));
-        assertTrue(!KeiyoushiJarMetadata.supportsExtensionLibrary(null));
+        assertTrue(TachiyomiXJarMetadata.supportsExtensionLibrary("1.4"));
+        assertTrue(TachiyomiXJarMetadata.supportsExtensionLibrary("1.4.211"));
+        assertTrue(TachiyomiXJarMetadata.supportsExtensionLibrary("1.5"));
+        assertTrue(TachiyomiXJarMetadata.supportsExtensionLibrary("1.5.2"));
+        assertTrue(TachiyomiXJarMetadata.supportsExtensionLibrary("1.6"));
+        assertTrue(!TachiyomiXJarMetadata.supportsExtensionLibrary("1.3"));
+        assertTrue(!TachiyomiXJarMetadata.supportsExtensionLibrary("1.7"));
+        assertTrue(!TachiyomiXJarMetadata.supportsExtensionLibrary(null));
 
         String escapedPath = arguments[0]
             .replace("\\", "\\\\")

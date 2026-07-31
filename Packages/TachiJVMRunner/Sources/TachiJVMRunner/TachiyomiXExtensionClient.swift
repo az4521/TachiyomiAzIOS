@@ -1,6 +1,6 @@
 import Foundation
 
-public struct KeiyoushiManga: Codable, Sendable, Equatable {
+public struct TachiyomiXManga: Codable, Sendable, Equatable {
     public let url: String
     public let title: String
     public let thumbnailURL: String?
@@ -11,12 +11,12 @@ public struct KeiyoushiManga: Codable, Sendable, Equatable {
     public let genre: String?
 }
 
-public struct KeiyoushiMangaPage: Codable, Sendable, Equatable {
-    public let mangas: [KeiyoushiManga]
+public struct TachiyomiXMangaPage: Codable, Sendable, Equatable {
+    public let mangas: [TachiyomiXManga]
     public let hasNextPage: Bool
 }
 
-public struct KeiyoushiChapter: Codable, Sendable, Equatable {
+public struct TachiyomiXChapter: Codable, Sendable, Equatable {
     public let url: String
     public let name: String
     public let chapterNumber: Float
@@ -24,19 +24,19 @@ public struct KeiyoushiChapter: Codable, Sendable, Equatable {
     public let dateUpload: Int64
 }
 
-public struct KeiyoushiMangaUpdate: Codable, Sendable, Equatable {
-    public let manga: KeiyoushiManga
-    public let chapters: [KeiyoushiChapter]
+public struct TachiyomiXMangaUpdate: Codable, Sendable, Equatable {
+    public let manga: TachiyomiXManga
+    public let chapters: [TachiyomiXChapter]
 }
 
-public struct KeiyoushiPage: Codable, Sendable, Equatable {
+public struct TachiyomiXPage: Codable, Sendable, Equatable {
     public let index: Int
     public let url: String
     public let imageURL: String?
     public let uri: String?
 }
 
-public struct KeiyoushiSourceDescriptor: Codable, Sendable, Equatable {
+public struct TachiyomiXSourceDescriptor: Codable, Sendable, Equatable {
     public let id: Int64
     public let name: String
     public let lang: String
@@ -67,7 +67,7 @@ public extension JVMRuntime {
     }
 
     @discardableResult
-    func loadKeiyoushiExtension(
+    func loadTachiyomiXExtension(
         id: String,
         jarURL: URL,
         entryClass: String? = nil
@@ -86,7 +86,7 @@ public extension JVMRuntime {
         extensionId: String,
         sourceId: Int64? = nil,
         page: Int
-    ) throws -> KeiyoushiMangaPage {
+    ) throws -> TachiyomiXMangaPage {
         try pagedManga(
             operation: "getPopularManga",
             extensionId: extensionId,
@@ -99,7 +99,7 @@ public extension JVMRuntime {
         extensionId: String,
         sourceId: Int64? = nil,
         page: Int
-    ) throws -> KeiyoushiMangaPage {
+    ) throws -> TachiyomiXMangaPage {
         try pagedManga(
             operation: "getLatestUpdates",
             extensionId: extensionId,
@@ -113,7 +113,7 @@ public extension JVMRuntime {
         sourceId: Int64? = nil,
         query: String,
         page: Int
-    ) throws -> KeiyoushiMangaPage {
+    ) throws -> TachiyomiXMangaPage {
         guard !query.isEmpty else {
             throw JVMRuntimeError.invalidConfiguration(
                 "Search query must not be empty"
@@ -134,7 +134,7 @@ public extension JVMRuntime {
         sourceId: Int64?,
         page: Int,
         query: String? = nil
-    ) throws -> KeiyoushiMangaPage {
+    ) throws -> TachiyomiXMangaPage {
         guard page > 0 else {
             throw JVMRuntimeError.invalidConfiguration(
                 "Manga page must be at least 1"
@@ -156,7 +156,7 @@ public extension JVMRuntime {
         }
         do {
             return try JSONDecoder().decode(
-                KeiyoushiMangaPage.self,
+                TachiyomiXMangaPage.self,
                 from: Data(result.utf8)
             )
         } catch {
@@ -168,7 +168,7 @@ public extension JVMRuntime {
 
     func sources(
         extensionId: String
-    ) throws -> [KeiyoushiSourceDescriptor] {
+    ) throws -> [TachiyomiXSourceDescriptor] {
         let response = try checkedDispatch(
             ExtensionHostRequest(
                 operation: "listSources",
@@ -182,7 +182,7 @@ public extension JVMRuntime {
         }
         do {
             return try JSONDecoder().decode(
-                [KeiyoushiSourceDescriptor].self,
+                [TachiyomiXSourceDescriptor].self,
                 from: Data(result.utf8)
             )
         } catch {
@@ -197,7 +197,7 @@ public extension JVMRuntime {
         sourceId: Int64? = nil,
         mangaURL: String,
         mangaTitle: String
-    ) throws -> KeiyoushiMangaUpdate {
+    ) throws -> TachiyomiXMangaUpdate {
         let response = try checkedDispatch(
             ExtensionHostRequest(
                 operation: "getMangaUpdate",
@@ -207,7 +207,7 @@ public extension JVMRuntime {
                 mangaTitle: mangaTitle
             )
         )
-        return try decodeResult(response, as: KeiyoushiMangaUpdate.self)
+        return try decodeResult(response, as: TachiyomiXMangaUpdate.self)
     }
 
     func pages(
@@ -215,7 +215,7 @@ public extension JVMRuntime {
         sourceId: Int64? = nil,
         chapterURL: String,
         chapterName: String
-    ) throws -> [KeiyoushiPage] {
+    ) throws -> [TachiyomiXPage] {
         let response = try checkedDispatch(
             ExtensionHostRequest(
                 operation: "getPageList",
@@ -225,7 +225,7 @@ public extension JVMRuntime {
                 chapterName: chapterName
             )
         )
-        return try decodeResult(response, as: [KeiyoushiPage].self)
+        return try decodeResult(response, as: [TachiyomiXPage].self)
     }
 
     private func decodeResult<Value: Decodable>(

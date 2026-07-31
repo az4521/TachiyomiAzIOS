@@ -15,7 +15,7 @@ The application will:
 - retain Aidoku's native reader, downloads, library, persistence, tracking, and
   most feature screens;
 - embed the official OpenJDK/mobile Zero-interpreter runtime on iOS;
-- load JVM JAR versions of Mihon/Keiyoushi extensions directly;
+- load JVM JAR versions of Mihon/TachiyomiX extensions directly;
 - reuse a targeted subset of Suwayomi's extension API and AndroidCompat layer;
 - import TachiyomiAZ and Mihon backups while preserving source IDs and
   manga/chapter keys;
@@ -116,7 +116,7 @@ Use the official OpenJDK/mobile iOS Zero build and XCFramework:
   https://github.com/openjdk-mobile/ios-tools
 
 The earlier OpenJDK 8 build demonstrated by Code App proved that the approach
-works, but it cannot load the actual Keiyoushi fixture: Asura Scans 1.6.66 uses
+works, but it cannot load the actual TachiyomiX fixture: Asura Scans 1.6.66 uses
 Java 11 class files.
 
 Zero interprets bytecode and does not depend on JIT availability. This allows

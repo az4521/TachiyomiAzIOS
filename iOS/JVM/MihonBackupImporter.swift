@@ -99,7 +99,7 @@ enum MihonBackupImporter {
         var trackItems: [BackupTrackItem] = []
 
         for manga in payload.manga {
-            let sourceId = keiyoushiSourceKey(manga.source)
+            let sourceId = tachiyomixSourceKey(manga.source)
             let mangaId = manga.url
             let dateAdded = date(milliseconds: manga.dateAdded)
             let categoryNames = manga.categories.compactMap {
@@ -234,7 +234,7 @@ enum MihonBackupImporter {
                     )
                 },
             sources: payload.sources.map {
-                BackupSource(id: keiyoushiSourceKey($0.id))
+                BackupSource(id: tachiyomixSourceKey($0.id))
             },
             sourceLists: [],
             settings: nil,
@@ -257,7 +257,7 @@ enum MihonBackupImporter {
         return date(milliseconds: milliseconds)
     }
 
-    private static func keiyoushiSourceKey(_ sourceId: String) -> String {
+    private static func tachiyomixSourceKey(_ sourceId: String) -> String {
         guard !sourceId.hasPrefix("mihon.") else {
             return sourceId
         }
