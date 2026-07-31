@@ -62,9 +62,9 @@ sandbox on both simulator and device.
    and simulator Java bundles.
 2. Set `TACHIAZ_BUILD_JAVA_HOME` to a JDK 21+ installation.
 3. Run `Scripts/bootstrap-suwayomi-compat.sh`.
-4. Run `Scripts/build-extension-host.sh --test`.
-5. Run `Scripts/test-keiyoushi-mangadex.sh`.
-6. Run `Scripts/test-keiyoushi-asurascans.sh`.
+4. Run `Scripts/build-mobile-shims.sh`.
+5. Run `Scripts/build-extension-host.sh --test`.
+6. Run `Scripts/test-mobile-java-base.sh`.
 
 The host itself is compiled as Java 8 bytecode for portability. Extension
 validation is based on the embedded VM's actual class-file ceiling. The pinned
@@ -79,11 +79,12 @@ It does not perform APK or DEX conversion.
 
 The compatibility bootstrap checks out Suwayomi-Server commit
 `eb2dc0b19a9571b27c02bebc5c883e404b7bd7fb`, builds AndroidCompat and the
-Mihon source implementation, and copies a tested 38-JAR runtime subset. The
+Mihon source implementation, and copies a tested 36-JAR runtime subset. The
 generated compatibility directory is about 57 MB before iOS app packaging.
-The Xcode build embeds it as `tachiaz-compat`, ahead of the extension-host JAR
-on the JVM classpath so the full AndroidCompat classes take precedence over
-the host-only fixture stubs.
+The Xcode build embeds it as `tachiaz-compat`. The extension-host JAR is first
+on the JVM classpath so its iOS-safe `SystemClock` replacement wins; all other
+AndroidCompat and Mihon API classes come from the generated compatibility
+subset. Desktop Logback providers are deliberately excluded.
 
 `KeiyoushiJarRepository` maps an index filename such as
 `tachiyomi-en.asurascans-v1.6.66.apk` to the supplied repository artifact
@@ -129,4 +130,6 @@ returning incorrect data.
 Java extensions are native-trust plugins from the app's point of view. They can
 consume CPU and memory, access any Java API exposed by the host, and crash the
 process through runtime bugs. Installation must therefore require a trusted
-repository, artifact checksums, and a visible permission/capability summary.
+repository plus package/version identity validation. TachiAZ records the
+downloaded artifact's SHA-256 in its installed manifest so later storage
+corruption or substitution can be detected.

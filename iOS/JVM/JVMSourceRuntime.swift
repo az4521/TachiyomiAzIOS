@@ -69,10 +69,7 @@ actor JVMSourceRuntime {
             }
         }
 
-        let data = try Data(contentsOf: sourceJar, options: .mappedIfSafe)
-        let checksum = SHA256.hash(data: data)
-            .map { String(format: "%02x", $0) }
-            .joined()
+        let checksum = try sha256(of: sourceJar)
         guard checksum.caseInsensitiveCompare(manifest.sha256) == .orderedSame else {
             throw RuntimeError.checksumMismatch(
                 expected: manifest.sha256,
@@ -215,14 +212,11 @@ actor JVMSourceRuntime {
                 actual: inspection.version
             )
         }
-        let data = try Data(contentsOf: temporaryJar, options: .mappedIfSafe)
-        let sha256 = SHA256.hash(data: data)
-            .map { String(format: "%02x", $0) }
-            .joined()
+        let checksum = try sha256(of: temporaryJar)
         let manifest = JVMExtensionManifest(
             inspection: inspection,
             sourceURL: catalogEntry.resources.jarUrl,
-            sha256: sha256,
+            sha256: checksum,
             versionCode: catalogEntry.versionCode,
             extensionLibrary: catalogEntry.extensionLib,
             isNsfw: catalogEntry.isNsfw
@@ -235,6 +229,13 @@ actor JVMSourceRuntime {
     func loadInstalled(_ manifest: JVMExtensionManifest) async throws {
         let jar = try extensionDirectory(for: manifest)
             .appendingPathComponent("extension.jar")
+        let checksum = try sha256(of: jar)
+        guard checksum.caseInsensitiveCompare(manifest.sha256) == .orderedSame else {
+            throw RuntimeError.checksumMismatch(
+                expected: manifest.sha256,
+                actual: checksum
+            )
+        }
         let response = try await dispatch(
             .init(
                 operation: "loadExtension",
@@ -781,6 +782,13 @@ actor JVMSourceRuntime {
                 manifest.versionDirectoryName,
                 isDirectory: true
             )
+    }
+
+    private func sha256(of url: URL) throws -> String {
+        let data = try Data(contentsOf: url, options: .mappedIfSafe)
+        return SHA256.hash(data: data)
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 
     private func removeSupersededVersions(
