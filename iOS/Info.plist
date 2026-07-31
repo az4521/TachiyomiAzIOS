@@ -17,7 +17,7 @@
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>app.tachiaz.TachiAZ.aib</string>
+				<string>app.tachiyomiaz.TachiyomiAZ.aib</string>
 			</array>
 		</dict>
 		<dict>
@@ -27,7 +27,7 @@
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>app.tachiaz.mihon-backup</string>
+				<string>app.tachiyomiaz.mihon-backup</string>
 			</array>
 		</dict>
 		<dict>
@@ -68,6 +68,7 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>tachiyomiaz</string>
 				<string>tachiaz</string>
 				<string>aidoku</string>
 			</array>
@@ -117,7 +118,7 @@
 			<key>UTTypeIconFiles</key>
 			<array/>
 			<key>UTTypeIdentifier</key>
-			<string>app.tachiaz.TachiAZ.aib</string>
+			<string>app.tachiyomiaz.TachiyomiAZ.aib</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -136,7 +137,7 @@
 			<key>UTTypeIconFiles</key>
 			<array/>
 			<key>UTTypeIdentifier</key>
-			<string>app.tachiaz.mihon-backup</string>
+			<string>app.tachiyomiaz.mihon-backup</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>

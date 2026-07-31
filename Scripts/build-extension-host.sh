@@ -13,12 +13,14 @@ compat_test_classes_root="$build_root/compat-test-classes"
 distribution_root="$repository_root/Runtime/ExtensionHost/dist"
 output_jar="$distribution_root/tachiaz-extension-host.jar"
 
-if [[ -n "${TACHIAZ_BUILD_JAVA_HOME:-}" ]]; then
+if [[ -n "${TACHIYOMIAZ_BUILD_JAVA_HOME:-}" ]]; then
+    java_home="$TACHIYOMIAZ_BUILD_JAVA_HOME"
+elif [[ -n "${TACHIAZ_BUILD_JAVA_HOME:-}" ]]; then
     java_home="$TACHIAZ_BUILD_JAVA_HOME"
 elif [[ -n "${JAVA_HOME:-}" ]]; then
     java_home="$JAVA_HOME"
 else
-    echo "Set TACHIAZ_BUILD_JAVA_HOME or JAVA_HOME to a JDK 8+ installation." >&2
+    echo "Set TACHIYOMIAZ_BUILD_JAVA_HOME or JAVA_HOME to a JDK 8+ installation." >&2
     exit 1
 fi
 

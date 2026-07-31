@@ -12,12 +12,14 @@ copy_init="$repository_root/Scripts/gradle/copy-suwayomi-runtime.init.gradle"
 suwayomi_repository="https://github.com/Suwayomi/Suwayomi-Server.git"
 suwayomi_commit="eb2dc0b19a9571b27c02bebc5c883e404b7bd7fb"
 
-if [[ -n "${TACHIAZ_BUILD_JAVA_HOME:-}" ]]; then
+if [[ -n "${TACHIYOMIAZ_BUILD_JAVA_HOME:-}" ]]; then
+    java_home="$TACHIYOMIAZ_BUILD_JAVA_HOME"
+elif [[ -n "${TACHIAZ_BUILD_JAVA_HOME:-}" ]]; then
     java_home="$TACHIAZ_BUILD_JAVA_HOME"
 elif [[ -n "${JAVA_HOME:-}" ]]; then
     java_home="$JAVA_HOME"
 else
-    echo "Set TACHIAZ_BUILD_JAVA_HOME or JAVA_HOME to JDK 21+." >&2
+    echo "Set TACHIYOMIAZ_BUILD_JAVA_HOME or JAVA_HOME to JDK 21+." >&2
     exit 1
 fi
 

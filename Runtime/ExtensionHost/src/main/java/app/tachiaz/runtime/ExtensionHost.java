@@ -1308,7 +1308,7 @@ public final class ExtensionHost {
                     completion.countDown();
                     return null;
                 case "toString":
-                    return "TachiAZContinuation(" + methodName + ")";
+                    return "TachiyomiAZContinuation(" + methodName + ")";
                 default:
                     return null;
             }

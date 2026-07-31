@@ -199,7 +199,7 @@ class TabBarController: UITabBarController {
         drawerView.addSubview(header)
 
         let appName = UILabel()
-        appName.text = "TachiAZ"
+        appName.text = "TachiyomiAZ"
         appName.textColor = .white
         appName.font = .systemFont(ofSize: 24, weight: .medium)
         appName.translatesAutoresizingMaskIntoConstraints = false

@@ -1,4 +1,4 @@
-# TachiAZ iOS
+# TachiyomiAZ iOS
 
 An experimental, sideload-only iOS/iPadOS manga reader forked from
 [Aidoku](https://github.com/Aidoku/Aidoku).
@@ -33,16 +33,16 @@ still needs an Xcode simulator build on macOS. See
 This fork is not distributed through TestFlight or the App Store. Build it with
 Xcode for either an iOS Simulator or a physical iOS device. Sideloading is only
 needed for a physical device. Its bundle identifier is
-`app.tachiaz.TachiAZ`, so it can coexist with Aidoku.
+`app.tachiyomiaz.TachiyomiAZ`, so it can coexist with Aidoku.
 
 Before the first build:
 
 ```sh
 Scripts/bootstrap-openjdk-ios.sh
-TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/bootstrap-suwayomi-compat.sh
-TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/build-mobile-shims.sh
-TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/build-extension-host.sh --test
-TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/test-mobile-java-base.sh
+TACHIYOMIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/bootstrap-suwayomi-compat.sh
+TACHIYOMIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/build-mobile-shims.sh
+TACHIYOMIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/build-extension-host.sh --test
+TACHIYOMIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/test-mobile-java-base.sh
 ```
 
 The OpenJDK bootstrap installs separate device and simulator Java bundles. In
@@ -54,9 +54,9 @@ before producing the sideloadable device IPA.
 To install a downloaded simulator artifact after booting a simulator:
 
 ```sh
-unzip TachiAZ-iOS_Simulator-*.zip
+unzip TachiyomiAZ-iOS_Simulator-*.zip
 xcrun simctl install booted Aidoku.app
-xcrun simctl launch booted app.tachiaz.TachiAZ
+xcrun simctl launch booted app.tachiyomiaz.TachiyomiAZ
 ```
 
 ## Contributing

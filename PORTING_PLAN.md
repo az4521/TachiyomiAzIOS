@@ -1,4 +1,4 @@
-# TachiAZ iOS Fork Plan
+# TachiyomiAZ iOS Fork Plan
 
 Status: implemented; macOS Xcode validation pending (see
 `docs/IMPLEMENTATION_STATUS.md`)

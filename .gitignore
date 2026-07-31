@@ -20,7 +20,7 @@
 # Xcode-Build-Server
 buildServer.json
 
-# TachiAZ JVM runtime artifacts
+# TachiyomiAZ JVM runtime artifacts
 /Runtime/ExtensionHost/build/
 /Runtime/ExtensionHost/dist/*
 !/Runtime/ExtensionHost/dist/tachiaz-extension-host.jar

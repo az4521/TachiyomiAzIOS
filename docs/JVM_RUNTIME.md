@@ -61,7 +61,7 @@ sandbox on both simulator and device.
 
 1. Run `Scripts/bootstrap-openjdk-ios.sh` on macOS. It installs both device
    and simulator Java bundles.
-2. Set `TACHIAZ_BUILD_JAVA_HOME` to a JDK 21+ installation.
+2. Set `TACHIYOMIAZ_BUILD_JAVA_HOME` to a JDK 21+ installation.
 3. Run `Scripts/bootstrap-suwayomi-compat.sh`.
 4. Run `Scripts/build-mobile-shims.sh`.
 5. Run `Scripts/build-extension-host.sh --test`.
@@ -130,6 +130,6 @@ returning incorrect data.
 Java extensions are native-trust plugins from the app's point of view. They can
 consume CPU and memory, access any Java API exposed by the host, and crash the
 process through runtime bugs. Installation must therefore require a trusted
-repository plus package/version identity validation. TachiAZ records the
+repository plus package/version identity validation. TachiyomiAZ records the
 downloaded artifact's SHA-256 in its installed manifest so later storage
 corruption or substitution can be detected.

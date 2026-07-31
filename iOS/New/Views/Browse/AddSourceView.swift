@@ -53,7 +53,7 @@ struct AddSourceView: View {
         } header: {
             Text("Extensions")
         } footer: {
-            Text("No extension repositories are included with TachiAZ.")
+            Text("No extension repositories are included with TachiyomiAZ.")
         }
     }
 
@@ -149,7 +149,7 @@ private struct ExtensionRepositoryListView: View {
                 Text("Repositories")
             } footer: {
                 Text(
-                    "TachiAZ does not include or recommend any extension " +
+                    "TachiyomiAZ does not include or recommend any extension " +
                         "repository. Only add repositories you trust."
                 )
             }

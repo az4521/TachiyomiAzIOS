@@ -9,12 +9,14 @@ output_root="$repository_root/Runtime/MobileShims/dist"
 output_jar="$output_root/tachiaz-mobile-shims.jar"
 output_cacerts="$output_root/cacerts"
 
-if [[ -n "${TACHIAZ_BUILD_JAVA_HOME:-}" ]]; then
+if [[ -n "${TACHIYOMIAZ_BUILD_JAVA_HOME:-}" ]]; then
+    java_home="$TACHIYOMIAZ_BUILD_JAVA_HOME"
+elif [[ -n "${TACHIAZ_BUILD_JAVA_HOME:-}" ]]; then
     java_home="$TACHIAZ_BUILD_JAVA_HOME"
 elif [[ -n "${JAVA_HOME:-}" ]]; then
     java_home="$JAVA_HOME"
 else
-    echo "Set TACHIAZ_BUILD_JAVA_HOME or JAVA_HOME." >&2
+    echo "Set TACHIYOMIAZ_BUILD_JAVA_HOME or JAVA_HOME." >&2
     exit 1
 fi
 

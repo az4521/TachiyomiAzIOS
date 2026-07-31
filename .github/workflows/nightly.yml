@@ -59,12 +59,12 @@ jobs:
           ditto \
             -c -k --sequesterRsrc --keepParent \
             build/simulator/Build/Products/Debug-iphonesimulator/Aidoku.app \
-            TachiAZ-iOS_Simulator-${{ steps.commitinfo.outputs.sha_short }}.zip
+            TachiyomiAZ-iOS_Simulator-${{ steps.commitinfo.outputs.sha_short }}.zip
       - name: Upload simulator app
         uses: actions/upload-artifact@v4
         with:
-          name: TachiAZ-iOS_Simulator-${{ steps.commitinfo.outputs.sha_short }}
-          path: TachiAZ-iOS_Simulator-${{ steps.commitinfo.outputs.sha_short }}.zip
+          name: TachiyomiAZ-iOS_Simulator-${{ steps.commitinfo.outputs.sha_short }}
+          path: TachiyomiAZ-iOS_Simulator-${{ steps.commitinfo.outputs.sha_short }}.zip
           if-no-files-found: error
       - name: Build
         run: xcodebuild -scheme "Aidoku (iOS)" -configuration Release archive -archivePath build/Aidoku.xcarchive -skipPackagePluginValidation CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
@@ -72,10 +72,10 @@ jobs:
         run: |
           mkdir Payload
           cp -r build/Aidoku.xcarchive/Products/Applications/Aidoku.app Payload
-          zip -r TachiAZ-iOS_nightly-${{ steps.commitinfo.outputs.sha_short }}.ipa Payload
+          zip -r TachiyomiAZ-iOS_nightly-${{ steps.commitinfo.outputs.sha_short }}.ipa Payload
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: TachiAZ-iOS_nightly-${{ steps.commitinfo.outputs.sha_short }}.ipa
-          path: TachiAZ-iOS_nightly-${{ steps.commitinfo.outputs.sha_short }}.ipa
+          name: TachiyomiAZ-iOS_nightly-${{ steps.commitinfo.outputs.sha_short }}.ipa
+          path: TachiyomiAZ-iOS_nightly-${{ steps.commitinfo.outputs.sha_short }}.ipa
           if-no-files-found: error

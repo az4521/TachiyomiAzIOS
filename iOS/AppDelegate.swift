@@ -233,7 +233,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 return DataLoader(configuration: config)
             }()
             let dataCache = try? DataCache(
-                name: "app.tachiaz.TachiAZ.datacache"
+                name: "app.tachiyomiaz.TachiyomiAZ.datacache"
             )
             let imageCache = Nuke.ImageCache() // memory cache
             dataCache?.sizeLimit = 500 * 1024 * 1024
@@ -498,7 +498,7 @@ extension AppDelegate {
     func handleUrl(url: URL) {
         if
             let scheme = url.scheme?.lowercased(),
-            ["tachiaz", "aidoku"].contains(scheme)
+            ["tachiyomiaz", "tachiaz", "aidoku"].contains(scheme)
         {
             if
                 let host = url.host,

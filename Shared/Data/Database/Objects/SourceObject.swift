@@ -62,7 +62,7 @@ extension SourceObjectData {
             return config.toSource()
         }
         #if os(iOS)
-        // TachiAZ iOS no longer executes installed AIX/WASM sources. The
+        // TachiyomiAZ iOS no longer executes installed AIX/WASM sources. The
         // AidokuRunner dependency remains only for shared models/protocols.
         return nil
         #else

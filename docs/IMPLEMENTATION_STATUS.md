@@ -82,13 +82,14 @@ Last updated: 2026-07-31
   id-less category/order format, zero-based reading progress, and extended
   reader modes.
 - `.tachibk` and legacy `.proto.gz` selection and deep-link import, including
-  first-class `.tachibk` document registration and `tachiaz://` URLs.
+  first-class `.tachibk` document registration and `tachiyomiaz://` URLs
+  (`tachiaz://` remains accepted for compatibility).
 - Material Design 1-inspired hamburger drawer using the existing Aidoku
   library, browse, history, search, and settings controllers.
 - The iOS AIX/WASM importer, installed-interpreter reload path, delegated
   source-list bootstrap/settings, and source-list backup restore are disabled
   after Keiyoushi parity. Local files, Komga, and Kavita remain available.
-- Fork-specific `app.tachiaz.TachiAZ` app and test bundle identifiers avoid
+- Fork-specific `app.tachiyomiaz.TachiyomiAZ` app and test bundle identifiers avoid
   Aidoku signing collisions and allow both apps to coexist.
 
 ## Compatibility transition
