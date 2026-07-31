@@ -10,12 +10,49 @@ import SwiftUI
 import SwiftUIIntrospect
 
 class TabBarController: UITabBarController {
+    private struct DrawerDestination {
+        let title: String
+        let symbol: String
+    }
+
+    private let drawerDestinations = [
+        DrawerDestination(title: NSLocalizedString("LIBRARY"), symbol: "books.vertical.fill"),
+        DrawerDestination(title: NSLocalizedString("BROWSE"), symbol: "globe"),
+        DrawerDestination(title: NSLocalizedString("HISTORY"), symbol: "clock.fill"),
+        DrawerDestination(title: NSLocalizedString("SEARCH"), symbol: "magnifyingglass"),
+        DrawerDestination(title: NSLocalizedString("SETTINGS"), symbol: "gear")
+    ]
+
     private var originalFrame: CGRect = .zero
     private var shrunkFrame: CGRect = .zero
     private var cancellables: [AnyCancellable] = []
 
     private var settingsPath: NavigationCoordinator?
     private var previousSelectedIndex: Int?
+    private var drawerLeadingConstraint: NSLayoutConstraint?
+    private var drawerButtons: [UIButton] = []
+    private var isDrawerOpen = false
+
+    private lazy var drawerBackdrop: UIControl = {
+        let view = UIControl()
+        view.backgroundColor = UIColor.black.withAlphaComponent(0.32)
+        view.alpha = 0
+        view.isHidden = true
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.addTarget(self, action: #selector(closeDrawer), for: .touchUpInside)
+        return view
+    }()
+
+    private lazy var drawerView: UIView = {
+        let view = UIView()
+        view.backgroundColor = .systemBackground
+        view.layer.shadowColor = UIColor.black.cgColor
+        view.layer.shadowOpacity = 0.28
+        view.layer.shadowRadius = 12
+        view.layer.shadowOffset = CGSize(width: 4, height: 0)
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
+    }()
 
     private lazy var libraryProgressView = CircularProgressView(frame: CGRect(x: 0, y: 0, width: 20, height: 20))
 
@@ -105,78 +142,31 @@ class TabBarController: UITabBarController {
         historyViewController.navigationBar.prefersLargeTitles = true
         searchViewController.navigationBar.prefersLargeTitles = true
 
-        if #available(iOS 26.0, *) {
-            let searchTab = UISearchTab { _ in
-                searchViewController
-            }
-            searchTab.automaticallyActivatesSearch = true
-            let fixedTabs = [
-                UITab(
-                    title: NSLocalizedString("LIBRARY"),
-                    image: UIImage(systemName: "books.vertical.fill"),
-                    identifier: "0"
-                ) { _ in
-                    libraryViewController
-                },
-                UITab(
-                    title: NSLocalizedString("BROWSE"),
-                    image: UIImage(systemName: "globe"),
-                    identifier: "1"
-                ) { _ in
-                    browseViewController
-                },
-                UITab(
-                    title: NSLocalizedString("HISTORY"),
-                    image: UIImage(systemName: "clock.fill"),
-                    identifier: "2"
-                ) { _ in
-                    historyViewController
-                },
-                UITab(
-                    title: NSLocalizedString("SETTINGS"),
-                    image: UIImage(systemName: "gear"),
-                    identifier: "3"
-                ) { _ in
-                    settingsViewController
-                }
-            ]
-            fixedTabs.forEach {
-                $0.allowsHiding = false
-                $0.preferredPlacement = .fixed
-            }
-            tabs = fixedTabs + [searchTab]
-        } else {
-            libraryViewController.tabBarItem = UITabBarItem(
-                title: NSLocalizedString("LIBRARY", comment: ""),
-                image: UIImage(systemName: "books.vertical.fill"),
-                tag: 0
+        let controllers = [
+            libraryViewController,
+            browseViewController,
+            historyViewController,
+            searchViewController,
+            settingsViewController
+        ]
+        for (index, controller) in controllers.enumerated() {
+            let destination = drawerDestinations[index]
+            controller.tabBarItem = UITabBarItem(
+                title: destination.title,
+                image: UIImage(systemName: destination.symbol),
+                tag: index
             )
-            browseViewController.tabBarItem = UITabBarItem(
-                title: NSLocalizedString("BROWSE", comment: ""),
-                image: UIImage(systemName: "globe"),
-                tag: 1
-            )
-            historyViewController.tabBarItem = UITabBarItem(
-                tabBarSystemItem: .history,
-                tag: 2
-            )
-            searchViewController.tabBarItem = UITabBarItem(
-                tabBarSystemItem: .search,
-                tag: 3
-            )
-            settingsViewController.tabBarItem = UITabBarItem(
-                title: NSLocalizedString("SETTINGS", comment: ""),
-                image: UIImage(systemName: "gear"),
-                tag: 4
-            )
-            viewControllers = [
-                libraryViewController,
-                browseViewController,
-                historyViewController,
-                searchViewController,
-                settingsViewController
-            ]
+            controller.viewControllers.first?.navigationItem.leftBarButtonItem =
+                UIBarButtonItem(
+                    image: UIImage(systemName: "line.3.horizontal"),
+                    style: .plain,
+                    target: self,
+                    action: #selector(openDrawer)
+                )
         }
+        viewControllers = controllers
+        tabBar.isHidden = true
+        configureDrawer()
 
         let updateCount = UserDefaults.standard.integer(forKey: "Browse.updateCount")
         browseViewController.tabBarItem.badgeValue = updateCount > 0 ? String(updateCount) : nil
@@ -186,6 +176,165 @@ class TabBarController: UITabBarController {
                 self?.updateFrame(animated: true)
             }
             .store(in: &cancellables)
+    }
+
+    private func configureDrawer() {
+        view.addSubview(drawerBackdrop)
+        view.addSubview(drawerView)
+
+        let width = min(CGFloat(304), view.bounds.width - 56)
+        let leading = drawerView.leadingAnchor.constraint(
+            equalTo: view.leadingAnchor,
+            constant: -width - 16
+        )
+        drawerLeadingConstraint = leading
+        NSLayoutConstraint.activate([
+            drawerBackdrop.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            drawerBackdrop.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            drawerBackdrop.topAnchor.constraint(equalTo: view.topAnchor),
+            drawerBackdrop.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            leading,
+            drawerView.topAnchor.constraint(equalTo: view.topAnchor),
+            drawerView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            drawerView.widthAnchor.constraint(equalToConstant: width)
+        ])
+
+        let header = UIView()
+        header.backgroundColor = UIColor(
+            red: 103 / 255,
+            green: 58 / 255,
+            blue: 183 / 255,
+            alpha: 1
+        )
+        header.translatesAutoresizingMaskIntoConstraints = false
+        drawerView.addSubview(header)
+
+        let appName = UILabel()
+        appName.text = "TachiAZ"
+        appName.textColor = .white
+        appName.font = .systemFont(ofSize: 24, weight: .medium)
+        appName.translatesAutoresizingMaskIntoConstraints = false
+        header.addSubview(appName)
+
+        let subtitle = UILabel()
+        subtitle.text = "Manga reader"
+        subtitle.textColor = UIColor.white.withAlphaComponent(0.78)
+        subtitle.font = .systemFont(ofSize: 14)
+        subtitle.translatesAutoresizingMaskIntoConstraints = false
+        header.addSubview(subtitle)
+
+        let stack = UIStackView()
+        stack.axis = .vertical
+        stack.spacing = 0
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        drawerView.addSubview(stack)
+
+        drawerButtons = drawerDestinations.enumerated().map { index, destination in
+            var configuration = UIButton.Configuration.plain()
+            configuration.title = destination.title
+            configuration.image = UIImage(systemName: destination.symbol)
+            configuration.imagePadding = 32
+            configuration.contentInsets = .init(
+                top: 0,
+                leading: 16,
+                bottom: 0,
+                trailing: 16
+            )
+            let button = UIButton(configuration: configuration)
+            button.tag = index
+            button.contentHorizontalAlignment = .leading
+            button.heightAnchor.constraint(equalToConstant: 48).isActive = true
+            button.addTarget(
+                self,
+                action: #selector(selectDrawerDestination),
+                for: .touchUpInside
+            )
+            stack.addArrangedSubview(button)
+            return button
+        }
+
+        NSLayoutConstraint.activate([
+            header.leadingAnchor.constraint(equalTo: drawerView.leadingAnchor),
+            header.trailingAnchor.constraint(equalTo: drawerView.trailingAnchor),
+            header.topAnchor.constraint(equalTo: drawerView.topAnchor),
+            header.heightAnchor.constraint(equalToConstant: 168),
+            appName.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 16),
+            appName.bottomAnchor.constraint(equalTo: subtitle.topAnchor, constant: -4),
+            subtitle.leadingAnchor.constraint(equalTo: appName.leadingAnchor),
+            subtitle.bottomAnchor.constraint(equalTo: header.bottomAnchor, constant: -20),
+            stack.leadingAnchor.constraint(equalTo: drawerView.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: drawerView.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 8)
+        ])
+
+        let edgePan = UIScreenEdgePanGestureRecognizer(
+            target: self,
+            action: #selector(handleEdgePan)
+        )
+        edgePan.edges = .left
+        view.addGestureRecognizer(edgePan)
+        updateDrawerSelection()
+    }
+
+    @objc private func openDrawer() {
+        guard !isDrawerOpen else { return }
+        isDrawerOpen = true
+        drawerBackdrop.isHidden = false
+        drawerLeadingConstraint?.constant = 0
+        UIView.animate(
+            withDuration: 0.25,
+            delay: 0,
+            options: [.curveEaseOut, .beginFromCurrentState]
+        ) {
+            self.drawerBackdrop.alpha = 1
+            self.view.layoutIfNeeded()
+        }
+    }
+
+    @objc private func closeDrawer() {
+        guard isDrawerOpen else { return }
+        isDrawerOpen = false
+        drawerLeadingConstraint?.constant = -(drawerView.bounds.width + 16)
+        UIView.animate(
+            withDuration: 0.2,
+            delay: 0,
+            options: [.curveEaseIn, .beginFromCurrentState]
+        ) {
+            self.drawerBackdrop.alpha = 0
+            self.view.layoutIfNeeded()
+        } completion: { _ in
+            self.drawerBackdrop.isHidden = true
+        }
+    }
+
+    @objc private func selectDrawerDestination(_ sender: UIButton) {
+        selectedIndex = sender.tag
+        checkForSettingsPop()
+        updateDrawerSelection()
+        closeDrawer()
+    }
+
+    @objc private func handleEdgePan(_ gesture: UIScreenEdgePanGestureRecognizer) {
+        if gesture.state == .recognized {
+            openDrawer()
+        }
+    }
+
+    private func updateDrawerSelection() {
+        for (index, button) in drawerButtons.enumerated() {
+            guard var configuration = button.configuration else { continue }
+            let isSelected = index == selectedIndex
+            configuration.baseForegroundColor = isSelected
+                ? UIColor(red: 103 / 255, green: 58 / 255, blue: 183 / 255, alpha: 1)
+                : .label
+            var background = configuration.background
+            background.backgroundColor = isSelected
+                ? UIColor(red: 103 / 255, green: 58 / 255, blue: 183 / 255, alpha: 0.12)
+                : .clear
+            configuration.background = background
+            button.configuration = configuration
+            button.accessibilityTraits = isSelected ? [.button, .selected] : .button
+        }
     }
 
     func updateFrame(animated: Bool = false) {
@@ -219,15 +368,10 @@ class TabBarController: UITabBarController {
 extension TabBarController {
     func showLibraryRefreshView() {
         libraryProgressView.setProgress(value: 0, withAnimation: false)
-
-        if #available(iOS 26.0, *) {
-            setBottomAccessory(.init(contentView: libraryRefreshAccessory), animated: true)
-        } else {
-            libraryRefreshAccessory.layer.opacity = 0
-            view.insertSubview(libraryRefreshAccessory, belowSubview: tabBar)
-            UIView.animate(withDuration: 0.5) {
-                self.libraryRefreshAccessory.layer.opacity = 1
-            }
+        libraryRefreshAccessory.layer.opacity = 0
+        view.insertSubview(libraryRefreshAccessory, belowSubview: drawerBackdrop)
+        UIView.animate(withDuration: 0.5) {
+            self.libraryRefreshAccessory.layer.opacity = 1
         }
     }
 
@@ -236,29 +380,22 @@ extension TabBarController {
     }
 
     func hideAccessoryView() {
-        if #available(iOS 26.0, *) {
-            setBottomAccessory(nil, animated: true)
-        } else {
-            UIView.animate(withDuration: 0.5) {
-                self.libraryRefreshAccessory.layer.opacity = 0
-            } completion: { _ in
-                self.libraryRefreshAccessory.removeFromSuperview()
-            }
+        UIView.animate(withDuration: 0.5) {
+            self.libraryRefreshAccessory.layer.opacity = 0
+        } completion: { _ in
+            self.libraryRefreshAccessory.removeFromSuperview()
         }
     }
 
     override func viewDidLayoutSubviews() {
-        if #unavailable(iOS 26.0) {
-            let height: CGFloat = 48
-            let padding: CGFloat = 16
-
-            libraryRefreshAccessory.frame = CGRect(
-                x: tabBar.frame.origin.x + view.safeAreaInsets.left + padding,
-                y: tabBar.frame.origin.y - height - padding / 2,
-                width: tabBar.frame.width - padding * 2 - view.safeAreaInsets.left - view.safeAreaInsets.right,
-                height: height
-            )
-        }
+        let height: CGFloat = 48
+        let padding: CGFloat = 16
+        libraryRefreshAccessory.frame = CGRect(
+            x: view.safeAreaInsets.left + padding,
+            y: view.bounds.height - view.safeAreaInsets.bottom - height - padding,
+            width: view.bounds.width - padding * 2 - view.safeAreaInsets.left - view.safeAreaInsets.right,
+            height: height
+        )
         updateFrame()
     }
 
@@ -294,12 +431,7 @@ extension TabBarController: UITabBarControllerDelegate {
     }
 
     private func checkForSettingsPop() {
-        let settingsIndex: Int
-        if #available(iOS 26.0, *) {
-            settingsIndex = 3
-        } else {
-            settingsIndex = 4
-        }
+        let settingsIndex = 4
         if selectedIndex == previousSelectedIndex && previousSelectedIndex == settingsIndex {
             settingsPath?.navigationController?.popToRootViewController(animated: true)
         }

@@ -22,6 +22,36 @@ struct BackupChapter: Codable, Hashable {
     var locked: Bool?
     var sourceOrder: Int
 
+    init(
+        sourceId: String,
+        mangaId: String,
+        id: String,
+        title: String? = nil,
+        scanlator: String? = nil,
+        url: String? = nil,
+        lang: String = "",
+        chapter: Float? = nil,
+        volume: Float? = nil,
+        dateUploaded: Date? = nil,
+        thumbnail: String? = nil,
+        locked: Bool? = nil,
+        sourceOrder: Int = 0
+    ) {
+        self.sourceId = sourceId
+        self.mangaId = mangaId
+        self.id = id
+        self.title = title
+        self.scanlator = scanlator
+        self.url = url
+        self.lang = lang
+        self.chapter = chapter
+        self.volume = volume
+        self.dateUploaded = dateUploaded
+        self.thumbnail = thumbnail
+        self.locked = locked
+        self.sourceOrder = sourceOrder
+    }
+
     init(chapterObject: ChapterObject) {
         sourceId = chapterObject.sourceId
         mangaId = chapterObject.mangaId

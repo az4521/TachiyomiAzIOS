@@ -16,6 +16,24 @@ struct BackupHistory: Codable, Hashable {
     var total: Int?
     var completed: Bool
 
+    init(
+        dateRead: Date,
+        sourceId: String,
+        chapterId: String,
+        mangaId: String,
+        progress: Int? = nil,
+        total: Int? = nil,
+        completed: Bool
+    ) {
+        self.dateRead = dateRead
+        self.sourceId = sourceId
+        self.chapterId = chapterId
+        self.mangaId = mangaId
+        self.progress = progress
+        self.total = total
+        self.completed = completed
+    }
+
     init(historyObject: HistoryObject) {
         dateRead = historyObject.dateRead ?? Date.distantPast
         sourceId = historyObject.sourceId

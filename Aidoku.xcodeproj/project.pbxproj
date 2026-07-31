@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A12000000000000000000003 /* TachiJVMRunner in Frameworks */ = {isa = PBXBuildFile; productRef = A12000000000000000000002 /* TachiJVMRunner */; };
+		A12100000000000000000003 /* JVMExtensionManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12100000000000000000001 /* JVMExtensionManifest.swift */; };
+		A12100000000000000000004 /* JVMSourceRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12100000000000000000002 /* JVMSourceRuntime.swift */; };
+		A12100000000000000000007 /* MihonBackupImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12100000000000000000006 /* MihonBackupImporter.swift */; };
 		002C0AC12EC0F44D0071CE82 /* LAPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002C0AC02EC0F44D0071CE82 /* LAPolicy.swift */; };
 		002C0AC22EC0F44D0071CE82 /* LAPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002C0AC02EC0F44D0071CE82 /* LAPolicy.swift */; };
 		04B48CF82CD6836100F719D0 /* ShikimoriTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04B48CF72CD6835D00F719D0 /* ShikimoriTracker.swift */; };
@@ -618,6 +622,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A12100000000000000000001 /* JVMExtensionManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JVMExtensionManifest.swift; sourceTree = "<group>"; };
+		A12100000000000000000002 /* JVMSourceRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JVMSourceRuntime.swift; sourceTree = "<group>"; };
+		A12100000000000000000006 /* MihonBackupImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MihonBackupImporter.swift; sourceTree = "<group>"; };
 		002C0AC02EC0F44D0071CE82 /* LAPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LAPolicy.swift; sourceTree = "<group>"; };
 		04B48CF72CD6835D00F719D0 /* ShikimoriTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShikimoriTracker.swift; sourceTree = "<group>"; };
 		04B48CFA2CD6838600F719D0 /* ShikimoriApi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShikimoriApi.swift; sourceTree = "<group>"; };
@@ -1109,6 +1116,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A12000000000000000000003 /* TachiJVMRunner in Frameworks */,
 				FB17114B296770CC00AD523D /* NukeUI in Frameworks */,
 				FB662EDE2DA816CF00007514 /* MarkdownUI in Frameworks */,
 				FB3737D12D17458400AB1551 /* AidokuRunner in Frameworks */,
@@ -1442,6 +1450,7 @@
 				91D7BEF72DD7E46800898539 /* Aidoku-IOS.xcconfig */,
 				FB1B4852277CE4510056D02C /* AppDelegate.swift */,
 				FB1B4855277CE5560056D02C /* SceneDelegate.swift */,
+				A12100000000000000000005 /* JVM */,
 				FB662E892DA58B0900007514 /* New */,
 				FB31AD0527AC3A1900D50410 /* Extensions */,
 				FB02E1EE288D7B9D00B9E2DE /* UI */,
@@ -1450,6 +1459,16 @@
 				FB4EEBDE27A4F5AF005081A3 /* iOS.entitlements */,
 			);
 			path = iOS;
+			sourceTree = "<group>";
+		};
+		A12100000000000000000005 /* JVM */ = {
+			isa = PBXGroup;
+			children = (
+				A12100000000000000000001 /* JVMExtensionManifest.swift */,
+				A12100000000000000000002 /* JVMSourceRuntime.swift */,
+				A12100000000000000000006 /* MihonBackupImporter.swift */,
+			);
+			path = JVM;
 			sourceTree = "<group>";
 		};
 		FB1B4862277CE7370056D02C /* Old Models */ = {
@@ -2406,6 +2425,7 @@
 				FB1B4831277CE1920056D02C /* Sources */,
 				FB1B4832277CE1920056D02C /* Frameworks */,
 				FB1B4833277CE1920056D02C /* Resources */,
+				A12000000000000000000004 /* Embed OpenJDK Runtime */,
 				FBED233627C3C4D70095D0C0 /* ShellScript */,
 			);
 			buildRules = (
@@ -2414,6 +2434,7 @@
 			);
 			name = "Aidoku (iOS)";
 			packageProductDependencies = (
+				A12000000000000000000002 /* TachiJVMRunner */,
 				FB7B7ED7278CE949001E6EAF /* ZIPFoundation */,
 				FB17114A296770CC00AD523D /* NukeUI */,
 				FBE53F0B29CC015E00899601 /* AsyncDisplayKit */,
@@ -2547,6 +2568,7 @@
 			);
 			mainGroup = FB1B4825277CE18D0056D02C;
 			packageReferences = (
+				A12000000000000000000001 /* XCLocalSwiftPackageReference "TachiJVMRunner" */,
 				FB7B7ED6278CE949001E6EAF /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 				FB171149296770CC00AD523D /* XCRemoteSwiftPackageReference "Nuke" */,
 				FBE53F0A29CC015E00899601 /* XCRemoteSwiftPackageReference "Texture" */,
@@ -2598,6 +2620,31 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		A12000000000000000000004 /* Embed OpenJDK Runtime */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(PROJECT_DIR)/Runtime/ExtensionHost/dist/tachiaz-extension-host.jar",
+				"$(PROJECT_DIR)/Vendor/OpenJDK/java-8-openjdk",
+				"$(PROJECT_DIR)/Vendor/OpenJDK/java-frameworks",
+			);
+			name = "Embed OpenJDK Runtime";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/java-8-openjdk",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/tachiaz-extension-host.jar",
+				"$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)/libjvm.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\n\nruntime_root=\"$PROJECT_DIR/Vendor/OpenJDK\"\nhost_jar=\"$PROJECT_DIR/Runtime/ExtensionHost/dist/tachiaz-extension-host.jar\"\nresources=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\nframeworks=\"$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH\"\n\nif [ \"$PLATFORM_NAME\" = \"iphonesimulator\" ]; then\n    echo \"error: The pinned OpenJDK Zero runtime is device-only; select an iOS device destination.\"\n    exit 1\nfi\n\nif [ ! -d \"$runtime_root/java-8-openjdk\" ] || [ ! -d \"$runtime_root/java-frameworks\" ]; then\n    echo \"error: OpenJDK runtime missing. Run Scripts/bootstrap-openjdk-ios.sh first.\"\n    exit 1\nfi\nif [ ! -f \"$host_jar\" ]; then\n    echo \"error: Extension host missing. Run Scripts/build-extension-host.sh --test first.\"\n    exit 1\nfi\n\nmkdir -p \"$resources\" \"$frameworks\"\nrm -rf \"$resources/java-8-openjdk\"\nditto \"$runtime_root/java-8-openjdk\" \"$resources/java-8-openjdk\"\nditto \"$host_jar\" \"$resources/tachiaz-extension-host.jar\"\n\nfor source_framework in \"$runtime_root\"/java-frameworks/*.framework; do\n    framework_name=$(basename \"$source_framework\")\n    destination=\"$frameworks/$framework_name\"\n    rm -rf \"$destination\"\n    ditto \"$source_framework\" \"$destination\"\n    if [ -n \"${EXPANDED_CODE_SIGN_IDENTITY:-}\" ]; then\n        /usr/bin/codesign --force --sign \"$EXPANDED_CODE_SIGN_IDENTITY\" --preserve-metadata=identifier \"$destination\"\n    else\n        /usr/bin/codesign --force --sign - --preserve-metadata=identifier \"$destination\"\n    fi\ndone\n";
+		};
 		FBED233627C3C4D70095D0C0 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -2623,6 +2670,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A12100000000000000000003 /* JVMExtensionManifest.swift in Sources */,
+				A12100000000000000000004 /* JVMSourceRuntime.swift in Sources */,
+				A12100000000000000000007 /* MihonBackupImporter.swift in Sources */,
 				FB4B0AEE285D2EE30066A13B /* MyAnimeListModels.swift in Sources */,
 				FB8E48D52DBFCEFB002A3621 /* SourceHomeContentView.swift in Sources */,
 				FBF9259D2F4DFB810049CB43 /* MangaBakaModels.swift in Sources */,
@@ -3668,6 +3718,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		A12000000000000000000001 /* XCLocalSwiftPackageReference "TachiJVMRunner" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/TachiJVMRunner;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		FB171149296770CC00AD523D /* XCRemoteSwiftPackageReference "Nuke" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -3736,6 +3793,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		A12000000000000000000002 /* TachiJVMRunner */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A12000000000000000000001 /* XCLocalSwiftPackageReference "TachiJVMRunner" */;
+			productName = TachiJVMRunner;
+		};
 		FB14B1342DF4D4E70067E4D4 /* Nuke */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = FB171149296770CC00AD523D /* XCRemoteSwiftPackageReference "Nuke" */;

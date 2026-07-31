@@ -589,7 +589,12 @@ extension AppDelegate {
                     )
                 }
             }
-        } else if url.pathExtension == "json" || url.pathExtension == "aib" {
+        } else if
+            url.pathExtension == "json" ||
+            url.pathExtension == "aib" ||
+            url.pathExtension == "tachibk" ||
+            url.lastPathComponent.lowercased().hasSuffix(".proto.gz")
+        {
             Task {
                 if await BackupManager.shared.importBackup(from: url) {
                     presentAlert(

@@ -69,7 +69,23 @@ actor BackupManager {
         save(backup: await createBackup(name: name, options: options))
     }
 
-    func importBackup(from url: URL) -> Bool {
+    func importBackup(from url: URL) async -> Bool {
+        if
+            url.pathExtension.lowercased() == "tachibk" ||
+            url.lastPathComponent.lowercased().hasSuffix(".proto.gz")
+        {
+            do {
+                let backup = try await MihonBackupImporter.load(from: url)
+                save(backup: backup)
+                return true
+            } catch {
+                LogManager.logger.error(
+                    "Unable to import Mihon backup: \(error)"
+                )
+                return false
+            }
+        }
+
         Self.directory.createDirectory()
         var targetLocation = Self.directory.appendingPathComponent(url.lastPathComponent)
         while targetLocation.exists {

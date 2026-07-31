@@ -64,6 +64,8 @@ struct BackupsView: View {
             DocumentPickerView(
                 allowedContentTypes: [
                     .init(filenameExtension: "aib")!,
+                    .init(filenameExtension: "tachibk")!,
+                    .gzip,
                     .json
                 ],
                 onDocumentsPicked: { urls in

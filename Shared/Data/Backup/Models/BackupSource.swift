@@ -12,6 +12,12 @@ struct BackupSource {
     let apiVersion: String?
     let config: Data?
 
+    init(id: String, apiVersion: String? = nil, config: Data? = nil) {
+        self.id = id
+        self.apiVersion = apiVersion
+        self.config = config
+    }
+
     init(_ object: SourceObject) {
         self.id = object.id! // property is non-optional
         self.apiVersion = object.apiVersion

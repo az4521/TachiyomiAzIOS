@@ -21,7 +21,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         if let windowScene = scene as? UIWindowScene {
             let window = UIWindow(windowScene: windowScene)
             window.rootViewController = TabBarController()
-            window.tintColor = .systemPink
+            window.tintColor = UIColor(
+                red: 103 / 255,
+                green: 58 / 255,
+                blue: 183 / 255,
+                alpha: 1
+            )
 
             if UserDefaults.standard.bool(forKey: "General.useSystemAppearance") {
                 window.overrideUserInterfaceStyle = .unspecified

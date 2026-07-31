@@ -13,6 +13,18 @@ struct BackupCategory {
     let group: Bool?
     let data: Data?
 
+    init(
+        title: String?,
+        sort: Int? = nil,
+        group: Bool? = nil,
+        data: Data? = nil
+    ) {
+        self.title = title
+        self.sort = sort
+        self.group = group
+        self.data = data
+    }
+
     init(_ object: CategoryObject) {
         self.title = object.title
         self.sort = Int(object.sort)
