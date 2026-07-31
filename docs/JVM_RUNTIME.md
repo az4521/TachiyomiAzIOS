@@ -81,6 +81,13 @@ the host-only fixture stubs.
 `repo/jar/tachiyomi-en.asurascans-v1.6.66.jar`. Path separators are rejected
 before constructing the download URL.
 
+The app also consumes Keiyoushi's current extension-lib 1.6 `index.json`
+format. Catalog entries provide direct `jarUrl` artifacts. Before installation,
+the downloaded JAR is inspected and its package/version must match the signed
+catalog metadata; its locally computed SHA-256 is then persisted with the
+manifest. Installed `SourceFactory` entries become individual Aidoku sources
+using stable `mihon.<sourceId>` keys.
+
 Extension manifests are accepted only when `tachiyomix.extensionLib` is in the
 supported `1.4` through `1.6` range. The host always invokes the suspend
 operation. For extension-lib 1.4 and other legacy sources, the supplied

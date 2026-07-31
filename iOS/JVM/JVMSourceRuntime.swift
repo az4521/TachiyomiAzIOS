@@ -1,4 +1,5 @@
 import CryptoKit
+import AidokuRunner
 import Foundation
 import TachiJVMRunner
 
@@ -9,6 +10,7 @@ actor JVMSourceRuntime {
         case missingBundleResource(String)
         case checksumMismatch(expected: String, actual: String)
         case invalidExtensionIdentifier
+        case extensionIdentityMismatch(expected: String, actual: String)
         case hostRejected(String)
 
         var errorDescription: String? {
@@ -19,6 +21,8 @@ actor JVMSourceRuntime {
                     "Extension checksum mismatch. Expected \(expected), got \(actual)."
                 case .invalidExtensionIdentifier:
                     "The extension identifier is invalid."
+                case .extensionIdentityMismatch(let expected, let actual):
+                    "Expected extension \(expected), got \(actual)."
                 case .hostRejected(let message):
                     "The Java extension host rejected the request: \(message)"
             }
@@ -115,6 +119,46 @@ actor JVMSourceRuntime {
         return jar
     }
 
+    @discardableResult
+    func install(
+        catalogEntry: KeiyoushiJarRepository.Catalog.Extension,
+        using session: URLSession = .shared
+    ) async throws -> JVMExtensionManifest {
+        let (temporaryJar, response) = try await session.download(
+            from: catalogEntry.resources.jarUrl
+        )
+        if
+            let httpResponse = response as? HTTPURLResponse,
+            !(200..<300).contains(httpResponse.statusCode)
+        {
+            throw URLError(.badServerResponse)
+        }
+        let inspection = try await inspect(jar: temporaryJar)
+        guard inspection.packageName == catalogEntry.packageName else {
+            throw RuntimeError.extensionIdentityMismatch(
+                expected: catalogEntry.packageName,
+                actual: inspection.packageName
+            )
+        }
+        guard inspection.version == catalogEntry.versionName else {
+            throw RuntimeError.extensionIdentityMismatch(
+                expected: catalogEntry.versionName,
+                actual: inspection.version
+            )
+        }
+        let data = try Data(contentsOf: temporaryJar, options: .mappedIfSafe)
+        let sha256 = SHA256.hash(data: data)
+            .map { String(format: "%02x", $0) }
+            .joined()
+        let manifest = JVMExtensionManifest(
+            inspection: inspection,
+            sourceURL: catalogEntry.resources.jarUrl,
+            sha256: sha256
+        )
+        try await install(jar: temporaryJar, manifest: manifest)
+        return manifest
+    }
+
     func loadInstalled(_ manifest: JVMExtensionManifest) async throws {
         let jar = try extensionDirectory(for: manifest)
             .appendingPathComponent("extension.jar")
@@ -127,6 +171,88 @@ actor JVMSourceRuntime {
             )
         )
         try requireSuccess(response)
+    }
+
+    func installedManifests() throws -> [JVMExtensionManifest] {
+        let applicationSupport = try fileManager.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let root = applicationSupport.appendingPathComponent(
+            "JVMExtensions",
+            isDirectory: true
+        )
+        guard fileManager.fileExists(atPath: root.path) else {
+            return []
+        }
+
+        let packageDirectories = try fileManager.contentsOfDirectory(
+            at: root,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        )
+        var manifestsById: [String: JVMExtensionManifest] = [:]
+        for packageDirectory in packageDirectories {
+            let versions = try fileManager.contentsOfDirectory(
+                at: packageDirectory,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+            for versionDirectory in versions {
+                let metadata = versionDirectory.appendingPathComponent(
+                    "manifest.json",
+                    isDirectory: false
+                )
+                guard
+                    let data = try? Data(contentsOf: metadata),
+                    let manifest = try? JSONDecoder().decode(
+                        JVMExtensionManifest.self,
+                        from: data
+                    )
+                else {
+                    continue
+                }
+                if
+                    let current = manifestsById[manifest.id],
+                    current.version.compare(
+                        manifest.version,
+                        options: .numeric
+                    ) != .orderedAscending
+                {
+                    continue
+                }
+                manifestsById[manifest.id] = manifest
+            }
+        }
+        return manifestsById.values.sorted { $0.name < $1.name }
+    }
+
+    func installedAidokuSources() async -> [AidokuRunner.Source] {
+        guard let manifests = try? installedManifests() else {
+            return []
+        }
+        var result: [AidokuRunner.Source] = []
+        for manifest in manifests {
+            do {
+                try await loadInstalled(manifest)
+                let descriptors = try await sources(
+                    extensionId: manifest.id
+                )
+                result.append(contentsOf: descriptors.map {
+                    .keiyoushi(
+                        manifest: manifest,
+                        descriptor: $0
+                    )
+                })
+            } catch {
+                LogManager.logger.error(
+                    "Failed to load JVM extension \(manifest.id): \(error)"
+                )
+            }
+        }
+        return result
     }
 
     func invoke(
@@ -327,6 +453,24 @@ actor JVMSourceRuntime {
         try requireSuccess(response)
     }
 
+    func uninstall(extensionId: String) async throws {
+        if runtime != nil {
+            try await unload(extensionId: extensionId)
+        }
+        guard
+            let manifest = try installedManifests().first(
+                where: { $0.id == extensionId }
+            )
+        else {
+            return
+        }
+        let packageDirectory = try extensionDirectory(for: manifest)
+            .deletingLastPathComponent()
+        if fileManager.fileExists(atPath: packageDirectory.path) {
+            try fileManager.removeItem(at: packageDirectory)
+        }
+    }
+
     func decodeMihonBackup(at url: URL) async throws -> Data {
         let secured = url.startAccessingSecurityScopedResource()
         defer {
@@ -394,6 +538,223 @@ actor JVMSourceRuntime {
             throw RuntimeError.hostRejected(
                 response.error ?? "Unknown Java error"
             )
+        }
+    }
+}
+
+private extension AidokuRunner.Source {
+    static func keiyoushi(
+        manifest: JVMExtensionManifest,
+        descriptor: KeiyoushiSourceDescriptor
+    ) -> AidokuRunner.Source {
+        var listings = [
+            AidokuRunner.Listing(
+                id: "popular",
+                name: NSLocalizedString("POPULAR")
+            )
+        ]
+        if descriptor.supportsLatest {
+            listings.append(
+                AidokuRunner.Listing(
+                    id: "latest",
+                    name: NSLocalizedString("LATEST")
+                )
+            )
+        }
+        return .init(
+            url: nil,
+            key: KeiyoushiSourceRunner.key(for: descriptor.id),
+            name: descriptor.name,
+            version: 1,
+            languages: [descriptor.lang],
+            urls: [],
+            contentRating: .safe,
+            config: .init(
+                languageSelectType: .single,
+                supportsTagSearch: true
+            ),
+            staticListings: listings,
+            staticFilters: [],
+            staticSettings: [],
+            runner: KeiyoushiSourceRunner(
+                extensionId: manifest.id,
+                descriptor: descriptor
+            )
+        )
+    }
+}
+
+actor KeiyoushiSourceRunner: AidokuRunner.Runner {
+    let features = AidokuRunner.SourceFeatures(
+        providesListings: true
+    )
+
+    nonisolated let extensionId: String
+    private let descriptor: KeiyoushiSourceDescriptor
+    private let sourceKey: String
+
+    init(
+        extensionId: String,
+        descriptor: KeiyoushiSourceDescriptor
+    ) {
+        self.extensionId = extensionId
+        self.descriptor = descriptor
+        sourceKey = Self.key(for: descriptor.id)
+    }
+
+    nonisolated static func key(for sourceId: Int64) -> String {
+        "mihon.\(sourceId)"
+    }
+
+    func uninstall() async throws {
+        try await JVMSourceRuntime.shared.uninstall(
+            extensionId: extensionId
+        )
+    }
+
+    func getSearchMangaList(
+        query: String?,
+        page: Int,
+        filters: [AidokuRunner.FilterValue]
+    ) async throws -> AidokuRunner.MangaPageResult {
+        let result: KeiyoushiMangaPage
+        if let query, !query.isEmpty {
+            result = try await JVMSourceRuntime.shared.searchManga(
+                extensionId: extensionId,
+                sourceId: descriptor.id,
+                query: query,
+                page: page
+            )
+        } else {
+            result = try await JVMSourceRuntime.shared.popularManga(
+                extensionId: extensionId,
+                sourceId: descriptor.id,
+                page: page
+            )
+        }
+        return result.intoAidoku(sourceKey: sourceKey)
+    }
+
+    func getMangaList(
+        listing: AidokuRunner.Listing,
+        page: Int
+    ) async throws -> AidokuRunner.MangaPageResult {
+        let result = if listing.id == "latest" {
+            try await JVMSourceRuntime.shared.latestManga(
+                extensionId: extensionId,
+                sourceId: descriptor.id,
+                page: page
+            )
+        } else {
+            try await JVMSourceRuntime.shared.popularManga(
+                extensionId: extensionId,
+                sourceId: descriptor.id,
+                page: page
+            )
+        }
+        return result.intoAidoku(sourceKey: sourceKey)
+    }
+
+    func getMangaUpdate(
+        manga: AidokuRunner.Manga,
+        needsDetails: Bool,
+        needsChapters: Bool
+    ) async throws -> AidokuRunner.Manga {
+        let result = try await JVMSourceRuntime.shared.mangaUpdate(
+            extensionId: extensionId,
+            sourceId: descriptor.id,
+            mangaURL: manga.key,
+            mangaTitle: manga.title
+        )
+        var updated = manga
+        if needsDetails {
+            updated = manga.copy(
+                from: result.manga.intoAidoku(sourceKey: sourceKey)
+            )
+        }
+        if needsChapters {
+            updated.chapters = result.chapters.map(\.intoAidoku)
+        }
+        return updated
+    }
+
+    func getPageList(
+        manga: AidokuRunner.Manga,
+        chapter: AidokuRunner.Chapter
+    ) async throws -> [AidokuRunner.Page] {
+        let pages = try await JVMSourceRuntime.shared.pages(
+            extensionId: extensionId,
+            sourceId: descriptor.id,
+            chapterURL: chapter.key,
+            chapterName: chapter.title ?? ""
+        )
+        return try pages.map(\.intoAidoku)
+    }
+}
+
+private extension KeiyoushiMangaPage {
+    func intoAidoku(sourceKey: String) -> AidokuRunner.MangaPageResult {
+        .init(
+            entries: mangas.map { $0.intoAidoku(sourceKey: sourceKey) },
+            hasNextPage: hasNextPage
+        )
+    }
+}
+
+private extension KeiyoushiManga {
+    func intoAidoku(sourceKey: String) -> AidokuRunner.Manga {
+        let publishingStatus: AidokuRunner.PublishingStatus = switch status {
+            case 1: .ongoing
+            case 2, 4: .completed
+            case 5: .cancelled
+            case 6: .hiatus
+            default: .unknown
+        }
+        return .init(
+            sourceKey: sourceKey,
+            key: url,
+            title: title,
+            cover: thumbnailURL,
+            artists: artist.map { [$0] },
+            authors: author.map { [$0] },
+            description: description,
+            url: URL(string: url),
+            tags: genre?
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces) } ?? [],
+            status: publishingStatus
+        )
+    }
+}
+
+private extension KeiyoushiChapter {
+    var intoAidoku: AidokuRunner.Chapter {
+        .init(
+            key: url,
+            title: name.isEmpty ? nil : name,
+            chapterNumber: chapterNumber,
+            dateUploaded: dateUpload > 0
+                ? Date(timeIntervalSince1970: Double(dateUpload) / 1_000)
+                : nil,
+            scanlators: scanlator.flatMap {
+                $0.isEmpty ? nil : [$0]
+            },
+            url: URL(string: url)
+        )
+    }
+}
+
+private extension KeiyoushiPage {
+    var intoAidoku: AidokuRunner.Page {
+        get throws {
+            let candidates = [imageURL, uri, url.isEmpty ? nil : url]
+            guard
+                let value = candidates.compactMap({ $0 }).first,
+                let resolvedURL = URL(string: value)
+            else {
+                throw SourceError.message("INVALID_PAGE_URL")
+            }
+            return .init(content: .url(url: resolvedURL))
         }
     }
 }

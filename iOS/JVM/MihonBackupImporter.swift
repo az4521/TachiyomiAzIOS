@@ -82,7 +82,7 @@ enum MihonBackupImporter {
         var history: [BackupHistory] = []
 
         for manga in payload.manga {
-            let sourceId = manga.source
+            let sourceId = keiyoushiSourceKey(manga.source)
             let mangaId = manga.url
             let dateAdded = date(milliseconds: manga.dateAdded)
             let categoryNames = manga.categories.compactMap {
@@ -185,7 +185,9 @@ enum MihonBackupImporter {
                         sort: Int(clamping: $0.order)
                     )
                 },
-            sources: payload.sources.map { BackupSource(id: $0.id) },
+            sources: payload.sources.map {
+                BackupSource(id: keiyoushiSourceKey($0.id))
+            },
             sourceLists: [],
             settings: nil,
             date: .now,
@@ -205,5 +207,12 @@ enum MihonBackupImporter {
     private static func optionalDate(milliseconds: Int64) -> Date? {
         guard milliseconds > 0 else { return nil }
         return date(milliseconds: milliseconds)
+    }
+
+    private static func keiyoushiSourceKey(_ sourceId: String) -> String {
+        guard !sourceId.hasPrefix("mihon.") else {
+            return sourceId
+        }
+        return "mihon.\(sourceId)"
     }
 }

@@ -30,6 +30,14 @@ Last updated: 2026-07-31
 - Direct coroutine invocation and typed Swift DTOs for popular manga pages.
 - Typed latest, search, combined manga-details/chapter, and page-list
   operations, with suspend-to-Rx fallback supplied by Mihon's source API.
+- First-class Aidoku `Runner` adapters for installed Mihon source IDs, mapping
+  browse/search/details/chapters/pages into the existing library, download,
+  and reader models.
+- Keiyoushi's extension-lib 1.6 `index.json` catalog, direct JAR
+  download/identity verification, installation, update detection, persisted
+  discovery, and uninstall support.
+- In-app searchable Keiyoushi extension catalog with icons, languages, NSFW
+  labeling, install progress, and update actions.
 - Manifest gating for the supported Mihon extension-lib 1.4–1.6 range.
 - A binary fixture compiled against official TachiyomiX 1.4.4 that proves a
   suspend host call falls back to its Rx-only popular implementation.
@@ -63,15 +71,13 @@ item is complete.
    extension fixture matrix.
 2. Validate AndroidCompat behavior needed beyond Asura: resources, graphics,
    WebView/Cloudflare challenges, JavaScript, and persistence on iOS.
-3. Implement repository catalog/update UX over Keiyoushi-style index metadata,
-   deriving direct `/jar/*.jar` artifact URLs and persisting checksums.
-4. Add typed JNI operations for editable filters, preferences, and cookie
+3. Add typed JNI operations for editable filters, preferences, and cookie
    management. Core browse/search/details/chapters/pages are implemented.
-5. Feed JVM source results into Aidoku's `Source` abstraction, migrate stored
-   source keys, then remove AidokuRunner/WASM and delegated-source code.
-6. Preserve bookmarks and supported tracking records during backup import;
+4. Migrate old source keys, then remove AidokuRunner/WASM and delegated-source
+   code after the JVM adapter has passed Xcode/simulator integration tests.
+5. Preserve bookmarks and supported tracking records during backup import;
    they currently have no lossless one-to-one mapping in Aidoku's backup model.
-7. Validate launch, networking, TLS, memory pressure, backgrounding, JAR
+6. Validate launch, networking, TLS, memory pressure, backgrounding, JAR
    loading, and backup restore on a physical arm64 iPhone/iPad.
 
 ## Validation completed in this workspace

@@ -434,7 +434,7 @@ public final class ExtensionHost {
         );
         return MiniJson.response(
             true,
-            serializePages(pages),
+            serializePages(source, pages),
             null,
             null
         );
@@ -704,7 +704,8 @@ public final class ExtensionHost {
     }
 
     @SuppressWarnings("unchecked")
-    private static String serializePages(Object value) throws Exception {
+    private static String serializePages(Object source, Object value)
+        throws Exception {
         List<Object> pages = (List<Object>) value;
         StringBuilder output = new StringBuilder("[");
         for (int index = 0; index < pages.size(); index++) {
@@ -712,13 +713,31 @@ public final class ExtensionHost {
                 output.append(',');
             }
             Object page = pages.get(index);
+            Object imageURL = getter(page, "getImageUrl");
+            Object pageURL = getter(page, "getUrl");
+            if (
+                (imageURL == null || imageURL.toString().isEmpty()) &&
+                pageURL != null &&
+                !pageURL.toString().isEmpty()
+            ) {
+                try {
+                    imageURL = invokeSuspend(
+                        source,
+                        "getImageUrl",
+                        new Class<?>[] { page.getClass() },
+                        page
+                    );
+                } catch (NoSuchMethodException unsupported) {
+                    imageURL = null;
+                }
+            }
             output.append('{');
             appendJsonField(output, "index", getter(page, "getIndex"), false);
-            appendJsonField(output, "url", getter(page, "getUrl"), true);
+            appendJsonField(output, "url", pageURL, true);
             appendJsonField(
                 output,
                 "imageURL",
-                getter(page, "getImageUrl"),
+                imageURL,
                 true
             );
             Object uri = getter(page, "getUri");

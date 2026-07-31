@@ -127,14 +127,44 @@ class SourceManager {
                 LogManager.logger.error("Failed to load source \(dbSource.id)")
             }
         }
+#if os(iOS)
+        sources.append(
+            contentsOf: await JVMSourceRuntime.shared.installedAidokuSources()
+        )
+#endif
         return sources
     }
 }
 
 // MARK: - Source Management
 extension SourceManager {
+#if os(iOS)
+    @discardableResult
+    func installKeiyoushiExtension(
+        _ entry: KeiyoushiJarRepository.Catalog.Extension
+    ) async throws -> JVMExtensionManifest {
+        let manifest = try await JVMSourceRuntime.shared.install(
+            catalogEntry: entry
+        )
+        await reloadSources()
+        return manifest
+    }
+#endif
+
     func source(for id: String) -> AidokuRunner.Source? {
-        sources.first { $0.id == id }
+        if let source = sources.first(where: { $0.id == id }) {
+            return source
+        }
+#if os(iOS)
+        // Early Mihon backup imports stored the numeric source id directly.
+        // Resolve those records without requiring users to import the backup again.
+        if Int64(id) != nil {
+            return sources.first {
+                $0.id == "mihon.\(id)"
+            }
+        }
+#endif
+        return nil
     }
 
     func hasSourceInstalled(id: String) -> Bool {
@@ -385,6 +415,17 @@ extension SourceManager {
         }
         sources.removeAll { $0.id == source.id }
         Task {
+#if os(iOS)
+            if let runner = source.runner as? KeiyoushiSourceRunner {
+                try? await runner.uninstall()
+                await MainActor.run {
+                    self.sources.removeAll {
+                        ($0.runner as? KeiyoushiSourceRunner)?
+                            .extensionId == runner.extensionId
+                    }
+                }
+            }
+#endif
             if source.key.hasPrefix(KomgaSourceRunner.sourceKeyPrefix) {
                 await TrackerManager.komga.removeTrackItems(source: source)
             } else if source.key.hasPrefix(KavitaSourceRunner.sourceKeyPrefix) {
