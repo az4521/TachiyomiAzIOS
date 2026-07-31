@@ -10,9 +10,10 @@ import, and using a Material Design 1-inspired navigation drawer.
 
 The Java host, JNI boundary, JAR validation/loading, pinned Suwayomi source
 API/AndroidCompat layer, repository installer, browse/search/filter/details/
-chapters/pages/image operations, preferences, and backup decoder are
-implemented and tested against real extension-lib 1.4 and 1.6 JARs. The
-complete stack still needs an Xcode simulator build on macOS. See
+chapters/pages/image operations, preferences, web-login cookies, and backup
+decoder are implemented and tested against real extension-lib 1.4 and 1.6
+JARs on a java.base-style runtime matching the iOS image. The complete stack
+still needs an Xcode simulator build on macOS. See
 [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md).
 
 ## Features

@@ -46,6 +46,13 @@ Last updated: 2026-07-31
   `imageRequest`, including source headers and persistent Java cookies.
 - JVM home and temporary paths explicitly rooted inside the app container so
   AndroidCompat preferences and cookies persist on simulator and device.
+- Source cookie inspection/clearing and an Aidoku WKWebView login flow that
+  transfers login and Cloudflare cookies into the extension's OkHttp jar.
+- An iOS-safe `SystemClock` plus a minimal JUL boot shim for OkHttp/Okio,
+  removing runtime dependencies on absent `java.logging` and
+  `java.management` modules.
+- A bundled CA trust store for TLS; the upstream OpenJDK/mobile snapshot only
+  contains its `java.base` jimage.
 - Manifest gating for the supported Mihon extension-lib 1.4–1.6 range.
 - A binary fixture compiled against official TachiyomiX 1.4.4 that proves a
   suspend host call falls back to its Rx-only popular implementation.
@@ -57,36 +64,33 @@ Last updated: 2026-07-31
   from its public API without APK conversion or `dex2jar`.
 - Gzipped protobuf decoding for current Mihon and TachiyomiAZ `.tachibk`
   backups.
-- Conversion of manga, library membership, categories, chapters, read
-  progress, history, source IDs, and viewer settings into Aidoku's backup
-  model.
+- Conversion of manga, library membership, categories, chapters, chapter
+  bookmarks, read progress, history, source IDs, supported tracker links, and
+  correctly translated viewer settings into Aidoku's backup model.
 - `.tachibk` and legacy `.proto.gz` selection and deep-link import.
 - Material Design 1-inspired hamburger drawer using the existing Aidoku
   library, browse, history, search, and settings controllers.
 
 ## Compatibility transition
 
-AidokuRunner remains linked temporarily. It keeps the app's existing sources
-usable while the Mihon `Source`/`HttpSource` and Android compatibility APIs are
-implemented. The JVM path is already independent of AidokuRunner; removing the
-old package today would leave no production-ready online source until the next
-item is complete.
+AidokuRunner remains linked for the shared manga/chapter/filter/setting models
+and `Runner` protocol used throughout Aidoku's UI. Keiyoushi sources do not use
+its WASM interpreter. The old AIX/WASM installation path remains available only
+as a compatibility fallback until a macOS Xcode build confirms it can be
+removed without stranding local or self-hosted source adapters.
 
 ## Required before calling the fork complete
 
-1. Reduce and audit the currently generated ~57 MB Suwayomi compatibility
-   classpath further, while retaining binary compatibility across a broader
-   extension fixture matrix.
-2. Validate AndroidCompat behavior needed beyond Asura: resources, graphics,
-   WebView/Cloudflare challenges, JavaScript, and persistence on iOS.
-3. Add explicit cookie inspection and clearing controls for sources that need
-   login troubleshooting.
-4. Remove AidokuRunner/WASM and delegated-source
-   code after the JVM adapter has passed Xcode/simulator integration tests.
-5. Preserve bookmarks and supported tracking records during backup import;
-   they currently have no lossless one-to-one mapping in Aidoku's backup model.
-6. Validate launch, networking, TLS, memory pressure, backgrounding, JAR
-   loading, and backup restore on a physical arm64 iPhone/iPad.
+1. Run the configured Xcode build for a generic arm64/x86_64 iOS Simulator on
+   a macOS host. This workspace has no Xcode or iOS SDK.
+2. Validate Android graphics/resource edge cases across a broader extension
+   fixture matrix. JavaScript/login challenges use the native WKWebView flow;
+   desktop CEF is deliberately excluded.
+3. Remove the old WASM interpreter and AIX/delegated-source installation path
+   after the Xcode build confirms there are no remaining UI-only dependencies.
+
+Physical arm64 device validation remains desirable, but it is not a blocker
+for the simulator-first sideloading target.
 
 ## Validation completed in this workspace
 
@@ -97,6 +101,9 @@ item is complete.
   checksum-verified. Asura is confirmed as Java 11 / class-file version 55.
 - The pinned Suwayomi source API and AndroidCompat build successfully on
   JDK 21.
+- A minimal `java.base` + EC-crypto runtime probe, using the same boot shim as
+  iOS and no desktop Logback provider, completes every MangaDex 1.4 and Asura
+  Scans 1.6 integration operation.
 - Asura Scans constructs through the real compatibility layer and reports the
   expected name, language, source ID, and base URL.
 - MangaDex constructs all 61 sources from `ExtensionGenerated`, selects source
@@ -107,6 +114,8 @@ item is complete.
   sort-state round trip changes its live API request to title/ascending.
 - MangaDex AndroidX preferences are discovered and a select preference is
   written back through its persistent `SharedPreferences`.
+- WKWebView-style cookies can be inserted into MangaDex's real persistent
+  OkHttp cookie jar, inspected without exposing values, and cleared.
 - MangaDex page context survives the JNI boundary and reconstructs the
   extension-specific image request, headers, and cookie jar for Aidoku's
   native image pipeline.

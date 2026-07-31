@@ -2638,6 +2638,8 @@
 			inputPaths = (
 				"$(PROJECT_DIR)/Runtime/ExtensionHost/compat",
 				"$(PROJECT_DIR)/Runtime/ExtensionHost/dist/tachiaz-extension-host.jar",
+				"$(PROJECT_DIR)/Runtime/MobileShims/dist/cacerts",
+				"$(PROJECT_DIR)/Runtime/MobileShims/dist/tachiaz-mobile-shims.jar",
 				"$(PROJECT_DIR)/Vendor/OpenJDK/java_bundle-device",
 				"$(PROJECT_DIR)/Vendor/OpenJDK/java_bundle-simulator",
 			);
@@ -2648,6 +2650,7 @@
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/java_bundle",
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/tachiaz-compat",
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/tachiaz-extension-host.jar",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/tachiaz-mobile-shims.jar",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;

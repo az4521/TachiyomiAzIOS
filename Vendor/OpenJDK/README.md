@@ -17,6 +17,12 @@ The bootstrap script downloads checksum-pinned copies of
 `arm64` and `x86_64` simulator slices. Xcode embeds the matching class-library
 bundle as `java_bundle` for the selected destination.
 
+The snapshot class-library image contains only `java.base`. The build also
+embeds `Runtime/MobileShims/dist/tachiaz-mobile-shims.jar` on the boot
+classpath for the small JUL surface used by OkHttp/Okio, and installs a JDK
+CA trust store into `java_bundle/lib/security/cacerts`. Run
+`Scripts/build-mobile-shims.sh` before building outside CI.
+
 The current Keiyoushi Asura Scans JAR uses Java 11 class files. The former
 OpenJDK 8 experiment cannot load it, so it is deliberately unsupported.
 
