@@ -15,10 +15,11 @@ The first implementation slice consists of:
 - `Vendor/OpenJDK`: checksum-pinned official OpenJDK/mobile Zero runtime for
   iOS devices and Apple Silicon/Intel iOS simulators.
 
-On iOS, the production online-source execution path is now the JVM host.
-AidokuRunner remains linked for shared UI models and its `Runner` protocol, but
-the AIX/WASM installer, stored-interpreter reload path, and delegated source
-lists are disabled. The macOS target retains upstream-compatible source code.
+On iOS, the production online-source execution path is now the JVM host. The
+external source-available AidokuRunner package is not linked. A local module
+with the same import name provides independently maintained UI models and its
+runner protocol without an interpreter implementation. The AIX/WASM installer,
+stored-interpreter reload path, and delegated source lists are disabled.
 
 ## Runtime contract
 

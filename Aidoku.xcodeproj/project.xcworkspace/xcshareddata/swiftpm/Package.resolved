@@ -2,15 +2,6 @@
   "originHash" : "fbee1fcd32ad03a92ffe9109e2bd94b400fad95c547fb7d3b5ec7a14031d23a7",
   "pins" : [
     {
-      "identity" : "aidokurunner",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Aidoku/AidokuRunner",
-      "state" : {
-        "branch" : "main",
-        "revision" : "45560aa5326b3c3ceda1d7432edb5292463f877a"
-      }
-    },
-    {
       "identity" : "gifu",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kaishin/Gifu.git",

@@ -96,15 +96,19 @@ Last updated: 2026-07-31
   after Keiyoushi parity. Local files, Komga, and Kavita remain available.
 - Fork-specific `app.tachiyomiaz.TachiyomiAZ` app and test bundle identifiers avoid
   Aidoku signing collisions and allow both apps to coexist.
+- The source-available external AidokuRunner package is no longer a dependency.
+  An interpreter-free, GPL-compatible in-repository module owns the small
+  model and runner protocol surface used by the UI. It contains no AIX/WASM
+  loader or copied AidokuRunner implementation.
 
 ## Compatibility transition
 
-AidokuRunner remains linked only for the shared
-manga/chapter/filter/setting models and `Runner` protocol used throughout
-Aidoku's UI. Keiyoushi sources use `KeiyoushiSourceRunner`; installed
-interpreter-backed sources are no longer loaded on iOS. Legacy implementations
-remain compiled for the upstream-compatible macOS target and to avoid a risky
-model-layer rewrite unrelated to JVM execution.
+The app still imports a module named `AidokuRunner` for source compatibility,
+but that name now resolves to `Packages/TachiyomiAZRunner`, which is owned by
+this fork and implements only shared manga/chapter/filter/setting models plus
+the `Runner` protocol. The external AidokuRunner repository is not fetched or
+linked. Keiyoushi sources use `KeiyoushiSourceRunner`; AIX/WASM loading is
+rejected by the local compatibility layer.
 
 ## External validation
 

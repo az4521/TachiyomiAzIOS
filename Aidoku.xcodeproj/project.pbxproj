@@ -209,7 +209,6 @@
 		FB31647A2FFCD16B004037C2 /* SuwayomiModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB3164782FFCD168004037C2 /* SuwayomiModels.swift */; };
 		FB31AD0B27AE180300D50410 /* WasmHtml.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB31AD0A27AE180300D50410 /* WasmHtml.swift */; };
 		FB31AD0C27AE180300D50410 /* WasmHtml.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB31AD0A27AE180300D50410 /* WasmHtml.swift */; };
-		FB3737D12D17458400AB1551 /* AidokuRunner in Frameworks */ = {isa = PBXBuildFile; productRef = FB3737D02D17458400AB1551 /* AidokuRunner */; };
 		FB3D20782FA4A1A1004DAC5E /* BackupSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB3D20772FA4A19E004DAC5E /* BackupSource.swift */; };
 		FB3D20792FA4A1A1004DAC5E /* BackupSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB3D20772FA4A19E004DAC5E /* BackupSource.swift */; };
 		FB3DDA082ECE37570081232F /* SourceSearchViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB3DDA072ECE37510081232F /* SourceSearchViewController.swift */; };
@@ -1125,7 +1124,6 @@
 				A12000000000000000000003 /* TachiJVMRunner in Frameworks */,
 				FB17114B296770CC00AD523D /* NukeUI in Frameworks */,
 				FB662EDE2DA816CF00007514 /* MarkdownUI in Frameworks */,
-				FB3737D12D17458400AB1551 /* AidokuRunner in Frameworks */,
 				FBAED40C2E3A762800B81E74 /* SwiftUIIntrospect in Frameworks */,
 				FBFDF5F82DF799180064F603 /* AidokuRunner in Frameworks */,
 				FB4EEBE027A4F5C1005081A3 /* CloudKit.framework in Frameworks */,
@@ -2446,7 +2444,6 @@
 				FB7B7ED7278CE949001E6EAF /* ZIPFoundation */,
 				FB17114A296770CC00AD523D /* NukeUI */,
 				FBE53F0B29CC015E00899601 /* AsyncDisplayKit */,
-				FB3737D02D17458400AB1551 /* AidokuRunner */,
 				FB662EDD2DA816CF00007514 /* MarkdownUI */,
 				FBFDF5F72DF799180064F603 /* AidokuRunner */,
 				FBBCB31C2E08D6B000ED5CAB /* Gifu */,
@@ -2581,7 +2578,7 @@
 				FB171149296770CC00AD523D /* XCRemoteSwiftPackageReference "Nuke" */,
 				FBE53F0A29CC015E00899601 /* XCRemoteSwiftPackageReference "Texture" */,
 				FB662EDC2DA816CF00007514 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
-				FBFDF5F62DF799180064F603 /* XCRemoteSwiftPackageReference "AidokuRunner" */,
+				FBFDF5F62DF799180064F603 /* XCLocalSwiftPackageReference "TachiyomiAZRunner" */,
 				FBBCB31B2E08D6AF00ED5CAB /* XCRemoteSwiftPackageReference "Gifu" */,
 				FBAED40A2E3A762800B81E74 /* XCRemoteSwiftPackageReference "swiftui-introspect" */,
 				FB2C83972E43F074003CA85F /* XCRemoteSwiftPackageReference "SwiftSoup" */,
@@ -3746,6 +3743,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/TachiJVMRunner;
 		};
+		FBFDF5F62DF799180064F603 /* XCLocalSwiftPackageReference "TachiyomiAZRunner" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/TachiyomiAZRunner;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -3805,14 +3806,6 @@
 				minimumVersion = 3.1.1;
 			};
 		};
-		FBFDF5F62DF799180064F603 /* XCRemoteSwiftPackageReference "AidokuRunner" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/Aidoku/AidokuRunner";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -3835,10 +3828,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = FB2C83972E43F074003CA85F /* XCRemoteSwiftPackageReference "SwiftSoup" */;
 			productName = SwiftSoup;
-		};
-		FB3737D02D17458400AB1551 /* AidokuRunner */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = AidokuRunner;
 		};
 		FB6340C8279246D50072A2A2 /* ZIPFoundation */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -3872,12 +3861,12 @@
 		};
 		FBFDF5F72DF799180064F603 /* AidokuRunner */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = FBFDF5F62DF799180064F603 /* XCRemoteSwiftPackageReference "AidokuRunner" */;
+			package = FBFDF5F62DF799180064F603 /* XCLocalSwiftPackageReference "TachiyomiAZRunner" */;
 			productName = AidokuRunner;
 		};
 		FBFDF5F92DF799340064F603 /* AidokuRunner */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = FBFDF5F62DF799180064F603 /* XCRemoteSwiftPackageReference "AidokuRunner" */;
+			package = FBFDF5F62DF799180064F603 /* XCLocalSwiftPackageReference "TachiyomiAZRunner" */;
 			productName = AidokuRunner;
 		};
 /* End XCSwiftPackageProductDependency section */

@@ -16,6 +16,8 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+      - name: Verify external AidokuRunner is absent
+        run: Scripts/check-no-external-aidokurunner.sh
       - name: Install Xcode platforms
         run: |
           xcrun simctl list > /dev/null # fixes next command sometimes failing
