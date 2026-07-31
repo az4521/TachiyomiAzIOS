@@ -370,6 +370,7 @@ struct AddSourceView: View {
 private struct KeiyoushiExtensionCatalogView: View {
     @State private var catalog: KeiyoushiJarRepository.Catalog?
     @State private var installedVersions: [String: String] = [:]
+    @State private var unhealthyExtensions: Set<String> = []
     @State private var installing: Set<String> = []
     @State private var searchText = ""
     @State private var errorMessage: String?
@@ -438,8 +439,13 @@ private struct KeiyoushiExtensionCatalogView: View {
                         .buttonStyle(.bordered)
                         .disabled(
                             installing.contains(entry.packageName) ||
-                                installedVersions[entry.packageName] ==
-                                entry.versionName
+                                (
+                                    installedVersions[entry.packageName] ==
+                                        entry.versionName &&
+                                    !unhealthyExtensions.contains(
+                                        entry.packageName
+                                    )
+                                )
                         )
                         .overlay {
                             if installing.contains(entry.packageName) {
@@ -481,6 +487,9 @@ private struct KeiyoushiExtensionCatalogView: View {
         guard let installed = installedVersions[entry.packageName] else {
             return "Get"
         }
+        if unhealthyExtensions.contains(entry.packageName) {
+            return "Repair"
+        }
         return installed == entry.versionName
             ? NSLocalizedString("INSTALLED")
             : "Update"
@@ -491,8 +500,13 @@ private struct KeiyoushiExtensionCatalogView: View {
             async let catalog = KeiyoushiJarRepository.fetchCatalog()
             let manifests = try await JVMSourceRuntime.shared
                 .installedManifests()
+            let verifiedManifests = try await JVMSourceRuntime.shared
+                .verifiedInstalledManifests()
             installedVersions = Dictionary(
                 uniqueKeysWithValues: manifests.map { ($0.id, $0.version) }
+            )
+            unhealthyExtensions = Set(manifests.map(\.id)).subtracting(
+                verifiedManifests.map(\.id)
             )
             self.catalog = try await catalog
             errorMessage = nil
@@ -513,6 +527,7 @@ private struct KeiyoushiExtensionCatalogView: View {
                 let manifest = try await SourceManager.shared
                     .installKeiyoushiExtension(entry)
                 installedVersions[entry.packageName] = manifest.version
+                unhealthyExtensions.remove(entry.packageName)
             } catch {
                 errorMessage = error.localizedDescription
             }

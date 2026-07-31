@@ -303,6 +303,21 @@ actor JVMSourceRuntime {
         return manifestsById.values.sorted { $0.name < $1.name }
     }
 
+    func verifiedInstalledManifests() throws -> [JVMExtensionManifest] {
+        try installedManifests().filter { manifest in
+            guard
+                let directory = try? extensionDirectory(for: manifest),
+                let checksum = try? sha256(
+                    of: directory.appendingPathComponent("extension.jar")
+                )
+            else {
+                return false
+            }
+            return checksum.caseInsensitiveCompare(manifest.sha256) ==
+                .orderedSame
+        }
+    }
+
     func installedAidokuSources() async -> [AidokuRunner.Source] {
         guard let manifests = try? installedManifests() else {
             return []
