@@ -22,6 +22,33 @@ struct MihonBackupImporterTests {
         #expect(MihonBackupImporter.aidokuStatus(mihonStatus: 6) == 4)
     }
 
+    @Test func convertsZeroBasedMihonReadingProgress() {
+        #expect(
+            MihonBackupImporter.aidokuProgress(
+                mihonLastPageRead: 0,
+                hasHistory: false
+            ) == 0
+        )
+        #expect(
+            MihonBackupImporter.aidokuProgress(
+                mihonLastPageRead: 0,
+                hasHistory: true
+            ) == 1
+        )
+        #expect(
+            MihonBackupImporter.aidokuProgress(
+                mihonLastPageRead: 12,
+                hasHistory: true
+            ) == 13
+        )
+        #expect(
+            MihonBackupImporter.aidokuProgress(
+                mihonLastPageRead: .max,
+                hasHistory: true
+            ) == .max
+        )
+    }
+
     @Test func importsMultipleTachiyomiAZCategoriesWithoutIds() throws {
         let manga = MihonBackupImporter.Manga(
             source: "2499283573021220255",

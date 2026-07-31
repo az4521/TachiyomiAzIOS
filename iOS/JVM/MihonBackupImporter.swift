@@ -206,7 +206,10 @@ enum MihonBackupImporter {
                             sourceId: sourceId,
                             chapterId: chapter.url,
                             mangaId: mangaId,
-                            progress: Int(clamping: chapter.lastPageRead),
+                            progress: aidokuProgress(
+                                mihonLastPageRead: chapter.lastPageRead,
+                                hasHistory: matchingHistory != nil
+                            ),
                             completed: chapter.read
                         )
                     )
@@ -286,6 +289,22 @@ enum MihonBackupImporter {
             case 6: 4 // hiatus
             default: 0 // unknown / licensed
         }
+    }
+
+    static func aidokuProgress(
+        mihonLastPageRead: Int64,
+        hasHistory: Bool
+    ) -> Int {
+        // Mihon persists Page.index (zero based). Aidoku persists the visible
+        // page number (one based), as confirmed by its Suwayomi tracker doing
+        // the inverse subtraction when exporting progress.
+        guard mihonLastPageRead > 0 || hasHistory else {
+            return 0
+        }
+        guard mihonLastPageRead < Int64.max else {
+            return Int.max
+        }
+        return Int(clamping: mihonLastPageRead + 1)
     }
 
     private static func aidokuTrackerId(mihonId: Int) -> String? {

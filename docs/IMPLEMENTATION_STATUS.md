@@ -73,7 +73,8 @@ Last updated: 2026-07-31
   bookmarks, read progress, history, source IDs, supported tracker links, and
   correctly translated viewer settings into Aidoku's backup model.
 - Regression coverage for Mihon's extra publication states and TachiyomiAZ's
-  id-less category/order format and extended reader modes.
+  id-less category/order format, zero-based reading progress, and extended
+  reader modes.
 - `.tachibk` and legacy `.proto.gz` selection and deep-link import, including
   first-class `.tachibk` document registration and `tachiaz://` URLs.
 - Material Design 1-inspired hamburger drawer using the existing Aidoku
