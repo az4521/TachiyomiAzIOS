@@ -76,7 +76,7 @@ enum MihonBackupImporter {
         return convert(payload)
     }
 
-    private static func convert(_ payload: Payload) -> Backup {
+    static func convert(_ payload: Payload) -> Backup {
         // TachiyomiAZ categories predate Mihon's explicit category-id field,
         // so every decoded id is zero and manga membership refers to `order`.
         // Ignoring that sentinel also avoids Dictionary's duplicate-key trap
@@ -261,7 +261,7 @@ enum MihonBackupImporter {
         return "mihon.\(sourceId)"
     }
 
-    private static func aidokuViewer(mihonFlags: Int) -> Int {
+    static func aidokuViewer(mihonFlags: Int) -> Int {
         // Mihon stores the reading mode in the low three bits. Its standard
         // modes use the same raw ordering as Aidoku. TachiyomiAZ additionally
         // has horizontal-continuous modes, which degrade to the matching
@@ -275,7 +275,7 @@ enum MihonBackupImporter {
         }
     }
 
-    private static func aidokuStatus(mihonStatus: Int) -> Int {
+    static func aidokuStatus(mihonStatus: Int) -> Int {
         // Mihon has extra "licensed" and "publishing finished" states between
         // completed and cancelled. Translate explicitly instead of treating
         // the Android raw value as an Aidoku enum raw value.
