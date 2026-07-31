@@ -845,7 +845,9 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
             let mangaId = userInfo[NotificationManager.mangaIdInfoKey] as? String,
             let encodedSource = sourceId.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed),
             let encodedManga = mangaId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-            let url = URL(string: "aidoku://\(encodedSource)/\(encodedManga)")
+            let url = URL(
+                string: "tachiyomiaz://\(encodedSource)/\(encodedManga)"
+            )
         {
             Task { @MainActor in
                 self.handleUrl(url: url)
