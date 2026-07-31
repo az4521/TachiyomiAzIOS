@@ -59,7 +59,11 @@ fi
     -d "$classes_root" \
     "${main_sources[@]}"
 
-"$jar" cf "$output_jar" -C "$classes_root" .
+# JAR entry timestamps otherwise make this tracked build artifact change after
+# every validation run. ZIP timestamps start in 1980, and BSD/GNU touch both
+# accept this fixed form.
+find "$classes_root" -exec touch -t 198001010000 {} +
+"$jar" cMf "$output_jar" -C "$classes_root" .
 
 if [[ "${1:-}" == "--test" ]]; then
     mapfile -t test_sources < <(find "$test_source_root" -name '*.java' -type f | sort)

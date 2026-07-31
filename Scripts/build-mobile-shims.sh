@@ -28,7 +28,8 @@ mapfile -t sources < <(find "$source_root" -name '*.java' -type f | sort)
     -encoding UTF-8 \
     -d "$build_root" \
     "${sources[@]}"
-"$java_home/bin/jar" cf "$output_jar" -C "$build_root" .
+find "$build_root" -exec touch -t 198001010000 {} +
+"$java_home/bin/jar" cMf "$output_jar" -C "$build_root" .
 if [[ ! -f "$java_home/lib/security/cacerts" ]]; then
     echo "JDK trust store is missing: $java_home/lib/security/cacerts" >&2
     exit 1
