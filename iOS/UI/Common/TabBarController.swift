@@ -411,12 +411,14 @@ extension TabBarController: UITabBarControllerDelegate {
     @available(iOS 18.0, *)
     func tabBarController(_ tabBarController: UITabBarController, didSelectTab selectedTab: UITab, previousTab: UITab?) {
         checkForSettingsPop()
+        updateDrawerSelection()
     }
 
     func tabBarController(_ tabBarController: UITabBarController, didSelect viewController: UIViewController) {
         if #unavailable(iOS 18.0) {
             checkForSettingsPop()
         }
+        updateDrawerSelection()
     }
 
     private func checkForSettingsPop() {
@@ -451,6 +453,8 @@ extension TabBarController {
             newIndex >= 1 && newIndex <= (tabBar.items?.count ?? 0)
         else { return }
         selectedIndex = newIndex - 1
+        checkForSettingsPop()
+        updateDrawerSelection()
     }
 
     override var canBecomeFirstResponder: Bool { true }

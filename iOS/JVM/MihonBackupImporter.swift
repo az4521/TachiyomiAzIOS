@@ -77,11 +77,19 @@ enum MihonBackupImporter {
     }
 
     private static func convert(_ payload: Payload) -> Backup {
+        // TachiyomiAZ categories predate Mihon's explicit category-id field,
+        // so every decoded id is zero and manga membership refers to `order`.
+        // Ignoring that sentinel also avoids Dictionary's duplicate-key trap
+        // for backups containing more than one AZ category.
         let categoryNamesById = Dictionary(
-            uniqueKeysWithValues: payload.categories.map { ($0.id, $0.name) }
+            payload.categories
+                .filter { $0.id != 0 }
+                .map { ($0.id, $0.name) },
+            uniquingKeysWith: { first, _ in first }
         )
         let categoryNamesByOrder = Dictionary(
-            uniqueKeysWithValues: payload.categories.map { ($0.order, $0.name) }
+            payload.categories.map { ($0.order, $0.name) },
+            uniquingKeysWith: { first, _ in first }
         )
 
         var backupManga: [BackupManga] = []
@@ -138,7 +146,7 @@ enum MihonBackupImporter {
                     tags: manga.genre,
                     cover: manga.thumbnailUrl,
                     url: manga.url,
-                    status: manga.status,
+                    status: aidokuStatus(mihonStatus: manga.status),
                     viewer: aidokuViewer(
                         mihonFlags: manga.viewerFlags ?? manga.viewer
                     ),
@@ -254,14 +262,29 @@ enum MihonBackupImporter {
     }
 
     private static func aidokuViewer(mihonFlags: Int) -> Int {
-        // Mihon stores the reading mode in the low three bits. Aidoku's
-        // left-to-right and right-to-left raw values are ordered oppositely.
+        // Mihon stores the reading mode in the low three bits. Its standard
+        // modes use the same raw ordering as Aidoku. TachiyomiAZ additionally
+        // has horizontal-continuous modes, which degrade to the matching
+        // paged direction because Aidoku has no direct equivalent.
         switch mihonFlags & 0x7 {
-            case 1: 2 // left-to-right
-            case 2: 1 // right-to-left
+            case 1, 6: 1 // left-to-right
+            case 2, 7: 2 // right-to-left
             case 3: 3 // vertical pager
             case 4, 5: 4 // webtoon and continuous vertical
             default: 0
+        }
+    }
+
+    private static func aidokuStatus(mihonStatus: Int) -> Int {
+        // Mihon has extra "licensed" and "publishing finished" states between
+        // completed and cancelled. Translate explicitly instead of treating
+        // the Android raw value as an Aidoku enum raw value.
+        switch mihonStatus {
+            case 1: 1 // ongoing
+            case 2, 4: 2 // completed / publishing finished
+            case 5: 3 // cancelled
+            case 6: 4 // hiatus
+            default: 0 // unknown / licensed
         }
     }
 
