@@ -14,7 +14,10 @@ let package = Package(
     targets: [
         .target(
             name: "CJVMBridge",
-            publicHeadersPath: "include"
+            publicHeadersPath: "include",
+            linkerSettings: [
+                .linkedLibrary("z"),
+            ]
         ),
         .target(
             name: "TachiJVMRunner",

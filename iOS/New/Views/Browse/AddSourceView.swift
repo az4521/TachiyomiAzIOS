@@ -179,7 +179,7 @@ private struct ExtensionRepositoryListView: View {
                 Text("Add Repository")
             } footer: {
                 Text(
-                    "Enter an index.json URL or the directory containing it. " +
+                    "Enter an index.pb or index.json URL, or its directory. " +
                         "The repository is validated before it is saved."
                 )
             }
@@ -206,25 +206,10 @@ private struct ExtensionRepositoryListView: View {
                 validating = false
             }
             do {
-                let catalogURL = try KeiyoushiJarRepository.catalogURL(
+                _ = try await KeiyoushiJarRepository.addRepository(
                     from: repositoryURL
                 )
-                guard !repositories.contains(where: {
-                    $0.catalogURL == catalogURL
-                }) else {
-                    errorMessage = "That extension repository is already added."
-                    return
-                }
-                let catalog = try await KeiyoushiJarRepository.fetchCatalog(
-                    from: catalogURL
-                )
-                let repository = KeiyoushiJarRepository.Repository(
-                    name: catalog.name,
-                    catalogURL: catalogURL
-                )
-                let updated = repositories + [repository]
-                try KeiyoushiJarRepository.save(repositories: updated)
-                repositories = updated
+                repositories = KeiyoushiJarRepository.repositories()
                 repositoryURL = ""
             } catch {
                 errorMessage = error.localizedDescription

@@ -23,6 +23,8 @@ still needs an Xcode simulator build on macOS. See
 - [x] Core Mihon/Keiyoushi extension-lib 1.4–1.6 source compatibility
 - [x] User-configured JAR repository installation and updates; no extension
   repositories are included or recommended by the app
+- [x] Current `index.pb`/`index.json` stores and Mihon-compatible
+  `mihon://extension-store?url=…` import links
 - [x] Mihon/TachiyomiAZ `.tachibk` import
 - [x] Online reading through external sources
 - [x] Downloads

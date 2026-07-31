@@ -496,6 +496,21 @@ extension AppDelegate {
     }
 
     func handleUrl(url: URL) {
+        do {
+            if let repositoryURL = try KeiyoushiJarRepository
+                .repositoryURL(fromDeepLink: url)
+            {
+                confirmExtensionRepository(repositoryURL)
+                return
+            }
+        } catch {
+            presentAlert(
+                title: "Extension Repository Error",
+                message: error.localizedDescription
+            )
+            return
+        }
+
         if
             let scheme = url.scheme?.lowercased(),
             ["tachiyomiaz", "tachiaz", "aidoku"].contains(scheme)
@@ -603,6 +618,43 @@ extension AppDelegate {
                 await handleDeepLink(url: url)
             }
         }
+    }
+
+    private func confirmExtensionRepository(_ repositoryURL: String) {
+        presentAlert(
+            title: "Add Extension Repository?",
+            message:
+                "Only continue if you trust this repository.\n\n" +
+                repositoryURL,
+            actions: [
+                .init(
+                    title: NSLocalizedString("CANCEL"),
+                    style: .cancel
+                ),
+                .init(title: "Add Repository", style: .default) { _ in
+                    Task {
+                        self.showLoadingIndicator()
+                        do {
+                            let repository = try await
+                                KeiyoushiJarRepository.addRepository(
+                                    from: repositoryURL
+                                )
+                            await self.hideLoadingIndicator()
+                            self.presentAlert(
+                                title: "Repository Added",
+                                message: repository.name
+                            )
+                        } catch {
+                            await self.hideLoadingIndicator()
+                            self.presentAlert(
+                                title: "Extension Repository Error",
+                                message: error.localizedDescription
+                            )
+                        }
+                    }
+                }
+            ]
+        )
     }
 
     func handleDeepLink(url: URL) async -> Bool {

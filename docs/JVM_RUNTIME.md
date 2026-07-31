@@ -88,10 +88,12 @@ iOS-safe `SystemClock` replacement is placed in the boot shim, where it wins
 before application class loading. Desktop Logback providers are deliberately
 excluded.
 
-The app consumes the extension-lib `index.json` format only from repositories
-explicitly configured by the user. No repository URL is built into the app.
-Users may enter an `index.json` URL or its containing directory; the catalog is
-validated before the URL is persisted. Catalog entries provide direct
+The app consumes current extension-lib `index.pb` protobuf stores and their
+equivalent object-shaped `index.json` representation only from repositories
+explicitly configured by the user. Legacy `repo.json` and array-shaped
+`index.min.json` formats are intentionally unsupported. No repository URL is
+built into the app. Users may enter an index URL or its containing directory;
+the catalog is validated before the URL is persisted. Catalog entries provide direct
 `jarUrl` artifacts. Before installation,
 the downloaded JAR is inspected and its package/version must match the
 catalog metadata; its locally computed SHA-256 is then persisted with the

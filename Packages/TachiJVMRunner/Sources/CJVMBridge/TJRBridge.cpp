@@ -7,6 +7,7 @@
 #include <new>
 #include <string>
 #include <vector>
+#include <zlib.h>
 
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
@@ -532,5 +533,69 @@ void tjr_runtime_release(TJRRuntime *runtime) {
 }
 
 void tjr_string_free(char *value) {
+    std::free(value);
+}
+
+TJRStatus tjr_gzip_decompress(
+    const unsigned char *input,
+    size_t input_size,
+    unsigned char **output,
+    size_t *output_size
+) {
+    if (input == nullptr || input_size == 0 || output == nullptr ||
+        output_size == nullptr) {
+        return TJRStatusInvalidArgument;
+    }
+
+    *output = nullptr;
+    *output_size = 0;
+
+    z_stream stream = {};
+    stream.next_in = const_cast<Bytef *>(input);
+    stream.avail_in = static_cast<uInt>(input_size);
+    if (inflateInit2(&stream, MAX_WBITS + 16) != Z_OK) {
+        return TJRStatusCompressionFailed;
+    }
+
+    std::vector<unsigned char> decompressed;
+    unsigned char chunk[64 * 1024];
+    constexpr size_t max_decompressed_size = 64 * 1024 * 1024;
+    int result = Z_OK;
+    while (result == Z_OK) {
+        stream.next_out = chunk;
+        stream.avail_out = sizeof(chunk);
+        result = inflate(&stream, Z_NO_FLUSH);
+        const size_t produced = sizeof(chunk) - stream.avail_out;
+        if (produced > max_decompressed_size - decompressed.size()) {
+            inflateEnd(&stream);
+            return TJRStatusCompressionFailed;
+        }
+        decompressed.insert(
+            decompressed.end(),
+            chunk,
+            chunk + produced
+        );
+    }
+    inflateEnd(&stream);
+
+    if (result != Z_STREAM_END) {
+        return TJRStatusCompressionFailed;
+    }
+
+    auto *buffer = static_cast<unsigned char *>(
+        std::malloc(decompressed.size())
+    );
+    if (buffer == nullptr && !decompressed.empty()) {
+        return TJRStatusAllocationFailed;
+    }
+    if (!decompressed.empty()) {
+        std::memcpy(buffer, decompressed.data(), decompressed.size());
+    }
+    *output = buffer;
+    *output_size = decompressed.size();
+    return TJRStatusOK;
+}
+
+void tjr_buffer_free(unsigned char *value) {
     std::free(value);
 }

@@ -20,7 +20,8 @@ typedef enum TJRStatus {
     TJRStatusJavaClassNotFound = 7,
     TJRStatusJavaMethodNotFound = 8,
     TJRStatusJavaException = 9,
-    TJRStatusAllocationFailed = 10
+    TJRStatusAllocationFailed = 10,
+    TJRStatusCompressionFailed = 11
 } TJRStatus;
 
 TJRRuntime *tjr_runtime_create(
@@ -46,6 +47,15 @@ TJRStatus tjr_runtime_dispatch(
 void tjr_runtime_release(TJRRuntime *runtime);
 
 void tjr_string_free(char *value);
+
+TJRStatus tjr_gzip_decompress(
+    const unsigned char *input,
+    size_t input_size,
+    unsigned char **output,
+    size_t *output_size
+);
+
+void tjr_buffer_free(unsigned char *value);
 
 #ifdef __cplusplus
 }
