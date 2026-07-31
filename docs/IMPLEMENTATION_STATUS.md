@@ -142,7 +142,8 @@ for the simulator-first sideloading target.
 - JNI C++ bridge compiles with `-std=c++17 -Wall -Wextra -Werror`.
 - Git whitespace checks pass.
 - The nightly macOS job compiles both the app and its unit-test bundle for a
-  generic arm64/x86_64 iOS Simulator before producing the device archive.
+  generic arm64/x86_64 iOS Simulator, uploads the unsigned simulator app, and
+  then produces the device archive.
 
 Xcode, Swift, and an iOS SDK are not installed in the current Linux/WSL
 workspace, so an honest Xcode compile or device-runtime claim cannot be made

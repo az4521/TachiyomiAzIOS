@@ -45,7 +45,9 @@ TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/test-mobile-java-base.sh
 
 The OpenJDK bootstrap installs separate device and simulator Java bundles. In
 Xcode, select an iPhone Simulator destination and run the `Aidoku (iOS)`
-scheme; the build phase embeds the simulator bundle automatically.
+scheme; the build phase embeds the simulator bundle automatically. The
+nightly workflow also uploads the unsigned universal simulator `.app` as a zip
+before producing the sideloadable device IPA.
 
 ## Contributing
 The original application and reader are Aidoku work. JVM runtime changes in

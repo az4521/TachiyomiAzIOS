@@ -54,6 +54,18 @@ jobs:
       - name: Get commit SHA
         id: commitinfo
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Package simulator app
+        run: |
+          ditto \
+            -c -k --sequesterRsrc --keepParent \
+            build/simulator/Build/Products/Debug-iphonesimulator/Aidoku.app \
+            TachiAZ-iOS_Simulator-${{ steps.commitinfo.outputs.sha_short }}.zip
+      - name: Upload simulator app
+        uses: actions/upload-artifact@v4
+        with:
+          name: TachiAZ-iOS_Simulator-${{ steps.commitinfo.outputs.sha_short }}
+          path: TachiAZ-iOS_Simulator-${{ steps.commitinfo.outputs.sha_short }}.zip
+          if-no-files-found: error
       - name: Build
         run: xcodebuild -scheme "Aidoku (iOS)" -configuration Release archive -archivePath build/Aidoku.xcarchive -skipPackagePluginValidation CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
       - name: Package ipa
