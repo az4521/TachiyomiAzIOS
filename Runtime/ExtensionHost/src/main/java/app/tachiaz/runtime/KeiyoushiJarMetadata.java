@@ -70,8 +70,7 @@ final class KeiyoushiJarMetadata {
     static void requireSupportedLibrary(Metadata metadata) {
         String version = metadata.extensionLibrary;
         if (
-            version == null ||
-            !SUPPORTED_EXTENSION_LIBRARY.matcher(version).matches()
+            !supportsExtensionLibrary(version)
         ) {
             throw new IllegalArgumentException(
                 "Unsupported Mihon extension library " +
@@ -79,6 +78,11 @@ final class KeiyoushiJarMetadata {
                     "; supported range is 1.4 through 1.6"
             );
         }
+    }
+
+    static boolean supportsExtensionLibrary(String version) {
+        return version != null &&
+            SUPPORTED_EXTENSION_LIBRARY.matcher(version).matches();
     }
 
     private static String readManifest(File jar) throws IOException {

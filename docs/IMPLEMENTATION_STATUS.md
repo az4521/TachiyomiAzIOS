@@ -61,6 +61,8 @@ Last updated: 2026-07-31
 - A bundled CA trust store for TLS; the upstream OpenJDK/mobile snapshot only
   contains its `java.base` jimage.
 - Manifest gating for the supported Mihon extension-lib 1.4–1.6 range.
+- Unit coverage accepts 1.4, 1.5, and 1.6 (including patch components) while
+  rejecting versions outside that range.
 - A binary fixture compiled against official TachiyomiX 1.4.4 that proves a
   suspend host call falls back to its Rx-only popular implementation.
 - `SourceFactory` expansion, source enumeration, and source-ID routing, tested
