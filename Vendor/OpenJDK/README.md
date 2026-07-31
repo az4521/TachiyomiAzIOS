@@ -1,8 +1,9 @@
-# OpenJDK runtime
+# OpenJDK/mobile runtime
 
-TachiAZ uses the iOS OpenJDK 8 Zero build published by
-[`thebaselab/android-openjdk-build-multiarch`](https://github.com/thebaselab/android-openjdk-build-multiarch).
-The binaries are intentionally not checked into this repository.
+TachiAZ uses the official
+[`openjdk-mobile/ios-tools`](https://github.com/openjdk-mobile/ios-tools)
+device snapshot. The binaries are intentionally not checked into this
+repository.
 
 Run:
 
@@ -10,9 +11,12 @@ Run:
 Scripts/bootstrap-openjdk-ios.sh
 ```
 
-The bootstrap script downloads the pinned `v0.2` archive, verifies its SHA-256
-checksum, and installs `java-8-openjdk` plus the dynamic frameworks in this
-directory.
+The bootstrap script downloads checksum-pinned copies of
+`OpenJDK.xcframework.zip` and `java_bundle-device.zip`. It installs the static
+Zero VM XCFramework and device class-library bundle in this directory.
+
+The current Keiyoushi Asura Scans JAR uses Java 11 class files. The former
+OpenJDK 8 experiment cannot load it, so it is deliberately unsupported.
 
 This runtime is for sideloaded builds. The Java interpreter is initialized once
 per app process; Java extensions run in-process and therefore share the app's

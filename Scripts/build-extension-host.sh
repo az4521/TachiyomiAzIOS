@@ -71,6 +71,13 @@ if [[ "${1:-}" == "--test" ]]; then
         -cp "$output_jar:$test_classes_root" \
         app.tachiaz.runtime.ExtensionHostTest \
         "$fixture_jar"
+
+    if [[ -n "${TACHIAZ_ASURA_JAR:-}" ]]; then
+        "$java" \
+            -cp "$output_jar:$test_classes_root" \
+            app.tachiaz.runtime.KeiyoushiAsuraScansTest \
+            "$TACHIAZ_ASURA_JAR"
+    fi
 fi
 
 echo "$output_jar"

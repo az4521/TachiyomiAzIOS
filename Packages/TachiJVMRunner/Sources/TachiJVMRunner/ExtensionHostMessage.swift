@@ -34,4 +34,17 @@ public struct ExtensionHostResponse: Codable, Sendable {
     public let error: String?
     public let runtime: String?
     public let javaVersion: String?
+    public let packageName: String?
+    public let name: String?
+    public let version: String?
+    public let versionCode: String?
+    public let entryClass: String?
+    public let minimumSdk: String?
+    public let targetSdk: String?
+    public let nsfw: String?
+    public let extensionLibrary: String?
+    public let classCount: String?
+    public let maximumClassVersion: String?
+    public let requiredJavaVersion: String?
+    public let runtimeCompatible: String?
 }

@@ -8,12 +8,10 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
 final class JarBytecodeValidator {
-    private static final int JAVA_8_CLASS_VERSION = 52;
-
     private JarBytecodeValidator() {
     }
 
-    static void validate(File jar) throws IOException {
+    static Report inspect(File jar) throws IOException {
         if (!jar.isFile()) {
             throw new IllegalArgumentException(
                 "Extension JAR does not exist: " + jar
@@ -21,6 +19,8 @@ final class JarBytecodeValidator {
         }
 
         boolean foundClass = false;
+        int classCount = 0;
+        int maximumMajorVersion = 0;
         try (
             JarInputStream input = new JarInputStream(
                 new BufferedInputStream(new FileInputStream(jar))
@@ -36,6 +36,7 @@ final class JarBytecodeValidator {
                     continue;
                 }
                 foundClass = true;
+                classCount++;
                 readFully(input, header);
                 if (
                     (header[0] & 0xff) != 0xca ||
@@ -48,13 +49,7 @@ final class JarBytecodeValidator {
                     );
                 }
                 int major = ((header[6] & 0xff) << 8) | (header[7] & 0xff);
-                if (major > JAVA_8_CLASS_VERSION) {
-                    throw new IllegalArgumentException(
-                        entry.getName() + " uses class-file version " + major +
-                            "; this runtime supports at most " +
-                            JAVA_8_CLASS_VERSION
-                    );
-                }
+                maximumMajorVersion = Math.max(maximumMajorVersion, major);
             }
         }
 
@@ -63,6 +58,39 @@ final class JarBytecodeValidator {
                 "Extension JAR contains no classes"
             );
         }
+        return new Report(classCount, maximumMajorVersion);
+    }
+
+    static Report validate(File jar) throws IOException {
+        Report report = inspect(jar);
+        int runtimeMajorVersion = runtimeClassVersion();
+        if (report.maximumMajorVersion > runtimeMajorVersion) {
+            throw new IllegalArgumentException(
+                "Extension uses class-file version " +
+                    report.maximumMajorVersion +
+                    " (Java " +
+                    javaVersionForClassVersion(report.maximumMajorVersion) +
+                    "); this runtime supports at most " +
+                    runtimeMajorVersion +
+                    " (Java " +
+                    javaVersionForClassVersion(runtimeMajorVersion) +
+                    ")"
+            );
+        }
+        return report;
+    }
+
+    static int runtimeClassVersion() {
+        String value = System.getProperty("java.class.version", "52");
+        int dot = value.indexOf('.');
+        if (dot >= 0) {
+            value = value.substring(0, dot);
+        }
+        return Integer.parseInt(value);
+    }
+
+    static int javaVersionForClassVersion(int classVersion) {
+        return classVersion - 44;
     }
 
     private static void readFully(JarInputStream input, byte[] buffer)
@@ -74,6 +102,20 @@ final class JarBytecodeValidator {
                 throw new IOException("Truncated class file");
             }
             offset += count;
+        }
+    }
+
+    static final class Report {
+        final int classCount;
+        final int maximumMajorVersion;
+
+        Report(int classCount, int maximumMajorVersion) {
+            this.classCount = classCount;
+            this.maximumMajorVersion = maximumMajorVersion;
+        }
+
+        boolean isCompatibleWithCurrentRuntime() {
+            return maximumMajorVersion <= runtimeClassVersion();
         }
     }
 }

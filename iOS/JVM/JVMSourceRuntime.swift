@@ -36,6 +36,19 @@ actor JVMSourceRuntime {
         try await dispatch(.init(operation: "ping"))
     }
 
+    func inspect(jar: URL) async throws -> JVMExtensionInspection {
+        let secured = jar.startAccessingSecurityScopedResource()
+        defer {
+            if secured {
+                jar.stopAccessingSecurityScopedResource()
+            }
+        }
+        let response = try await dispatch(
+            .init(operation: "inspectExtension", jarPath: jar.path)
+        )
+        return try JVMExtensionInspection(response: response)
+    }
+
     @discardableResult
     func install(
         jar sourceJar: URL,
@@ -188,7 +201,7 @@ actor JVMSourceRuntime {
         }
 
         let javaHome = resources.appendingPathComponent(
-            "java-8-openjdk",
+            "java_bundle",
             isDirectory: true
         )
         let hostJar = resources.appendingPathComponent(

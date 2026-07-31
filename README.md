@@ -3,8 +3,9 @@
 An experimental, sideload-only iOS/iPadOS manga reader forked from
 [Aidoku](https://github.com/Aidoku/Aidoku).
 
-This branch is replacing Aidoku's source runtime with an embedded OpenJDK 8
-Zero runtime for direct JVM extension JARs, adding Mihon/TachiyomiAZ backup
+This branch is replacing Aidoku's source runtime with the official
+OpenJDK/mobile Zero runtime for direct Keiyoushi JVM extension JARs, adding
+Mihon/TachiyomiAZ backup
 import, and using a Material Design 1-inspired navigation drawer.
 
 The JVM work is under active development. The Java host, JNI boundary, JAR
@@ -31,6 +32,7 @@ Before the first device build:
 ```sh
 Scripts/bootstrap-openjdk-ios.sh
 TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk8 Scripts/build-extension-host.sh --test
+TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk8 Scripts/test-keiyoushi-asurascans.sh
 ```
 
 ## Contributing

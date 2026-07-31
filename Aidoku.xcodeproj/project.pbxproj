@@ -8,9 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		A12000000000000000000003 /* TachiJVMRunner in Frameworks */ = {isa = PBXBuildFile; productRef = A12000000000000000000002 /* TachiJVMRunner */; };
+		A12200000000000000000001 /* OpenJDK.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A12200000000000000000002 /* OpenJDK.xcframework */; };
 		A12100000000000000000003 /* JVMExtensionManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12100000000000000000001 /* JVMExtensionManifest.swift */; };
 		A12100000000000000000004 /* JVMSourceRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12100000000000000000002 /* JVMSourceRuntime.swift */; };
 		A12100000000000000000007 /* MihonBackupImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12100000000000000000006 /* MihonBackupImporter.swift */; };
+		A12300000000000000000002 /* KeiyoushiJarRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12300000000000000000001 /* KeiyoushiJarRepository.swift */; };
 		002C0AC12EC0F44D0071CE82 /* LAPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002C0AC02EC0F44D0071CE82 /* LAPolicy.swift */; };
 		002C0AC22EC0F44D0071CE82 /* LAPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002C0AC02EC0F44D0071CE82 /* LAPolicy.swift */; };
 		04B48CF82CD6836100F719D0 /* ShikimoriTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04B48CF72CD6835D00F719D0 /* ShikimoriTracker.swift */; };
@@ -622,9 +624,11 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A12200000000000000000002 /* OpenJDK.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Vendor/OpenJDK/OpenJDK.xcframework; sourceTree = SOURCE_ROOT; };
 		A12100000000000000000001 /* JVMExtensionManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JVMExtensionManifest.swift; sourceTree = "<group>"; };
 		A12100000000000000000002 /* JVMSourceRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JVMSourceRuntime.swift; sourceTree = "<group>"; };
 		A12100000000000000000006 /* MihonBackupImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MihonBackupImporter.swift; sourceTree = "<group>"; };
+		A12300000000000000000001 /* KeiyoushiJarRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeiyoushiJarRepository.swift; sourceTree = "<group>"; };
 		002C0AC02EC0F44D0071CE82 /* LAPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LAPolicy.swift; sourceTree = "<group>"; };
 		04B48CF72CD6835D00F719D0 /* ShikimoriTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShikimoriTracker.swift; sourceTree = "<group>"; };
 		04B48CFA2CD6838600F719D0 /* ShikimoriApi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShikimoriApi.swift; sourceTree = "<group>"; };
@@ -1116,6 +1120,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A12200000000000000000001 /* OpenJDK.xcframework in Frameworks */,
 				A12000000000000000000003 /* TachiJVMRunner in Frameworks */,
 				FB17114B296770CC00AD523D /* NukeUI in Frameworks */,
 				FB662EDE2DA816CF00007514 /* MarkdownUI in Frameworks */,
@@ -1467,6 +1472,7 @@
 				A12100000000000000000001 /* JVMExtensionManifest.swift */,
 				A12100000000000000000002 /* JVMSourceRuntime.swift */,
 				A12100000000000000000006 /* MihonBackupImporter.swift */,
+				A12300000000000000000001 /* KeiyoushiJarRepository.swift */,
 			);
 			path = JVM;
 			sourceTree = "<group>";
@@ -1488,6 +1494,7 @@
 		FB1B4875277CE7FE0056D02C /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				A12200000000000000000002 /* OpenJDK.xcframework */,
 				FB4EEBDF27A4F5C1005081A3 /* CloudKit.framework */,
 			);
 			name = Frameworks;
@@ -2630,20 +2637,18 @@
 			);
 			inputPaths = (
 				"$(PROJECT_DIR)/Runtime/ExtensionHost/dist/tachiaz-extension-host.jar",
-				"$(PROJECT_DIR)/Vendor/OpenJDK/java-8-openjdk",
-				"$(PROJECT_DIR)/Vendor/OpenJDK/java-frameworks",
+				"$(PROJECT_DIR)/Vendor/OpenJDK/java_bundle",
 			);
 			name = "Embed OpenJDK Runtime";
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/java-8-openjdk",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/java_bundle",
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/tachiaz-extension-host.jar",
-				"$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)/libjvm.framework",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -eu\n\nruntime_root=\"$PROJECT_DIR/Vendor/OpenJDK\"\nhost_jar=\"$PROJECT_DIR/Runtime/ExtensionHost/dist/tachiaz-extension-host.jar\"\nresources=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\nframeworks=\"$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH\"\n\nif [ \"$PLATFORM_NAME\" = \"iphonesimulator\" ]; then\n    echo \"error: The pinned OpenJDK Zero runtime is device-only; select an iOS device destination.\"\n    exit 1\nfi\n\nif [ ! -d \"$runtime_root/java-8-openjdk\" ] || [ ! -d \"$runtime_root/java-frameworks\" ]; then\n    echo \"error: OpenJDK runtime missing. Run Scripts/bootstrap-openjdk-ios.sh first.\"\n    exit 1\nfi\nif [ ! -f \"$host_jar\" ]; then\n    echo \"error: Extension host missing. Run Scripts/build-extension-host.sh --test first.\"\n    exit 1\nfi\n\nmkdir -p \"$resources\" \"$frameworks\"\nrm -rf \"$resources/java-8-openjdk\"\nditto \"$runtime_root/java-8-openjdk\" \"$resources/java-8-openjdk\"\nditto \"$host_jar\" \"$resources/tachiaz-extension-host.jar\"\n\nfor source_framework in \"$runtime_root\"/java-frameworks/*.framework; do\n    framework_name=$(basename \"$source_framework\")\n    destination=\"$frameworks/$framework_name\"\n    rm -rf \"$destination\"\n    ditto \"$source_framework\" \"$destination\"\n    if [ -n \"${EXPANDED_CODE_SIGN_IDENTITY:-}\" ]; then\n        /usr/bin/codesign --force --sign \"$EXPANDED_CODE_SIGN_IDENTITY\" --preserve-metadata=identifier \"$destination\"\n    else\n        /usr/bin/codesign --force --sign - --preserve-metadata=identifier \"$destination\"\n    fi\ndone\n";
+			shellScript = "set -eu\n\nruntime_root=\"$PROJECT_DIR/Vendor/OpenJDK\"\nhost_jar=\"$PROJECT_DIR/Runtime/ExtensionHost/dist/tachiaz-extension-host.jar\"\nresources=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\n\nif [ \"$PLATFORM_NAME\" = \"iphonesimulator\" ]; then\n    echo \"error: The bootstrapped Java class-library bundle is device-only; select an iOS device destination.\"\n    exit 1\nfi\n\nif [ ! -d \"$runtime_root/OpenJDK.xcframework\" ] || [ ! -f \"$runtime_root/java_bundle/lib/modules\" ]; then\n    echo \"error: OpenJDK/mobile runtime missing. Run Scripts/bootstrap-openjdk-ios.sh first.\"\n    exit 1\nfi\nif [ ! -f \"$host_jar\" ]; then\n    echo \"error: Extension host missing. Run Scripts/build-extension-host.sh --test first.\"\n    exit 1\nfi\n\nmkdir -p \"$resources\"\nrm -rf \"$resources/java_bundle\"\nditto \"$runtime_root/java_bundle\" \"$resources/java_bundle\"\nditto \"$host_jar\" \"$resources/tachiaz-extension-host.jar\"\n";
 		};
 		FBED233627C3C4D70095D0C0 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -2673,6 +2678,7 @@
 				A12100000000000000000003 /* JVMExtensionManifest.swift in Sources */,
 				A12100000000000000000004 /* JVMSourceRuntime.swift in Sources */,
 				A12100000000000000000007 /* MihonBackupImporter.swift in Sources */,
+				A12300000000000000000002 /* KeiyoushiJarRepository.swift in Sources */,
 				FB4B0AEE285D2EE30066A13B /* MyAnimeListModels.swift in Sources */,
 				FB8E48D52DBFCEFB002A3621 /* SourceHomeContentView.swift in Sources */,
 				FBF9259D2F4DFB810049CB43 /* MangaBakaModels.swift in Sources */,
@@ -3495,6 +3501,11 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lz",
+					"-lc++",
+				);
 				MARKETING_VERSION = 0.8.4;
 				PRODUCT_NAME = Aidoku;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -3537,6 +3548,11 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lz",
+					"-lc++",
 				);
 				MARKETING_VERSION = 0.8.4;
 				PRODUCT_NAME = Aidoku;

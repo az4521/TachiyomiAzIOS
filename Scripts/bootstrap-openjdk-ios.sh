@@ -4,9 +4,12 @@ set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 vendor_root="$repository_root/Vendor/OpenJDK"
-archive_path="${TMPDIR:-/tmp}/tachiaz-openjdk-ios.zip"
-release_url="https://github.com/thebaselab/android-openjdk-build-multiarch/releases/download/v0.2/java-8-zero-frameworks-tools-with-src.zip"
-expected_sha256="da58bb27f5b214d3c2e6795d47a625fbc1ea862e318124a9f04f13bc609d0457"
+download_root="${TMPDIR:-/tmp}/tachiaz-openjdk-mobile"
+framework_archive="$download_root/OpenJDK.xcframework.zip"
+java_bundle_archive="$download_root/java_bundle-device.zip"
+release_root="https://github.com/openjdk-mobile/ios-tools/releases/download/snapshot"
+framework_sha256="ae8e22142e45e5c1e9e8e3541829f3cc00584658eb21eeeb0d3612e3fbaf7c9f"
+java_bundle_sha256="37387a48bdd7f1ce1d3a38e88356e61288673c91b42ef27cf1b71d27e05cc54a"
 
 command -v curl >/dev/null || {
     echo "curl is required." >&2
@@ -16,33 +19,63 @@ command -v unzip >/dev/null || {
     echo "unzip is required." >&2
     exit 1
 }
-mkdir -p "$vendor_root"
+mkdir -p "$vendor_root" "$download_root"
 
-if [[ ! -f "$archive_path" ]]; then
-    curl --fail --location --output "$archive_path" "$release_url"
-fi
+download() {
+    local name="$1"
+    local destination="$2"
+    if [[ ! -f "$destination" ]]; then
+        curl \
+            --fail \
+            --location \
+            --output "$destination" \
+            "$release_root/$name"
+    fi
+}
 
-if command -v shasum >/dev/null; then
-    actual_sha256="$(shasum -a 256 "$archive_path" | cut -d ' ' -f 1)"
-elif command -v sha256sum >/dev/null; then
-    actual_sha256="$(sha256sum "$archive_path" | cut -d ' ' -f 1)"
-else
-    echo "shasum or sha256sum is required." >&2
+checksum() {
+    if command -v shasum >/dev/null; then
+        shasum -a 256 "$1" | cut -d ' ' -f 1
+    elif command -v sha256sum >/dev/null; then
+        sha256sum "$1" | cut -d ' ' -f 1
+    else
+        echo "shasum or sha256sum is required." >&2
+        exit 1
+    fi
+}
+
+verify() {
+    local archive="$1"
+    local expected="$2"
+    local actual
+    actual="$(checksum "$archive")"
+    if [[ "$actual" != "$expected" ]]; then
+        echo "OpenJDK/mobile archive checksum mismatch: $archive" >&2
+        echo "Expected: $expected" >&2
+        echo "Actual:   $actual" >&2
+        exit 1
+    fi
+}
+
+download "OpenJDK.xcframework.zip" "$framework_archive"
+download "java_bundle-device.zip" "$java_bundle_archive"
+verify "$framework_archive" "$framework_sha256"
+verify "$java_bundle_archive" "$java_bundle_sha256"
+
+rm -rf \
+    "$vendor_root/OpenJDK.xcframework" \
+    "$vendor_root/java_bundle" \
+    "$vendor_root/java_bundle-device"
+unzip -q "$framework_archive" -d "$vendor_root"
+unzip -q "$java_bundle_archive" -d "$vendor_root"
+mv "$vendor_root/java_bundle-device" "$vendor_root/java_bundle"
+
+if [[
+    ! -d "$vendor_root/OpenJDK.xcframework" ||
+    ! -f "$vendor_root/java_bundle/lib/modules"
+]]; then
+    echo "Downloaded archives do not have the expected iOS JVM layout." >&2
     exit 1
 fi
-if [[ "$actual_sha256" != "$expected_sha256" ]]; then
-    echo "OpenJDK archive checksum mismatch." >&2
-    echo "Expected: $expected_sha256" >&2
-    echo "Actual:   $actual_sha256" >&2
-    exit 1
-fi
 
-rm -rf "$vendor_root/java-8-openjdk" "$vendor_root/java-frameworks"
-unzip -q "$archive_path" -d "$vendor_root"
-
-if [[ ! -d "$vendor_root/java-8-openjdk" || ! -d "$vendor_root/java-frameworks" ]]; then
-    echo "Downloaded archive did not contain the expected runtime directories." >&2
-    exit 1
-fi
-
-echo "OpenJDK Zero runtime installed under $vendor_root"
+echo "OpenJDK/mobile Zero runtime installed under $vendor_root"

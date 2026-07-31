@@ -26,6 +26,8 @@ public final class ExtensionHost {
             switch (operation) {
                 case "ping":
                     return ping();
+                case "inspectExtension":
+                    return inspectExtension(request);
                 case "loadExtension":
                     return loadExtension(request);
                 case "invoke":
@@ -46,16 +48,32 @@ public final class ExtensionHost {
 
     private static String ping() {
         Map<String, String> metadata = new LinkedHashMap<>();
-        metadata.put("runtime", "OpenJDK Zero");
+        metadata.put("runtime", "OpenJDK/mobile Zero");
         metadata.put("javaVersion", System.getProperty("java.version"));
+        metadata.put(
+            "maximumClassVersion",
+            Integer.toString(JarBytecodeValidator.runtimeClassVersion())
+        );
         return MiniJson.response(true, "pong", null, metadata);
+    }
+
+    private static String inspectExtension(Map<String, String> request)
+        throws Exception {
+        File jar = new File(require(request, "jarPath"));
+        KeiyoushiJarMetadata.Metadata metadata =
+            KeiyoushiJarMetadata.inspect(jar);
+        Map<String, String> response = metadataMap(metadata);
+        return MiniJson.response(true, metadata.entryClass, null, response);
     }
 
     private static String loadExtension(Map<String, String> request)
         throws Exception {
         String extensionId = require(request, "extensionId");
         File jar = new File(require(request, "jarPath"));
-        String entryClass = require(request, "entryClass");
+        String entryClass = request.get("entryClass");
+        if (entryClass == null || entryClass.isEmpty()) {
+            entryClass = KeiyoushiJarMetadata.inspect(jar).entryClass;
+        }
 
         JarBytecodeValidator.validate(jar);
         URLClassLoader loader = new URLClassLoader(
@@ -91,10 +109,17 @@ public final class ExtensionHost {
             );
         }
 
-        Method method = extension.instance
-            .getClass()
-            .getMethod(methodName, String.class);
-        Object value = method.invoke(extension.instance, argument);
+        Method method;
+        Object value;
+        if (argument == null) {
+            method = extension.instance.getClass().getMethod(methodName);
+            value = method.invoke(extension.instance);
+        } else {
+            method = extension.instance
+                .getClass()
+                .getMethod(methodName, String.class);
+            value = method.invoke(extension.instance, argument);
+        }
         return MiniJson.response(
             true,
             value == null ? null : value.toString(),
@@ -130,6 +155,44 @@ public final class ExtensionHost {
             throw new IllegalArgumentException("Missing field: " + key);
         }
         return value;
+    }
+
+    private static Map<String, String> metadataMap(
+        KeiyoushiJarMetadata.Metadata metadata
+    ) {
+        Map<String, String> response = new LinkedHashMap<>();
+        response.put("packageName", metadata.packageName);
+        response.put("name", metadata.name);
+        response.put("version", metadata.version);
+        response.put("versionCode", metadata.versionCode);
+        response.put("entryClass", metadata.entryClass);
+        response.put("minimumSdk", metadata.minimumSdk);
+        response.put("targetSdk", metadata.targetSdk);
+        response.put("nsfw", metadata.nsfw);
+        response.put("extensionLibrary", metadata.extensionLibrary);
+        response.put(
+            "classCount",
+            Integer.toString(metadata.bytecode.classCount)
+        );
+        response.put(
+            "maximumClassVersion",
+            Integer.toString(metadata.bytecode.maximumMajorVersion)
+        );
+        response.put(
+            "requiredJavaVersion",
+            Integer.toString(
+                JarBytecodeValidator.javaVersionForClassVersion(
+                    metadata.bytecode.maximumMajorVersion
+                )
+            )
+        );
+        response.put(
+            "runtimeCompatible",
+            Boolean.toString(
+                metadata.bytecode.isCompatibleWithCurrentRuntime()
+            )
+        );
+        return response;
     }
 
     private static String describe(Throwable error) {

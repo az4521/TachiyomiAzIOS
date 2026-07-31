@@ -1,7 +1,7 @@
 # TachiAZ iOS Fork Plan
 
 Status: implementation in progress (see `docs/IMPLEMENTATION_STATUS.md`)  
-Last updated: 2026-07-30
+Last updated: 2026-07-31
 
 ## 1. Executive summary
 
@@ -13,7 +13,7 @@ The application will:
 
 - retain Aidoku's native reader, downloads, library, persistence, tracking, and
   most feature screens;
-- embed an OpenJDK 8 Zero-interpreter runtime on iOS;
+- embed the official OpenJDK/mobile Zero-interpreter runtime on iOS;
 - load JVM JAR versions of Mihon/Keiyoushi extensions directly;
 - reuse a targeted subset of Suwayomi's extension API and AndroidCompat layer;
 - import TachiyomiAZ and Mihon backups while preserving source IDs and
@@ -77,7 +77,7 @@ Extension repository
 Swift Extension Manager
         |
         v
-OpenJDK 8 Zero JVM (one persistent instance)
+OpenJDK/mobile Zero JVM (one persistent instance)
         |
         v
 Java ExtensionHost facade
@@ -103,14 +103,16 @@ Aidoku models, Core Data, downloads, and reader
 
 ### Selected starting point
 
-Use the OpenJDK 8 iOS Zero-interpreter build demonstrated by Code App:
+Use the official OpenJDK/mobile iOS Zero build and XCFramework:
 
-- Article:
-  https://medium.com/@thebaselab/how-i-got-openjdk-8-running-on-ios-and-releasing-on-app-store-56a7619c6452
-- Code App:
-  https://github.com/thebaselab/codeapp
-- iOS OpenJDK build scripts:
-  https://github.com/thebaselab/android-openjdk-build-multiarch
+- OpenJDK/mobile:
+  https://github.com/openjdk/mobile
+- iOS packaging tools and snapshots:
+  https://github.com/openjdk-mobile/ios-tools
+
+The earlier OpenJDK 8 build demonstrated by Code App proved that the approach
+works, but it cannot load the actual Keiyoushi fixture: Asura Scans 1.6.66 uses
+Java 11 class files.
 
 Zero interprets bytecode and does not depend on JIT availability. This allows
 new extension JARs to be downloaded and loaded at runtime.
@@ -120,7 +122,7 @@ new extension JARs to be downloaded and loaded at runtime.
 Do not copy Code App's command-line `JLI_Launch` lifecycle. Start one persistent
 VM with the JNI Invocation API:
 
-1. Load and sign the bundled OpenJDK frameworks.
+1. Link the bundled static OpenJDK XCFramework.
 2. Configure `JAVA_HOME` and the runtime classpath.
 3. Call `JNI_CreateJavaVM` once during source-runtime initialization.
 4. Keep the VM alive until process termination.
@@ -132,13 +134,11 @@ the normal lifecycle.
 
 ### Bytecode compatibility gate
 
-OpenJDK 8 accepts class-file version 52. The build must verify that:
-
-- extension JARs target JVM 8;
-- the Kotlin standard library targets JVM 8;
-- coroutines/RxJava, OkHttp, Okio, JSoup, serialization libraries, and the
-  extension API all have JVM 8-compatible builds;
-- the selected AndroidCompat subset can be compiled for JVM 8.
+The host must inspect each extension's maximum class-file version and compare
+it to the embedded VM's reported ceiling. The current test baseline is Asura
+Scans 1.6.66 at class-file version 55 (Java 11). Host-side compatibility code
+remains Java 8 bytecode where practical, but extensions are not artificially
+restricted to Java 8.
 
 Reject incompatible JARs before attempting to load them and show a useful error
 containing the detected class-file version.
@@ -490,14 +490,13 @@ At least five representative extensions work:
 
 ### OpenJDK maintenance
 
-The referenced iOS OpenJDK fork is proven but old. The project must vendor it,
-make its build reproducible, and expect to own Xcode/iOS fixes and security
-updates.
+The official iOS port is active but still young. Pin release checksums, retain
+the ability to build snapshots, and expect device-specific runtime fixes.
 
-### JVM 8 ceiling
+### JVM bytecode drift
 
-Extensions or dependencies compiled for newer JVM bytecode will not load.
-Automated bytecode validation and JVM-8 dependency pinning are mandatory.
+Extensions may raise their target beyond the bundled VM. Automated bytecode
+validation and a useful required-Java-version error remain mandatory.
 
 ### Memory and startup cost
 

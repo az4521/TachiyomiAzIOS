@@ -9,7 +9,12 @@
 #include <vector>
 
 #if defined(__APPLE__)
+#include <TargetConditionals.h>
 #include <dlfcn.h>
+#endif
+
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+extern "C" void loadfunctions();
 #endif
 
 struct TJRRuntime {
@@ -294,6 +299,11 @@ TJRRuntime *tjr_runtime_create(
 
     setenv("JAVA_HOME", java_home, 1);
 
+    using CreateJavaVM = jint (*)(JavaVM **, void **, void *);
+#if TARGET_OS_IPHONE
+    loadfunctions();
+    CreateJavaVM create_vm = &JNI_CreateJavaVM;
+#else
     const char *required_libraries[] = {
         "libffi.8",
         "libjvm",
@@ -322,8 +332,6 @@ TJRRuntime *tjr_runtime_create(
             jvm_handle = handle;
         }
     }
-
-    using CreateJavaVM = jint (*)(JavaVM **, void **, void *);
     auto create_vm = reinterpret_cast<CreateJavaVM>(
         dlsym(jvm_handle, "JNI_CreateJavaVM")
     );
@@ -335,15 +343,13 @@ TJRRuntime *tjr_runtime_create(
         delete runtime;
         return nullptr;
     }
+#endif
 
     std::vector<std::string> option_values = {
         std::string("-Djava.home=") + java_home,
         std::string("-Djava.class.path=") + classpath,
         std::string("-Djava.library.path=") + frameworks_directory,
         "-Djava.awt.headless=true",
-        "-XX:+UnlockExperimentalVMOptions",
-        "-XX:+DisablePrimordialThreadGuardPages",
-        "-XX:-UseCompressedClassPointers",
         "-Xrs",
         "-Xmx192m",
     };
@@ -367,7 +373,7 @@ TJRRuntime *tjr_runtime_create(
     arguments.version = JNI_VERSION_1_8;
     arguments.nOptions = static_cast<jint>(options.size());
     arguments.options = options.data();
-    arguments.ignoreUnrecognized = JNI_FALSE;
+    arguments.ignoreUnrecognized = JNI_TRUE;
 
     JNIEnv *environment = nullptr;
     const jint result = create_vm(
