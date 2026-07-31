@@ -37,9 +37,9 @@ Before the first build:
 ```sh
 Scripts/bootstrap-openjdk-ios.sh
 TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/bootstrap-suwayomi-compat.sh
+TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/build-mobile-shims.sh
 TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/build-extension-host.sh --test
-TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/test-keiyoushi-mangadex.sh
-TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/test-keiyoushi-asurascans.sh
+TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/test-mobile-java-base.sh
 ```
 
 The OpenJDK bootstrap installs separate device and simulator Java bundles. In
