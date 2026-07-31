@@ -81,42 +81,111 @@ actor JVMSourceRuntime {
         }
 
         let directory = try extensionDirectory(for: manifest)
+        let packageDirectory = directory.deletingLastPathComponent()
         try fileManager.createDirectory(
-            at: directory,
+            at: packageDirectory,
             withIntermediateDirectories: true
         )
 
-        let jar = directory.appendingPathComponent(
+        let transactionId = UUID().uuidString
+        let stagingDirectory = packageDirectory.appendingPathComponent(
+            ".install-\(transactionId)",
+            isDirectory: true
+        )
+        let backupDirectory = packageDirectory.appendingPathComponent(
+            ".backup-\(transactionId)",
+            isDirectory: true
+        )
+        try fileManager.createDirectory(
+            at: stagingDirectory,
+            withIntermediateDirectories: false
+        )
+        let stagedJar = stagingDirectory.appendingPathComponent(
             "extension.jar",
             isDirectory: false
         )
-        let metadata = directory.appendingPathComponent(
+        let stagedMetadata = stagingDirectory.appendingPathComponent(
             "manifest.json",
             isDirectory: false
         )
 
-        if fileManager.fileExists(atPath: jar.path) {
-            try fileManager.removeItem(at: jar)
-        }
-        try fileManager.copyItem(at: sourceJar, to: jar)
+        do {
+            try fileManager.copyItem(at: sourceJar, to: stagedJar)
 
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(manifest).write(
-            to: metadata,
-            options: .atomic
-        )
-
-        let response = try await dispatch(
-            .init(
-                operation: "loadExtension",
-                extensionId: manifest.id,
-                jarPath: jar.path,
-                entryClass: manifest.entryClass
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            try encoder.encode(manifest).write(
+                to: stagedMetadata,
+                options: .atomic
             )
-        )
-        try requireSuccess(response)
-        return jar
+
+            // Construct the extension before replacing any installed version.
+            // A separate host id keeps a failed validation from displacing the
+            // currently running extension.
+            let validationId = "\(manifest.id).validation.\(transactionId)"
+            let validationResponse = try await dispatch(
+                .init(
+                    operation: "loadExtension",
+                    extensionId: validationId,
+                    jarPath: stagedJar.path,
+                    entryClass: manifest.entryClass
+                )
+            )
+            try requireSuccess(validationResponse)
+            let unloadResponse = try await dispatch(
+                .init(
+                    operation: "unloadExtension",
+                    extensionId: validationId
+                )
+            )
+            try requireSuccess(unloadResponse)
+
+            if fileManager.fileExists(atPath: directory.path) {
+                try fileManager.moveItem(
+                    at: directory,
+                    to: backupDirectory
+                )
+            }
+            do {
+                try fileManager.moveItem(
+                    at: stagingDirectory,
+                    to: directory
+                )
+                let installedJar = directory.appendingPathComponent(
+                    "extension.jar",
+                    isDirectory: false
+                )
+                let response = try await dispatch(
+                    .init(
+                        operation: "loadExtension",
+                        extensionId: manifest.id,
+                        jarPath: installedJar.path,
+                        entryClass: manifest.entryClass
+                    )
+                )
+                try requireSuccess(response)
+                if fileManager.fileExists(atPath: backupDirectory.path) {
+                    try? fileManager.removeItem(at: backupDirectory)
+                }
+                return installedJar
+            } catch {
+                if fileManager.fileExists(atPath: directory.path) {
+                    try? fileManager.removeItem(at: directory)
+                }
+                if fileManager.fileExists(atPath: backupDirectory.path) {
+                    try? fileManager.moveItem(
+                        at: backupDirectory,
+                        to: directory
+                    )
+                }
+                throw error
+            }
+        } catch {
+            if fileManager.fileExists(atPath: stagingDirectory.path) {
+                try? fileManager.removeItem(at: stagingDirectory)
+            }
+            throw error
+        }
     }
 
     @discardableResult
@@ -744,6 +813,9 @@ private extension AidokuRunner.Source {
         manifest: JVMExtensionManifest,
         descriptor: KeiyoushiSourceDescriptor
     ) -> AidokuRunner.Source {
+        let language = descriptor.lang == "all"
+            ? "multi"
+            : descriptor.lang
         var listings = [
             AidokuRunner.Listing(
                 id: "popular",
@@ -763,7 +835,7 @@ private extension AidokuRunner.Source {
             key: KeiyoushiSourceRunner.key(for: descriptor.id),
             name: descriptor.name,
             version: Int(manifest.versionCode ?? "") ?? 1,
-            languages: [descriptor.lang],
+            languages: [language],
             urls: descriptor.baseURL.flatMap(URL.init(string:)).map {
                 [$0]
             } ?? [],

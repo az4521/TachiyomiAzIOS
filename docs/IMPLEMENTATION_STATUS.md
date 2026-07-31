@@ -19,6 +19,9 @@ Last updated: 2026-07-31
 - Per-extension `URLClassLoader` lifecycle and a stable JSON dispatch entry
   point.
 - SHA-256-verifying Swift JAR installer and versioned extension storage.
+- Transactional JAR replacement: a candidate is constructed under a temporary
+  host id before its files replace the installed version, with rollback on a
+  failed final load.
 - Java host integration tests for loading, invoking, replacing, and unloading
   a fixture extension.
 - A pinned real-world test against Keiyoushi's
