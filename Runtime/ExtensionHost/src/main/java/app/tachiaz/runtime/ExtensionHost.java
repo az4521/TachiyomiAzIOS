@@ -63,6 +63,8 @@ public final class ExtensionHost {
                     return getMangaUpdate(request);
                 case "getPageList":
                     return getPageList(request);
+                case "getImageRequest":
+                    return getImageRequest(request);
                 case "listSources":
                     return listSources(request);
                 case "invoke":
@@ -926,6 +928,140 @@ public final class ExtensionHost {
             null,
             null
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String getImageRequest(Map<String, String> request)
+        throws Exception {
+        Object source = requireSource(request);
+        String imageURL = require(request, "imageURL");
+        ClassLoader loader = ExtensionHost.class.getClassLoader();
+        Class<?> pageType = Class.forName(
+            "eu.kanade.tachiyomi.source.model.Page",
+            true,
+            loader
+        );
+        Class<?> uriType = Class.forName(
+            "android.net.Uri",
+            true,
+            loader
+        );
+        Object page = pageType
+            .getConstructor(
+                int.class,
+                String.class,
+                String.class,
+                uriType
+            )
+            .newInstance(
+                0,
+                defaultValue(request.get("pageURL"), imageURL),
+                imageURL,
+                null
+            );
+        Object headers;
+        Object httpUrl;
+        String resolvedURL;
+        if (request.get("pageURL") == null) {
+            headers = getter(source, "getHeaders");
+            Class<?> httpUrlType = Class.forName(
+                "okhttp3.HttpUrl",
+                true,
+                loader
+            );
+            httpUrl = httpUrlType
+                .getMethod("parse", String.class)
+                .invoke(null, imageURL);
+            resolvedURL = imageURL;
+        } else {
+            Method imageRequest = findMethod(
+                source.getClass(),
+                "imageRequest",
+                pageType
+            );
+            imageRequest.setAccessible(true);
+            Object nativeRequest = imageRequest.invoke(source, page);
+            headers = nativeRequest.getClass()
+                .getMethod("headers")
+                .invoke(nativeRequest);
+            httpUrl = nativeRequest.getClass()
+                .getMethod("url")
+                .invoke(nativeRequest);
+            resolvedURL = String.valueOf(httpUrl);
+        }
+        int headerCount = (Integer) headers.getClass()
+            .getMethod("size")
+            .invoke(headers);
+        Map<String, List<String>> values = new LinkedHashMap<>();
+        for (int index = 0; index < headerCount; index++) {
+            String name = String.valueOf(
+                headers.getClass()
+                    .getMethod("name", int.class)
+                    .invoke(headers, index)
+            );
+            String value = String.valueOf(
+                headers.getClass()
+                    .getMethod("value", int.class)
+                    .invoke(headers, index)
+            );
+            values.computeIfAbsent(name, ignored -> new ArrayList<>())
+                .add(value);
+        }
+
+        Object client = getter(source, "getClient");
+        Object cookieJar = client.getClass()
+            .getMethod("cookieJar")
+            .invoke(client);
+        List<Object> cookies = (List<Object>) cookieJar.getClass()
+            .getMethod("loadForRequest", httpUrl.getClass())
+            .invoke(cookieJar, httpUrl);
+        if (!cookies.isEmpty()) {
+            List<String> pairs = new ArrayList<>();
+            for (Object cookie : cookies) {
+                pairs.add(
+                    getter(cookie, "name") + "=" + getter(cookie, "value")
+                );
+            }
+            values.put("Cookie", pairs);
+        }
+
+        StringBuilder output = new StringBuilder("{\"url\":\"")
+            .append(MiniJson.escapeValue(resolvedURL))
+            .append("\",\"headers\":{");
+        int index = 0;
+        for (Map.Entry<String, List<String>> header : values.entrySet()) {
+            if (index++ > 0) {
+                output.append(',');
+            }
+            output.append('"')
+                .append(MiniJson.escapeValue(header.getKey()))
+                .append("\":\"")
+                .append(MiniJson.escapeValue(
+                    String.join(
+                        "Cookie".equalsIgnoreCase(header.getKey()) ? "; " : ", ",
+                        header.getValue()
+                    )
+                ))
+                .append('"');
+        }
+        output.append("}}");
+        return MiniJson.response(true, output.toString(), null, null);
+    }
+
+    private static Method findMethod(
+        Class<?> type,
+        String name,
+        Class<?>... parameterTypes
+    ) throws NoSuchMethodException {
+        Class<?> current = type;
+        while (current != null) {
+            try {
+                return current.getDeclaredMethod(name, parameterTypes);
+            } catch (NoSuchMethodException missing) {
+                current = current.getSuperclass();
+            }
+        }
+        throw new NoSuchMethodException(type.getName() + "." + name);
     }
 
     private static Object requireSource(Map<String, String> request)

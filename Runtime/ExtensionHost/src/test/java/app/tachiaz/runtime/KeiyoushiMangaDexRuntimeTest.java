@@ -122,6 +122,14 @@ public final class KeiyoushiMangaDexRuntimeTest {
         String latestResult = MiniJson.parseObject(latest).get("result");
         String mangaURL = firstStringField(latestResult, "url");
         String mangaTitle = firstStringField(latestResult, "title");
+        String coverURL = firstStringField(latestResult, "thumbnailURL");
+        assertSuccess(ExtensionHost.dispatch(
+            "{\"operation\":\"getImageRequest\"," +
+                "\"extensionId\":\"mangadex\"," +
+                "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"," +
+                "\"imageURL\":\"" +
+                MiniJson.escapeValue(coverURL) + "\"}"
+        ));
         String update = ExtensionHost.dispatch(
             "{\"operation\":\"getMangaUpdate\"," +
                 "\"extensionId\":\"mangadex\"," +
@@ -167,6 +175,20 @@ public final class KeiyoushiMangaDexRuntimeTest {
         }
         assertContains(pages, "\\\"index\\\":");
         assertContains(pages, "\\\"imageURL\\\":");
+        String pagesResult = MiniJson.parseObject(pages).get("result");
+        String imageURL = firstStringField(pagesResult, "imageURL");
+        String pageURL = firstStringField(pagesResult, "url");
+        String imageRequest = ExtensionHost.dispatch(
+            "{\"operation\":\"getImageRequest\"," +
+                "\"extensionId\":\"mangadex\"," +
+                "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"," +
+                "\"imageURL\":\"" +
+                MiniJson.escapeValue(imageURL) + "\"," +
+                "\"pageURL\":\"" +
+                MiniJson.escapeValue(pageURL) + "\"}"
+        );
+        assertSuccess(imageRequest);
+        assertContains(imageRequest, "\\\"headers\\\":{");
         System.out.println(
             "Keiyoushi MangaDex extension-lib 1.4 runtime test passed"
         );

@@ -594,7 +594,8 @@ extension BackupManager {
             } else {
                 // show missing sources alert if there are any
                 let missingSources = (backup.sources ?? []).filter {
-                    !CoreDataManager.shared.hasSource(id: $0.id)
+                    SourceManager.shared.source(for: $0.id) == nil &&
+                        !CoreDataManager.shared.hasSource(id: $0.id)
                 }
                 if !missingSources.isEmpty {
                     delegate?.presentAlert(

@@ -614,6 +614,24 @@ actor JVMSourceRuntime {
         )
     }
 
+    func imageRequest(
+        extensionId: String,
+        sourceId: Int64,
+        imageURL: String,
+        pageURL: String?
+    ) async throws -> KeiyoushiImageRequest {
+        try await decodedResult(
+            .init(
+                operation: "getImageRequest",
+                extensionId: extensionId,
+                sourceId: String(sourceId),
+                imageURL: imageURL,
+                pageURL: pageURL
+            ),
+            as: KeiyoushiImageRequest.self
+        )
+    }
+
     private func makeRuntime() throws -> JVMRuntime {
         return try JVMRuntime(
             configuration: .bundled(in: .main)
@@ -708,6 +726,7 @@ actor KeiyoushiSourceRunner: AidokuRunner.Runner {
         providesListings: true,
         dynamicFilters: true,
         dynamicSettings: true,
+        providesImageRequests: true,
         handlesNotifications: true
     )
 
@@ -878,6 +897,30 @@ actor KeiyoushiSourceRunner: AidokuRunner.Runner {
         )
         return try pages.map(\.intoAidoku)
     }
+
+    func getImageRequest(
+        url: String,
+        context: AidokuRunner.PageContext?
+    ) async throws -> URLRequest {
+        do {
+            let descriptor = try await JVMSourceRuntime.shared.imageRequest(
+                extensionId: extensionId,
+                sourceId: self.descriptor.id,
+                imageURL: url,
+                pageURL: context?["mihonPageURL"]
+            )
+            var request = URLRequest(url: descriptor.url)
+            for (name, value) in descriptor.headers {
+                request.setValue(value, forHTTPHeaderField: name)
+            }
+            return request
+        } catch {
+            guard let url = URL(string: url) else {
+                throw error
+            }
+            return URLRequest(url: url)
+        }
+    }
 }
 
 struct KeiyoushiFilterDescriptor: Decodable, Sendable {
@@ -1032,6 +1075,11 @@ struct KeiyoushiSettingDescriptor: Decodable, Sendable {
     }
 }
 
+struct KeiyoushiImageRequest: Decodable, Sendable {
+    let url: URL
+    let headers: [String: String]
+}
+
 private extension KeiyoushiMangaPage {
     func intoAidoku(sourceKey: String) -> AidokuRunner.MangaPageResult {
         .init(
@@ -1094,7 +1142,12 @@ private extension KeiyoushiPage {
             else {
                 throw SourceError.message("INVALID_PAGE_URL")
             }
-            return .init(content: .url(url: resolvedURL))
+            let context = url.isEmpty
+                ? nil
+                : ["mihonPageURL": url]
+            return .init(
+                content: .url(url: resolvedURL, context: context)
+            )
         }
     }
 }

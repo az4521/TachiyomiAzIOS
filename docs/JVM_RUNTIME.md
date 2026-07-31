@@ -38,6 +38,7 @@ supports:
 - `setSetting`
 - `getMangaUpdate`
 - `getPageList`
+- `getImageRequest`
 - `invoke`
 - `unloadExtension`
 - `decodeBackup`
@@ -112,6 +113,9 @@ preference operations invoke Keiyoushi's API without exposing Kotlin objects
 across JNI. On 1.4 extensions, Mihon's default implementations bridge source
 calls to the legacy Rx methods. AndroidX preferences are projected into native
 Aidoku settings and written back to the extension's `SharedPreferences`.
+Reader pages retain their original Mihon page URL as native page context; the
+host uses it to reconstruct `HttpSource.imageRequest`, then forwards headers
+and persistent cookies to Aidoku's native image pipeline.
 Unsupported Android behavior must fail explicitly rather than silently
 returning incorrect data.
 

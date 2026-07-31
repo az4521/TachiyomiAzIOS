@@ -42,6 +42,8 @@ Last updated: 2026-07-31
   tri-state, select, grouped, and sort filters.
 - AndroidX extension preference discovery and persisted editing for switches,
   text, single-select, and multi-select values.
+- Native reader image requests reconstructed through each extension's
+  `imageRequest`, including source headers and persistent Java cookies.
 - Manifest gating for the supported Mihon extension-lib 1.4–1.6 range.
 - A binary fixture compiled against official TachiyomiX 1.4.4 that proves a
   suspend host call falls back to its Rx-only popular implementation.
@@ -75,8 +77,8 @@ item is complete.
    extension fixture matrix.
 2. Validate AndroidCompat behavior needed beyond Asura: resources, graphics,
    WebView/Cloudflare challenges, JavaScript, and persistence on iOS.
-3. Audit persistent cookie-store paths and add explicit cookie inspection and
-   clearing controls for sources that need login troubleshooting.
+3. Add explicit cookie inspection and clearing controls for sources that need
+   login troubleshooting.
 4. Remove AidokuRunner/WASM and delegated-source
    code after the JVM adapter has passed Xcode/simulator integration tests.
 5. Preserve bookmarks and supported tracking records during backup import;
@@ -103,6 +105,9 @@ item is complete.
   sort-state round trip changes its live API request to title/ascending.
 - MangaDex AndroidX preferences are discovered and a select preference is
   written back through its persistent `SharedPreferences`.
+- MangaDex page context survives the JNI boundary and reconstructs the
+  extension-specific image request, headers, and cookie jar for Aidoku's
+  native image pipeline.
 - Its coroutine popular-manga method reaches
   `https://api.asurascans.com/api/series`, returns HTTP 200, and decodes 20
   typed manga summaries with `hasNextPage = true`.
