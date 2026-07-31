@@ -41,6 +41,21 @@ public struct KeiyoushiSourceDescriptor: Codable, Sendable, Equatable {
     public let name: String
     public let lang: String
     public let supportsLatest: Bool
+    public let baseURL: String?
+
+    public init(
+        id: Int64,
+        name: String,
+        lang: String,
+        supportsLatest: Bool,
+        baseURL: String? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.lang = lang
+        self.supportsLatest = supportsLatest
+        self.baseURL = baseURL
+    }
 }
 
 public extension JVMRuntime {

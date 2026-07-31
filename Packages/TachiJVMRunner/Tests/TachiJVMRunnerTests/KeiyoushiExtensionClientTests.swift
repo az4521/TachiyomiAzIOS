@@ -40,7 +40,8 @@ func sourceFactoryDescriptorsDecodeFromExtensionHostPayload() throws {
         "id": 2499283573021220255,
         "name": "MangaDex",
         "lang": "en",
-        "supportsLatest": true
+        "supportsLatest": true,
+        "baseURL": "https://mangadex.org"
       }
     ]
     """
@@ -55,7 +56,8 @@ func sourceFactoryDescriptorsDecodeFromExtensionHostPayload() throws {
             id: 2499283573021220255,
             name: "MangaDex",
             lang: "en",
-            supportsLatest: true
+            supportsLatest: true,
+            baseURL: "https://mangadex.org"
         )
     ])
 }

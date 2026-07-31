@@ -44,11 +44,23 @@ public final class KeiyoushiMangaDexRuntimeTest {
         assertContains(sources, "\\\"id\\\":" + ENGLISH_SOURCE_ID);
         assertContains(sources, "\\\"lang\\\":\\\"en\\\"");
         assertContains(sources, "\\\"supportsLatest\\\":true");
+        assertContains(
+            sources,
+            "\\\"baseURL\\\":\\\"https://mangadex.org\\\""
+        );
         assertSuccess(ExtensionHost.dispatch(
+            "{\"operation\":\"setWebLoginCookies\"," +
+                "\"extensionId\":\"mangadex\"," +
+                "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"," +
+                "\"argument\":\"tachiaz_test\\tworking\"}"
+        ));
+        String cookieSummary = ExtensionHost.dispatch(
             "{\"operation\":\"getCookieSummary\"," +
                 "\"extensionId\":\"mangadex\"," +
                 "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"}"
-        ));
+        );
+        assertSuccess(cookieSummary);
+        assertContains(cookieSummary, "tachiaz_test");
         assertSuccess(ExtensionHost.dispatch(
             "{\"operation\":\"clearCookies\"," +
                 "\"extensionId\":\"mangadex\"," +

@@ -396,6 +396,35 @@ actor JVMSourceRuntime {
         try requireSuccess(response)
     }
 
+    func setWebLoginCookies(
+        extensionId: String,
+        sourceId: Int64,
+        cookies: [String: String]
+    ) async throws {
+        let allowed = CharacterSet.alphanumerics.union(
+            CharacterSet(charactersIn: "-._~")
+        )
+        let encoded = cookies.sorted { $0.key < $1.key }.map {
+            let name = $0.key.addingPercentEncoding(
+                withAllowedCharacters: allowed
+            ) ?? ""
+            let value = $0.value.addingPercentEncoding(
+                withAllowedCharacters: allowed
+            ) ?? ""
+            return "\(name)\t\(value)"
+        }
+        .joined(separator: "\n")
+        let response = try await dispatch(
+            .init(
+                operation: "setWebLoginCookies",
+                extensionId: extensionId,
+                sourceId: String(sourceId),
+                argument: encoded
+            )
+        )
+        try requireSuccess(response)
+    }
+
     private func pagedManga(
         operation: String,
         extensionId: String,
@@ -756,7 +785,9 @@ actor KeiyoushiSourceRunner: AidokuRunner.Runner {
         dynamicFilters: true,
         dynamicSettings: true,
         providesImageRequests: true,
-        handlesNotifications: true
+        providesBaseUrl: true,
+        handlesNotifications: true,
+        handlesWebLogin: true
     )
 
     nonisolated let extensionId: String
@@ -844,6 +875,16 @@ actor KeiyoushiSourceRunner: AidokuRunner.Runner {
                         footer: cookieSummary,
                         items: [
                             .init(
+                                key: "jvm-web-login",
+                                title: "Web Login / Cloudflare",
+                                value: .login(
+                                    .init(
+                                        method: .web,
+                                        url: descriptor.baseURL
+                                    )
+                                )
+                            ),
+                            .init(
                                 title: "Clear Cookies",
                                 notification: "keiyoushi-clear-cookies",
                                 refreshes: ["settings"],
@@ -861,6 +902,25 @@ actor KeiyoushiSourceRunner: AidokuRunner.Runner {
             )
         )
         return groups
+    }
+
+    func getBaseUrl() async throws -> URL? {
+        descriptor.baseURL.flatMap(URL.init(string:))
+    }
+
+    func handleWebLogin(
+        key _: String,
+        cookies: [String: String]
+    ) async throws -> Bool {
+        guard !cookies.isEmpty else {
+            return false
+        }
+        try await JVMSourceRuntime.shared.setWebLoginCookies(
+            extensionId: extensionId,
+            sourceId: descriptor.id,
+            cookies: cookies
+        )
+        return true
     }
 
     func handleNotification(notification: String) async throws {

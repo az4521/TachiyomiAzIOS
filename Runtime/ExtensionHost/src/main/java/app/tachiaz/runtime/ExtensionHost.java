@@ -69,6 +69,8 @@ public final class ExtensionHost {
                     return getCookieSummary(request);
                 case "clearCookies":
                     return clearCookies(request);
+                case "setWebLoginCookies":
+                    return setWebLoginCookies(request);
                 case "listSources":
                     return listSources(request);
                 case "invoke":
@@ -1106,6 +1108,65 @@ public final class ExtensionHost {
         return MiniJson.response(true, "cleared", null, null);
     }
 
+    private static String setWebLoginCookies(Map<String, String> request)
+        throws Exception {
+        Object source = requireSource(request);
+        Object client = getter(source, "getClient");
+        Object cookieJar = client.getClass()
+            .getMethod("cookieJar")
+            .invoke(client);
+        String baseURL = String.valueOf(getter(source, "getBaseUrl"));
+        ClassLoader loader = source.getClass().getClassLoader();
+        Class<?> httpUrlType = Class.forName("okhttp3.HttpUrl", true, loader);
+        Object httpUrl = httpUrlType
+            .getMethod("parse", String.class)
+            .invoke(null, baseURL);
+        String host = String.valueOf(getter(httpUrl, "host"));
+        Class<?> cookieType = Class.forName("okhttp3.Cookie", true, loader);
+        Class<?> builderType = Class.forName(
+            "okhttp3.Cookie$Builder",
+            true,
+            loader
+        );
+        List<Object> cookies = new ArrayList<>();
+        String encoded = defaultValue(request.get("argument"), "");
+        if (!encoded.isEmpty()) {
+            for (String line : encoded.split("\\n")) {
+                String[] fields = line.split("\\t", -1);
+                if (fields.length != 2) {
+                    continue;
+                }
+                String name = URLDecoder.decode(
+                    fields[0],
+                    StandardCharsets.UTF_8.name()
+                );
+                String value = URLDecoder.decode(
+                    fields[1],
+                    StandardCharsets.UTF_8.name()
+                );
+                Object builder = builderType.getConstructor().newInstance();
+                builderType.getMethod("name", String.class)
+                    .invoke(builder, name);
+                builderType.getMethod("value", String.class)
+                    .invoke(builder, value);
+                builderType.getMethod("domain", String.class)
+                    .invoke(builder, host);
+                builderType.getMethod("path", String.class)
+                    .invoke(builder, "/");
+                cookies.add(builderType.getMethod("build").invoke(builder));
+            }
+        }
+        cookieJar.getClass()
+            .getMethod("saveFromResponse", httpUrlType, List.class)
+            .invoke(cookieJar, httpUrl, cookies);
+        return MiniJson.response(
+            true,
+            Integer.toString(cookies.size()),
+            null,
+            null
+        );
+    }
+
     private static boolean invokeCookieClear(Object value) throws Exception {
         if (value == null) {
             return false;
@@ -1194,6 +1255,16 @@ public final class ExtensionHost {
                 getter(source, "getSupportsLatest"),
                 true
             );
+            try {
+                appendJsonField(
+                    output,
+                    "baseURL",
+                    getter(source, "getBaseUrl"),
+                    true
+                );
+            } catch (ReflectiveOperationException ignored) {
+                appendJsonField(output, "baseURL", "", true);
+            }
             output.append('}');
         }
         output.append(']');
