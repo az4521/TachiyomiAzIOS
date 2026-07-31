@@ -151,23 +151,72 @@ actor JVMSourceRuntime {
         sourceId: Int64? = nil,
         page: Int
     ) async throws -> KeiyoushiMangaPage {
+        try await pagedManga(
+            operation: "getPopularManga",
+            extensionId: extensionId,
+            sourceId: sourceId,
+            page: page
+        )
+    }
+
+    func latestManga(
+        extensionId: String,
+        sourceId: Int64? = nil,
+        page: Int
+    ) async throws -> KeiyoushiMangaPage {
+        try await pagedManga(
+            operation: "getLatestUpdates",
+            extensionId: extensionId,
+            sourceId: sourceId,
+            page: page
+        )
+    }
+
+    func searchManga(
+        extensionId: String,
+        sourceId: Int64? = nil,
+        query: String,
+        page: Int
+    ) async throws -> KeiyoushiMangaPage {
+        guard !query.isEmpty else {
+            throw RuntimeError.hostRejected(
+                "Search query must not be empty."
+            )
+        }
+        return try await pagedManga(
+            operation: "searchManga",
+            extensionId: extensionId,
+            sourceId: sourceId,
+            page: page,
+            query: query
+        )
+    }
+
+    private func pagedManga(
+        operation: String,
+        extensionId: String,
+        sourceId: Int64?,
+        page: Int,
+        query: String? = nil
+    ) async throws -> KeiyoushiMangaPage {
         guard page > 0 else {
             throw RuntimeError.hostRejected(
-                "Popular manga page must be at least 1."
+                "Manga page must be at least 1."
             )
         }
         let response = try await dispatch(
             .init(
-                operation: "getPopularManga",
+                operation: operation,
                 extensionId: extensionId,
                 sourceId: sourceId.map(String.init),
-                argument: String(page)
+                argument: String(page),
+                query: query
             )
         )
         try requireSuccess(response)
         guard let result = response.result else {
             throw RuntimeError.hostRejected(
-                "The popular manga operation returned no payload."
+                "The manga-page operation returned no payload."
             )
         }
         do {
@@ -205,6 +254,65 @@ actor JVMSourceRuntime {
         } catch {
             throw RuntimeError.hostRejected(
                 "Unable to decode the source list: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    func mangaUpdate(
+        extensionId: String,
+        sourceId: Int64? = nil,
+        mangaURL: String,
+        mangaTitle: String
+    ) async throws -> KeiyoushiMangaUpdate {
+        let response = try await dispatch(
+            .init(
+                operation: "getMangaUpdate",
+                extensionId: extensionId,
+                sourceId: sourceId.map(String.init),
+                mangaURL: mangaURL,
+                mangaTitle: mangaTitle
+            )
+        )
+        try requireSuccess(response)
+        return try decodeResult(response, as: KeiyoushiMangaUpdate.self)
+    }
+
+    func pages(
+        extensionId: String,
+        sourceId: Int64? = nil,
+        chapterURL: String,
+        chapterName: String
+    ) async throws -> [KeiyoushiPage] {
+        let response = try await dispatch(
+            .init(
+                operation: "getPageList",
+                extensionId: extensionId,
+                sourceId: sourceId.map(String.init),
+                chapterURL: chapterURL,
+                chapterName: chapterName
+            )
+        )
+        try requireSuccess(response)
+        return try decodeResult(response, as: [KeiyoushiPage].self)
+    }
+
+    private func decodeResult<Value: Decodable>(
+        _ response: ExtensionHostResponse,
+        as type: Value.Type
+    ) throws -> Value {
+        guard let result = response.result else {
+            throw RuntimeError.hostRejected(
+                "The extension operation returned no payload."
+            )
+        }
+        do {
+            return try JSONDecoder().decode(
+                type,
+                from: Data(result.utf8)
+            )
+        } catch {
+            throw RuntimeError.hostRejected(
+                "Unable to decode the extension payload: \(error.localizedDescription)"
             )
         }
     }

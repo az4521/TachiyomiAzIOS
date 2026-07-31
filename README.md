@@ -10,9 +10,9 @@ import, and using a Material Design 1-inspired navigation drawer.
 
 The JVM work is under active development. The Java host, JNI boundary, JAR
 validation/loading, pinned Suwayomi source API/AndroidCompat layer, first
-typed source operation, and backup decoder are implemented and tested
-off-device. The remaining source operations and the complete stack still need
-physical-device validation. See
+typed browse/search/details/chapters/pages operations, and backup decoder are
+implemented and tested off-device. The complete stack still needs simulator
+and physical-device validation on macOS. See
 [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md).
 
 ## Features
@@ -26,16 +26,22 @@ physical-device validation. See
 ## Installation
 
 This fork is not distributed through TestFlight or the App Store. Build it with
-Xcode for a physical iOS device and sideload the resulting app.
+Xcode for either an iOS Simulator or a physical iOS device. Sideloading is only
+needed for a physical device.
 
-Before the first device build:
+Before the first build:
 
 ```sh
 Scripts/bootstrap-openjdk-ios.sh
 TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/bootstrap-suwayomi-compat.sh
 TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/build-extension-host.sh --test
+TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/test-keiyoushi-mangadex.sh
 TACHIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/test-keiyoushi-asurascans.sh
 ```
+
+The OpenJDK bootstrap installs separate device and simulator Java bundles. In
+Xcode, select an iPhone Simulator destination and run the `Aidoku (iOS)`
+scheme; the build phase embeds the simulator bundle automatically.
 
 ## Contributing
 The original application and reader are Aidoku work. JVM runtime changes in

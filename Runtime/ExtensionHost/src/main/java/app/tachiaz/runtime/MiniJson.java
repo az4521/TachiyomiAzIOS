@@ -39,6 +39,21 @@ final class MiniJson {
             if (json.startsWith("null", index)) {
                 value = null;
                 index += 4;
+            } else if (json.charAt(index) != '"') {
+                int start = index;
+                while (
+                    index < json.length() &&
+                    json.charAt(index) != ',' &&
+                    json.charAt(index) != '}'
+                ) {
+                    index++;
+                }
+                value = json.substring(start, index).trim();
+                if (value.isEmpty()) {
+                    throw new IllegalArgumentException(
+                        "Expected a JSON value"
+                    );
+                }
             } else {
                 ParsedString parsedValue = parseString(json, index);
                 value = parsedValue.value;

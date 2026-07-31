@@ -397,7 +397,9 @@ Estimate: 1 week.
 - [x] Call a bundled Java test facade from Swift.
 - [x] Load one direct extension JAR.
 - [x] Fetch popular entries from the pinned Asura Scans JAR.
-- [ ] Fetch manga details, chapters, and pages.
+- [x] Fetch popular/latest/search/details/chapters/pages from the pinned
+  MangaDex 1.4 JAR.
+- [x] Package separate arm64-device and arm64/x86_64-simulator Java bundles.
 - Measure startup time, memory, and battery use on physical devices.
 
 Estimate: 1-3 weeks.

@@ -39,7 +39,8 @@ func sourceFactoryDescriptorsDecodeFromExtensionHostPayload() throws {
       {
         "id": 2499283573021220255,
         "name": "MangaDex",
-        "lang": "en"
+        "lang": "en",
+        "supportsLatest": true
       }
     ]
     """
@@ -53,7 +54,59 @@ func sourceFactoryDescriptorsDecodeFromExtensionHostPayload() throws {
         KeiyoushiSourceDescriptor(
             id: 2499283573021220255,
             name: "MangaDex",
-            lang: "en"
+            lang: "en",
+            supportsLatest: true
         )
     ])
+}
+
+@Test
+func mangaUpdateAndPagesDecodeFromExtensionHostPayloads() throws {
+    let updatePayload = """
+    {
+      "manga": {
+        "url": "/manga/example",
+        "title": "Example",
+        "thumbnailURL": null,
+        "artist": null,
+        "author": "Author",
+        "status": 1,
+        "description": "Description",
+        "genre": "Action"
+      },
+      "chapters": [
+        {
+          "url": "/chapter/1",
+          "name": "Chapter 1",
+          "chapterNumber": 1.0,
+          "scanlator": "Group",
+          "dateUpload": 1700000000000
+        }
+      ]
+    }
+    """
+    let pagesPayload = """
+    [
+      {
+        "index": 0,
+        "url": "",
+        "imageURL": "https://uploads.example/page-1.jpg",
+        "uri": null
+      }
+    ]
+    """
+
+    let update = try JSONDecoder().decode(
+        KeiyoushiMangaUpdate.self,
+        from: Data(updatePayload.utf8)
+    )
+    let pages = try JSONDecoder().decode(
+        [KeiyoushiPage].self,
+        from: Data(pagesPayload.utf8)
+    )
+
+    #expect(update.manga.title == "Example")
+    #expect(update.chapters[0].chapterNumber == 1)
+    #expect(update.chapters[0].dateUpload == 1_700_000_000_000)
+    #expect(pages[0].imageURL == "https://uploads.example/page-1.jpg")
 }

@@ -44,6 +44,14 @@ public final class ExtensionHost {
                     return initializeCompatibility();
                 case "getPopularManga":
                     return getPopularManga(request);
+                case "getLatestUpdates":
+                    return getLatestUpdates(request);
+                case "searchManga":
+                    return searchManga(request);
+                case "getMangaUpdate":
+                    return getMangaUpdate(request);
+                case "getPageList":
+                    return getPageList(request);
                 case "listSources":
                     return listSources(request);
                 case "invoke":
@@ -270,6 +278,18 @@ public final class ExtensionHost {
 
     private static String getPopularManga(Map<String, String> request)
         throws Exception {
+        return getPagedManga(request, "getPopularManga");
+    }
+
+    private static String getLatestUpdates(Map<String, String> request)
+        throws Exception {
+        return getPagedManga(request, "getLatestUpdates");
+    }
+
+    private static String getPagedManga(
+        Map<String, String> request,
+        String methodName
+    ) throws Exception {
         String extensionId = require(request, "extensionId");
         int page = Integer.parseInt(require(request, "argument"));
         if (page < 1) {
@@ -285,7 +305,7 @@ public final class ExtensionHost {
 
         Object mangasPage = invokeSuspend(
             extension.source(request.get("sourceId")),
-            "getPopularManga",
+            methodName,
             new Class<?>[] { int.class },
             page
         );
@@ -296,6 +316,140 @@ public final class ExtensionHost {
             null,
             null
         );
+    }
+
+    private static String searchManga(Map<String, String> request)
+        throws Exception {
+        String extensionId = require(request, "extensionId");
+        int page = Integer.parseInt(require(request, "argument"));
+        String query = require(request, "query");
+        if (page < 1) {
+            throw new IllegalArgumentException("Page must be at least 1");
+        }
+
+        LoadedExtension extension = EXTENSIONS.get(extensionId);
+        if (extension == null) {
+            throw new IllegalArgumentException(
+                "Extension is not loaded: " + extensionId
+            );
+        }
+
+        Object source = extension.source(request.get("sourceId"));
+        Object filters = getter(source, "getFilterList");
+        Object mangasPage = invokeSuspend(
+            source,
+            "getSearchManga",
+            new Class<?>[] {
+                int.class,
+                String.class,
+                filters.getClass()
+            },
+            page,
+            query,
+            filters
+        );
+        return MiniJson.response(
+            true,
+            serializeMangasPage(mangasPage),
+            null,
+            null
+        );
+    }
+
+    private static String getMangaUpdate(Map<String, String> request)
+        throws Exception {
+        Object source = requireSource(request);
+        ClassLoader loader = ExtensionHost.class.getClassLoader();
+        Class<?> mangaType = Class.forName(
+            "eu.kanade.tachiyomi.source.model.SManga",
+            true,
+            loader
+        );
+        Object manga = Class.forName(
+            "eu.kanade.tachiyomi.source.model.SMangaImpl",
+            true,
+            loader
+        ).getDeclaredConstructor().newInstance();
+        setter(manga, "setUrl", String.class, require(request, "mangaURL"));
+        setter(
+            manga,
+            "setTitle",
+            String.class,
+            defaultValue(request.get("mangaTitle"), "")
+        );
+
+        Object update = invokeSuspend(
+            source,
+            "getMangaUpdate",
+            new Class<?>[] {
+                mangaType,
+                List.class,
+                boolean.class,
+                boolean.class
+            },
+            manga,
+            new ArrayList<>(),
+            true,
+            true
+        );
+        return MiniJson.response(
+            true,
+            serializeMangaUpdate(update),
+            null,
+            null
+        );
+    }
+
+    private static String getPageList(Map<String, String> request)
+        throws Exception {
+        Object source = requireSource(request);
+        ClassLoader loader = ExtensionHost.class.getClassLoader();
+        Class<?> chapterType = Class.forName(
+            "eu.kanade.tachiyomi.source.model.SChapter",
+            true,
+            loader
+        );
+        Object chapter = Class.forName(
+            "eu.kanade.tachiyomi.source.model.SChapterImpl",
+            true,
+            loader
+        ).getDeclaredConstructor().newInstance();
+        setter(
+            chapter,
+            "setUrl",
+            String.class,
+            require(request, "chapterURL")
+        );
+        setter(
+            chapter,
+            "setName",
+            String.class,
+            defaultValue(request.get("chapterName"), "")
+        );
+        Object pages = invokeSuspend(
+            source,
+            "getPageList",
+            new Class<?>[] { chapterType },
+            chapter
+        );
+        return MiniJson.response(
+            true,
+            serializePages(pages),
+            null,
+            null
+        );
+    }
+
+    private static Object requireSource(Map<String, String> request)
+        throws Exception {
+        String extensionId = require(request, "extensionId");
+        LoadedExtension extension = EXTENSIONS.get(extensionId);
+        if (extension == null) {
+            throw new IllegalArgumentException(
+                "Extension is not loaded: " + extensionId
+            );
+        }
+        return extension.source(request.get("sourceId"));
     }
 
     private static String listSources(Map<String, String> request)
@@ -318,6 +472,12 @@ public final class ExtensionHost {
             appendJsonField(output, "id", getter(source, "getId"), false);
             appendJsonField(output, "name", getter(source, "getName"), true);
             appendJsonField(output, "lang", getter(source, "getLang"), true);
+            appendJsonField(
+                output,
+                "supportsLatest",
+                getter(source, "getSupportsLatest"),
+                true
+            );
             output.append('}');
         }
         output.append(']');
@@ -461,31 +621,7 @@ public final class ExtensionHost {
                 output.append(',');
             }
             Object manga = mangas.get(index);
-            output.append('{');
-            appendJsonField(output, "url", getter(manga, "getUrl"), false);
-            appendJsonField(output, "title", getter(manga, "getTitle"), true);
-            appendJsonField(
-                output,
-                "thumbnailURL",
-                getter(manga, "getThumbnail_url"),
-                true
-            );
-            appendJsonField(output, "artist", getter(manga, "getArtist"), true);
-            appendJsonField(output, "author", getter(manga, "getAuthor"), true);
-            appendJsonField(
-                output,
-                "status",
-                getter(manga, "getStatus"),
-                true
-            );
-            appendJsonField(
-                output,
-                "description",
-                getter(manga, "getDescription"),
-                true
-            );
-            appendJsonField(output, "genre", getter(manga, "getGenre"), true);
-            output.append('}');
+            appendManga(output, manga);
         }
         output.append("],\"hasNextPage\":")
             .append(hasNextPage)
@@ -493,9 +629,128 @@ public final class ExtensionHost {
         return output.toString();
     }
 
+    private static String serializeMangaUpdate(Object update) throws Exception {
+        Object manga = getter(update, "getManga");
+        @SuppressWarnings("unchecked")
+        List<Object> chapters =
+            (List<Object>) getter(update, "getChapters");
+        StringBuilder output = new StringBuilder("{\"manga\":");
+        appendManga(output, manga);
+        output.append(",\"chapters\":[");
+        for (int index = 0; index < chapters.size(); index++) {
+            if (index > 0) {
+                output.append(',');
+            }
+            Object chapter = chapters.get(index);
+            output.append('{');
+            appendJsonField(
+                output,
+                "url",
+                getter(chapter, "getUrl"),
+                false
+            );
+            appendJsonField(
+                output,
+                "name",
+                getter(chapter, "getName"),
+                true
+            );
+            appendJsonField(
+                output,
+                "chapterNumber",
+                getter(chapter, "getChapter_number"),
+                true
+            );
+            appendJsonField(
+                output,
+                "scanlator",
+                getter(chapter, "getScanlator"),
+                true
+            );
+            appendJsonField(
+                output,
+                "dateUpload",
+                getter(chapter, "getDate_upload"),
+                true
+            );
+            output.append('}');
+        }
+        output.append("]}");
+        return output.toString();
+    }
+
+    private static void appendManga(StringBuilder output, Object manga)
+        throws Exception {
+        output.append('{');
+        appendJsonField(output, "url", getter(manga, "getUrl"), false);
+        appendJsonField(output, "title", getter(manga, "getTitle"), true);
+        appendJsonField(
+            output,
+            "thumbnailURL",
+            getter(manga, "getThumbnail_url"),
+            true
+        );
+        appendJsonField(output, "artist", getter(manga, "getArtist"), true);
+        appendJsonField(output, "author", getter(manga, "getAuthor"), true);
+        appendJsonField(output, "status", getter(manga, "getStatus"), true);
+        appendJsonField(
+            output,
+            "description",
+            getter(manga, "getDescription"),
+            true
+        );
+        appendJsonField(output, "genre", getter(manga, "getGenre"), true);
+        output.append('}');
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String serializePages(Object value) throws Exception {
+        List<Object> pages = (List<Object>) value;
+        StringBuilder output = new StringBuilder("[");
+        for (int index = 0; index < pages.size(); index++) {
+            if (index > 0) {
+                output.append(',');
+            }
+            Object page = pages.get(index);
+            output.append('{');
+            appendJsonField(output, "index", getter(page, "getIndex"), false);
+            appendJsonField(output, "url", getter(page, "getUrl"), true);
+            appendJsonField(
+                output,
+                "imageURL",
+                getter(page, "getImageUrl"),
+                true
+            );
+            Object uri = getter(page, "getUri");
+            appendJsonField(
+                output,
+                "uri",
+                uri == null ? null : uri.toString(),
+                true
+            );
+            output.append('}');
+        }
+        output.append(']');
+        return output.toString();
+    }
+
     private static Object getter(Object instance, String name)
         throws Exception {
         return instance.getClass().getMethod(name).invoke(instance);
+    }
+
+    private static void setter(
+        Object instance,
+        String name,
+        Class<?> parameterType,
+        Object value
+    ) throws Exception {
+        instance.getClass().getMethod(name, parameterType)
+            .invoke(instance, value);
+    }
+
+    private static String defaultValue(String value, String fallback) {
+        return value == null ? fallback : value;
     }
 
     private static void appendJsonField(

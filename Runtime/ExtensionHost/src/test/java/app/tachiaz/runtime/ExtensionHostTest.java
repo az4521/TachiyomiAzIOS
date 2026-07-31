@@ -17,10 +17,10 @@ public final class ExtensionHostTest {
             throw new AssertionError("Expected the fixture JAR path");
         }
 
-        assertContains(
-            ExtensionHost.dispatch("{\"operation\":\"ping\"}"),
-            "\"result\":\"pong\""
-        );
+        String ping = ExtensionHost.dispatch("{\"operation\":\"ping\"}");
+        assertContains(ping, "\"result\":\"pong\"");
+        assertEquals("true", MiniJson.parseObject(ping).get("success"));
+        assertEquals("pong", MiniJson.parseObject(ping).get("result"));
         assertEquals(
             "https://example.test/manga/one?q=hello%20world",
             Uri.parse("https://example.test")

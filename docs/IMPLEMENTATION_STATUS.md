@@ -7,8 +7,10 @@ Last updated: 2026-07-31
 - Local `TachiJVMRunner` Swift package with a C++ JNI boundary.
 - One persistent official OpenJDK/mobile Zero VM, with thread attach/detach and real UTF-8
   request/response conversion.
-- Checksum-pinned OpenJDK/mobile XCFramework and device class-library bootstrap.
-- Xcode device integration for the static VM XCFramework and Java bundle.
+- Checksum-pinned OpenJDK/mobile XCFramework plus device and simulator
+  class-library bootstrap.
+- Xcode integration for the static VM on arm64 devices and arm64/x86_64 iOS
+  simulators, embedding the destination-specific Java bundle.
 - Runtime-aware bytecode validation before an extension JAR is loaded.
 - Keiyoushi textual Android manifest parsing and automatic entry-class
   discovery, without `dex2jar` or APK conversion.
@@ -26,6 +28,8 @@ Last updated: 2026-07-31
   Mihon source implementations.
 - Reflective Koin/AndroidCompat initialization before extension construction.
 - Direct coroutine invocation and typed Swift DTOs for popular manga pages.
+- Typed latest, search, combined manga-details/chapter, and page-list
+  operations, with suspend-to-Rx fallback supplied by Mihon's source API.
 - Manifest gating for the supported Mihon extension-lib 1.4–1.6 range.
 - A binary fixture compiled against official TachiyomiX 1.4.4 that proves a
   suspend host call falls back to its Rx-only popular implementation.
@@ -61,8 +65,8 @@ item is complete.
    WebView/Cloudflare challenges, JavaScript, and persistence on iOS.
 3. Implement repository catalog/update UX over Keiyoushi-style index metadata,
    deriving direct `/jar/*.jar` artifact URLs and persisting checksums.
-4. Add typed JNI operations for latest/search, manga details, chapter lists,
-   pages, filters, preferences, and cookies. Popular manga is implemented.
+4. Add typed JNI operations for editable filters, preferences, and cookie
+   management. Core browse/search/details/chapters/pages are implemented.
 5. Feed JVM source results into Aidoku's `Source` abstraction, migrate stored
    source keys, then remove AidokuRunner/WASM and delegated-source code.
 6. Preserve bookmarks and supported tracking records during backup import;
@@ -83,7 +87,8 @@ item is complete.
   expected name, language, source ID, and base URL.
 - MangaDex constructs all 61 sources from `ExtensionGenerated`, selects source
   ID `2499283573021220255` (`en`), reaches `https://api.mangadex.org`, returns
-  HTTP 200, and decodes a nonempty popular-manga page.
+  HTTP 200, and completes popular, latest, search, details, chapter-list, and
+  page-list operations through the extension-lib 1.4 fallback path.
 - Its coroutine popular-manga method reaches
   `https://api.asurascans.com/api/series`, returns HTTP 200, and decodes 20
   typed manga summaries with `hasNextPage = true`.

@@ -12,7 +12,8 @@ The first implementation slice consists of:
 - `Runtime/ExtensionHost`: Java-side classloader and request dispatcher.
 - `Runtime/ExtensionHost/compat`: generated, pinned Suwayomi source API and
   AndroidCompat runtime.
-- `Vendor/OpenJDK`: checksum-pinned official OpenJDK/mobile Zero runtime.
+- `Vendor/OpenJDK`: checksum-pinned official OpenJDK/mobile Zero runtime for
+  iOS devices and Apple Silicon/Intel iOS simulators.
 
 The existing Aidoku source runtime remains available while feature parity is
 built. Removing `AidokuRunner` before the Java compatibility surface is usable
@@ -30,6 +31,10 @@ supports:
 - `loadExtension`
 - `listSources`
 - `getPopularManga`
+- `getLatestUpdates`
+- `searchManga`
+- `getMangaUpdate`
+- `getPageList`
 - `invoke`
 - `unloadExtension`
 - `decodeBackup`
@@ -44,7 +49,8 @@ in-process VM recreation.
 
 ## Build prerequisites
 
-1. Run `Scripts/bootstrap-openjdk-ios.sh` on macOS.
+1. Run `Scripts/bootstrap-openjdk-ios.sh` on macOS. It installs both device
+   and simulator Java bundles.
 2. Set `TACHIAZ_BUILD_JAVA_HOME` to a JDK 21+ installation.
 3. Run `Scripts/bootstrap-suwayomi-compat.sh`.
 4. Run `Scripts/build-extension-host.sh --test`.
@@ -90,11 +96,12 @@ by Mihon source ID.
 ## Compatibility scope
 
 The pinned Suwayomi layer now supplies HTTP, preferences, HTML parsing, source
-models, filters, cookies, and its Android compatibility classes. The first
-typed operation invokes Keiyoushi's coroutine `getPopularManga` method without
-exposing Kotlin objects across JNI and returns a Swift-decodable manga page.
-Latest/search/details/chapters/pages/filter/preference operations still need
-equivalent DTO bridges. Unsupported Android behavior must fail explicitly
+models, filters, cookies, and its Android compatibility classes. Typed popular,
+latest, text-search, combined manga-details/chapter-update, and page-list
+operations invoke Keiyoushi's coroutine API without exposing Kotlin objects
+across JNI. On 1.4 extensions, Mihon's default implementations bridge these
+calls to the legacy Rx methods. Filter editing and preference operations still
+need equivalent DTO bridges. Unsupported Android behavior must fail explicitly
 rather than silently returning incorrect data.
 
 ## Security model
