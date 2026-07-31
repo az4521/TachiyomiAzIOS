@@ -87,8 +87,6 @@ runtime_jars=(
     kotlinx-serialization-json-jvm-1.11.0.jar
     kotlinx-serialization-json-okio-jvm-1.11.0.jar
     kotlinx-serialization-protobuf-jvm-1.11.0.jar
-    logback-classic-1.6.1.jar
-    logback-core-1.6.1.jar
     logging-interceptor-5.4.0.jar
     multiplatform-settings-jvm-1.3.0.jar
     multiplatform-settings-serialization-jvm-1.3.0.jar

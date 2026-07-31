@@ -25,8 +25,14 @@ fi
 javac="$java_home/bin/javac"
 java="$java_home/bin/java"
 jar="$java_home/bin/jar"
+test_java_home="${TACHIAZ_TEST_JAVA_HOME:-$java_home}"
+test_java="$test_java_home/bin/java"
+test_java_options=()
+if [[ -n "${TACHIAZ_TEST_JAVA_OPTIONS:-}" ]]; then
+    read -r -a test_java_options <<< "$TACHIAZ_TEST_JAVA_OPTIONS"
+fi
 
-for executable in "$javac" "$java" "$jar"; do
+for executable in "$javac" "$java" "$jar" "$test_java"; do
     if [[ ! -x "$executable" ]]; then
         echo "Required Java tool is missing or not executable: $executable" >&2
         exit 1
@@ -76,13 +82,13 @@ if [[ "${1:-}" == "--test" ]]; then
         -C "$repository_root/Runtime/ExtensionHost/src/test/resources" \
         AndroidManifest.xml
 
-    "$java" \
+    "$test_java" "${test_java_options[@]}" \
         -cp "$output_jar:$test_classes_root" \
         app.tachiaz.runtime.ExtensionHostTest \
         "$fixture_jar"
 
     if [[ -n "${TACHIAZ_ASURA_JAR:-}" ]]; then
-        "$java" \
+        "$test_java" "${test_java_options[@]}" \
             -cp "$output_jar:$test_classes_root" \
             app.tachiaz.runtime.KeiyoushiAsuraScansTest \
             "$TACHIAZ_ASURA_JAR"
@@ -100,30 +106,30 @@ if [[ "${1:-}" == "--test" ]]; then
             -d "$compat_test_classes_root" \
             "${compat_test_sources[@]}"
 
-        "$java" \
+        "$test_java" "${test_java_options[@]}" \
             -cp \
-            "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$compat_test_classes_root" \
+            "$output_jar:$TACHIAZ_COMPAT_CLASSPATH:$compat_test_classes_root" \
             app.tachiaz.runtime.MihonExtensionLib16FallbackTest
 
         if [[ -n "${TACHIAZ_MIHON_14_JAR:-}" ]]; then
-            "$java" \
+            "$test_java" "${test_java_options[@]}" \
                 -cp \
-                "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$compat_test_classes_root" \
+                "$output_jar:$TACHIAZ_COMPAT_CLASSPATH:$compat_test_classes_root" \
                 app.tachiaz.runtime.MihonExtensionLib14RuntimeTest \
                 "$TACHIAZ_MIHON_14_JAR"
         fi
 
         if [[ -n "${TACHIAZ_MANGADEX_JAR:-}" ]]; then
-            "$java" \
+            "$test_java" "${test_java_options[@]}" \
                 -cp \
-                "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$test_classes_root" \
+                "$output_jar:$TACHIAZ_COMPAT_CLASSPATH:$test_classes_root" \
                 app.tachiaz.runtime.KeiyoushiMangaDexRuntimeTest \
                 "$TACHIAZ_MANGADEX_JAR"
         fi
 
         if [[ -n "${TACHIAZ_ASURA_JAR:-}" ]]; then
-            "$java" \
-                -cp "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$test_classes_root" \
+            "$test_java" "${test_java_options[@]}" \
+                -cp "$output_jar:$TACHIAZ_COMPAT_CLASSPATH:$test_classes_root" \
                 app.tachiaz.runtime.KeiyoushiAsuraRuntimeTest \
                 "$TACHIAZ_ASURA_JAR"
         fi

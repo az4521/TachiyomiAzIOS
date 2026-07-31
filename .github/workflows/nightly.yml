@@ -24,7 +24,9 @@ jobs:
         run: |
           Scripts/bootstrap-openjdk-ios.sh
           Scripts/bootstrap-suwayomi-compat.sh
+          Scripts/build-mobile-shims.sh
           Scripts/build-extension-host.sh --test
+          Scripts/test-mobile-java-base.sh
       - name: Build iOS Simulator
         run: |
           xcodebuild \

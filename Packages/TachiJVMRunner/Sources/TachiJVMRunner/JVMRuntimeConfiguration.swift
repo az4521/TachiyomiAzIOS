@@ -40,6 +40,9 @@ public struct JVMRuntimeConfiguration: Sendable {
         let hostURL = resourcesURL.appendingPathComponent(
             "tachiaz-extension-host.jar"
         )
+        let mobileShimsURL = resourcesURL.appendingPathComponent(
+            "tachiaz-mobile-shims.jar"
+        )
         let compatibilityURL = resourcesURL.appendingPathComponent(
             "tachiaz-compat",
             isDirectory: true
@@ -53,6 +56,11 @@ public struct JVMRuntimeConfiguration: Sendable {
         guard fileManager.fileExists(atPath: hostURL.path) else {
             throw JVMRuntimeError.invalidConfiguration(
                 "Bundled extension host JAR is missing"
+            )
+        }
+        guard fileManager.fileExists(atPath: mobileShimsURL.path) else {
+            throw JVMRuntimeError.invalidConfiguration(
+                "Bundled mobile JVM shims are missing"
             )
         }
         guard let frameworksURL = bundle.privateFrameworksURL else {
@@ -91,8 +99,12 @@ public struct JVMRuntimeConfiguration: Sendable {
         return JVMRuntimeConfiguration(
             javaHomeURL: javaHomeURL,
             frameworksURL: frameworksURL,
-            classpathURLs: compatibilityJars + [hostURL],
+            // The host contains iOS-safe replacements for a small number of
+            // desktop AndroidCompat classes, so it must win parent-first
+            // class loading.
+            classpathURLs: [hostURL] + compatibilityJars,
             additionalOptions: [
+                "-Xbootclasspath/a:\(mobileShimsURL.path)",
                 "-Duser.home=\(jvmHome.path)",
                 "-Djava.io.tmpdir=\(FileManager.default.temporaryDirectory.path)"
             ] + additionalOptions
