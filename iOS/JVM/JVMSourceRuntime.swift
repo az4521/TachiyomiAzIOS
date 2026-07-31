@@ -367,6 +367,35 @@ actor JVMSourceRuntime {
         try requireSuccess(response)
     }
 
+    func cookieSummary(
+        extensionId: String,
+        sourceId: Int64
+    ) async throws -> String {
+        let response = try await dispatch(
+            .init(
+                operation: "getCookieSummary",
+                extensionId: extensionId,
+                sourceId: String(sourceId)
+            )
+        )
+        try requireSuccess(response)
+        return response.result ?? "No cookies stored."
+    }
+
+    func clearCookies(
+        extensionId: String,
+        sourceId: Int64
+    ) async throws {
+        let response = try await dispatch(
+            .init(
+                operation: "clearCookies",
+                extensionId: extensionId,
+                sourceId: String(sourceId)
+            )
+        )
+        try requireSuccess(response)
+    }
+
     private func pagedManga(
         operation: String,
         extensionId: String,
@@ -800,17 +829,48 @@ actor KeiyoushiSourceRunner: AidokuRunner.Runner {
         let items = settings.map {
             $0.intoAidoku(sourceKey: sourceKey)
         }
-        guard !items.isEmpty else {
-            return []
+        let cookieSummary = try await JVMSourceRuntime.shared.cookieSummary(
+            extensionId: extensionId,
+            sourceId: descriptor.id
+        )
+        var groups: [AidokuRunner.Setting] = []
+        if !items.isEmpty {
+            groups.append(.init(value: .group(.init(items: items))))
         }
-        return [
+        groups.append(
             .init(
-                value: .group(.init(items: items))
+                value: .group(
+                    .init(
+                        footer: cookieSummary,
+                        items: [
+                            .init(
+                                title: "Clear Cookies",
+                                notification: "keiyoushi-clear-cookies",
+                                refreshes: ["settings"],
+                                value: .button(
+                                    .init(
+                                        destructive: true,
+                                        confirmTitle: "Clear Cookies?",
+                                        confirmText: "This clears login and challenge cookies used by JVM extensions."
+                                    )
+                                )
+                            )
+                        ]
+                    )
+                )
             )
-        ]
+        )
+        return groups
     }
 
     func handleNotification(notification: String) async throws {
+        if notification == "keiyoushi-clear-cookies" {
+            try await JVMSourceRuntime.shared.clearCookies(
+                extensionId: extensionId,
+                sourceId: descriptor.id
+            )
+            return
+        }
         let prefix = "keiyoushi-setting:"
         guard notification.hasPrefix(prefix) else {
             return

@@ -44,6 +44,16 @@ public final class KeiyoushiMangaDexRuntimeTest {
         assertContains(sources, "\\\"id\\\":" + ENGLISH_SOURCE_ID);
         assertContains(sources, "\\\"lang\\\":\\\"en\\\"");
         assertContains(sources, "\\\"supportsLatest\\\":true");
+        assertSuccess(ExtensionHost.dispatch(
+            "{\"operation\":\"getCookieSummary\"," +
+                "\"extensionId\":\"mangadex\"," +
+                "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"}"
+        ));
+        assertSuccess(ExtensionHost.dispatch(
+            "{\"operation\":\"clearCookies\"," +
+                "\"extensionId\":\"mangadex\"," +
+                "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"}"
+        ));
 
         String filters = ExtensionHost.dispatch(
             "{\"operation\":\"getSearchFilters\"," +

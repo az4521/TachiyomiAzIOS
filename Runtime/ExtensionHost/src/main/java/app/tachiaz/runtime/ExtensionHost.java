@@ -65,6 +65,10 @@ public final class ExtensionHost {
                     return getPageList(request);
                 case "getImageRequest":
                     return getImageRequest(request);
+                case "getCookieSummary":
+                    return getCookieSummary(request);
+                case "clearCookies":
+                    return clearCookies(request);
                 case "listSources":
                     return listSources(request);
                 case "invoke":
@@ -1046,6 +1050,94 @@ public final class ExtensionHost {
         }
         output.append("}}");
         return MiniJson.response(true, output.toString(), null, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String getCookieSummary(Map<String, String> request)
+        throws Exception {
+        Object source = requireSource(request);
+        Object client = getter(source, "getClient");
+        Object cookieJar = client.getClass()
+            .getMethod("cookieJar")
+            .invoke(client);
+        String baseURL = String.valueOf(getter(source, "getBaseUrl"));
+        ClassLoader loader = source.getClass().getClassLoader();
+        Class<?> httpUrlType = Class.forName("okhttp3.HttpUrl", true, loader);
+        Object httpUrl = httpUrlType
+            .getMethod("parse", String.class)
+            .invoke(null, baseURL);
+        List<Object> cookies = (List<Object>) cookieJar.getClass()
+            .getMethod("loadForRequest", httpUrlType)
+            .invoke(cookieJar, httpUrl);
+        if (cookies.isEmpty()) {
+            return MiniJson.response(
+                true,
+                "No cookies stored for " + baseURL,
+                null,
+                null
+            );
+        }
+        List<String> descriptions = new ArrayList<>();
+        for (Object cookie : cookies) {
+            descriptions.add(
+                getter(cookie, "name") + " — " + getter(cookie, "domain")
+            );
+        }
+        return MiniJson.response(
+            true,
+            String.join("\n", descriptions),
+            null,
+            null
+        );
+    }
+
+    private static String clearCookies(Map<String, String> request)
+        throws Exception {
+        Object source = requireSource(request);
+        Object client = getter(source, "getClient");
+        Object cookieJar = client.getClass()
+            .getMethod("cookieJar")
+            .invoke(client);
+        if (!invokeCookieClear(cookieJar)) {
+            throw new UnsupportedOperationException(
+                "The extension cookie jar does not expose a clear operation"
+            );
+        }
+        return MiniJson.response(true, "cleared", null, null);
+    }
+
+    private static boolean invokeCookieClear(Object value) throws Exception {
+        if (value == null) {
+            return false;
+        }
+        for (String methodName : new String[] { "clear", "removeAll" }) {
+            try {
+                Method method = value.getClass().getMethod(methodName);
+                method.setAccessible(true);
+                method.invoke(value);
+                return true;
+            } catch (NoSuchMethodException ignored) {
+                // PersistentCookieJar owns a CookieStore with removeAll().
+            }
+        }
+        Class<?> current = value.getClass();
+        while (current != null) {
+            for (java.lang.reflect.Field field : current.getDeclaredFields()) {
+                field.setAccessible(true);
+                Object child = field.get(value);
+                if (
+                    child != value &&
+                    child != null &&
+                    (child instanceof java.net.CookieStore ||
+                        child.getClass().getName().contains("CookieStore")) &&
+                    invokeCookieClear(child)
+                ) {
+                    return true;
+                }
+            }
+            current = current.getSuperclass();
+        }
+        return false;
     }
 
     private static Method findMethod(
