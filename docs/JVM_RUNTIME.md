@@ -28,6 +28,7 @@ supports:
 - `inspectExtension`
 - `initializeCompatibility`
 - `loadExtension`
+- `listSources`
 - `getPopularManga`
 - `invoke`
 - `unloadExtension`
@@ -47,7 +48,8 @@ in-process VM recreation.
 2. Set `TACHIAZ_BUILD_JAVA_HOME` to a JDK 21+ installation.
 3. Run `Scripts/bootstrap-suwayomi-compat.sh`.
 4. Run `Scripts/build-extension-host.sh --test`.
-5. Run `Scripts/test-keiyoushi-asurascans.sh`.
+5. Run `Scripts/test-keiyoushi-mangadex.sh`.
+6. Run `Scripts/test-keiyoushi-asurascans.sh`.
 
 The host itself is compiled as Java 8 bytecode for portability. Extension
 validation is based on the embedded VM's actual class-file ceiling. The pinned
@@ -79,8 +81,11 @@ operation. For extension-lib 1.4 and other legacy sources, the supplied
 Mihon-compatible `CatalogueSource` default delegates that call to the
 extension's Rx `fetch*` implementation. Extension-lib 1.6 sources that
 override the suspend method run directly. Tests cover both paths using a
-fixture compiled against official TachiyomiX 1.4.4 and the real Keiyoushi
-Asura Scans 1.6.66 JAR.
+fixture compiled against official TachiyomiX 1.4.4, the real Keiyoushi
+MangaDex 1.4.211 JAR, and the real Keiyoushi Asura Scans 1.6.66 JAR.
+MangaDex also verifies `SourceFactory` support: its generated entry point
+expands into 61 language-specific sources, which Swift can list and address
+by Mihon source ID.
 
 ## Compatibility scope
 

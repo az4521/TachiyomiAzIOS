@@ -16,6 +16,12 @@ public struct KeiyoushiMangaPage: Codable, Sendable, Equatable {
     public let hasNextPage: Bool
 }
 
+public struct KeiyoushiSourceDescriptor: Codable, Sendable, Equatable {
+    public let id: Int64
+    public let name: String
+    public let lang: String
+}
+
 public extension JVMRuntime {
     @discardableResult
     func initializeExtensionCompatibility() throws -> ExtensionHostResponse {
@@ -42,6 +48,7 @@ public extension JVMRuntime {
 
     func popularManga(
         extensionId: String,
+        sourceId: Int64? = nil,
         page: Int
     ) throws -> KeiyoushiMangaPage {
         guard page > 0 else {
@@ -53,6 +60,7 @@ public extension JVMRuntime {
             ExtensionHostRequest(
                 operation: "getPopularManga",
                 extensionId: extensionId,
+                sourceId: sourceId.map(String.init),
                 argument: String(page)
             )
         )
@@ -64,6 +72,32 @@ public extension JVMRuntime {
         do {
             return try JSONDecoder().decode(
                 KeiyoushiMangaPage.self,
+                from: Data(result.utf8)
+            )
+        } catch {
+            throw JVMRuntimeError.decodingFailed(
+                error.localizedDescription
+            )
+        }
+    }
+
+    func sources(
+        extensionId: String
+    ) throws -> [KeiyoushiSourceDescriptor] {
+        let response = try checkedDispatch(
+            ExtensionHostRequest(
+                operation: "listSources",
+                extensionId: extensionId
+            )
+        )
+        guard let result = response.result else {
+            throw JVMRuntimeError.decodingFailed(
+                "Source list response has no result"
+            )
+        }
+        do {
+            return try JSONDecoder().decode(
+                [KeiyoushiSourceDescriptor].self,
                 from: Data(result.utf8)
             )
         } catch {

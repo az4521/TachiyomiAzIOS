@@ -7,6 +7,7 @@ func requestEncodingUsesStableFieldNames() throws {
     let request = ExtensionHostRequest(
         operation: "loadExtension",
         extensionId: "fixture",
+        sourceId: "2499283573021220255",
         jarPath: "/tmp/fixture.jar",
         entryClass: "fixture.EchoExtension"
     )
@@ -18,5 +19,6 @@ func requestEncodingUsesStableFieldNames() throws {
 
     #expect(object["operation"] == "loadExtension")
     #expect(object["extensionId"] == "fixture")
+    #expect(object["sourceId"] == "2499283573021220255")
     #expect(object["entryClass"] == "fixture.EchoExtension")
 }

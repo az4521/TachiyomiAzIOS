@@ -89,10 +89,6 @@ if [[ "${1:-}" == "--test" ]]; then
     fi
 
     if [[ -n "${TACHIAZ_COMPAT_CLASSPATH:-}" ]]; then
-        if [[ -z "${TACHIAZ_ASURA_JAR:-}" ]]; then
-            echo "TACHIAZ_ASURA_JAR is required for the runtime test." >&2
-            exit 1
-        fi
         mapfile -t compat_test_sources < <(
             find "$compat_test_source_root" -name '*.java' -type f | sort
         )
@@ -117,10 +113,20 @@ if [[ "${1:-}" == "--test" ]]; then
                 "$TACHIAZ_MIHON_14_JAR"
         fi
 
-        "$java" \
-            -cp "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$test_classes_root" \
-            app.tachiaz.runtime.KeiyoushiAsuraRuntimeTest \
-            "$TACHIAZ_ASURA_JAR"
+        if [[ -n "${TACHIAZ_MANGADEX_JAR:-}" ]]; then
+            "$java" \
+                -cp \
+                "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$test_classes_root" \
+                app.tachiaz.runtime.KeiyoushiMangaDexRuntimeTest \
+                "$TACHIAZ_MANGADEX_JAR"
+        fi
+
+        if [[ -n "${TACHIAZ_ASURA_JAR:-}" ]]; then
+            "$java" \
+                -cp "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$test_classes_root" \
+                app.tachiaz.runtime.KeiyoushiAsuraRuntimeTest \
+                "$TACHIAZ_ASURA_JAR"
+        fi
     fi
 fi
 

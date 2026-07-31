@@ -29,6 +29,10 @@ Last updated: 2026-07-31
 - Manifest gating for the supported Mihon extension-lib 1.4–1.6 range.
 - A binary fixture compiled against official TachiyomiX 1.4.4 that proves a
   suspend host call falls back to its Rx-only popular implementation.
+- `SourceFactory` expansion, source enumeration, and source-ID routing, tested
+  against the 61-source Keiyoushi MangaDex 1.4.211 extension.
+- A live MangaDex 1.4 test that selects its English source and fetches page 1
+  through Mihon's suspend-to-Rx compatibility fallback.
 - A live Asura Scans test that constructs the extension and fetches page 1
   from its public API without APK conversion or `dex2jar`.
 - Gzipped protobuf decoding for current Mihon and TachiyomiAZ `.tachibk`
@@ -71,13 +75,15 @@ item is complete.
 - Extension host compiles with Temurin JDK 8 using `-source 8 -target 8`.
 - Fixture JAR load/invoke/unload test passes.
 - Gzipped Mihon protobuf fixture decode test passes.
-- The pinned Asura Scans 1.6.66 JAR is downloaded, checksum-verified, inspected,
-  and confirmed as Java 11 / class-file version 55 with the expected
-  `ExtensionGenerated` entry point.
+- The pinned MangaDex 1.4.211 and Asura Scans 1.6.66 JARs are downloaded and
+  checksum-verified. Asura is confirmed as Java 11 / class-file version 55.
 - The pinned Suwayomi source API and AndroidCompat build successfully on
   JDK 21.
 - Asura Scans constructs through the real compatibility layer and reports the
   expected name, language, source ID, and base URL.
+- MangaDex constructs all 61 sources from `ExtensionGenerated`, selects source
+  ID `2499283573021220255` (`en`), reaches `https://api.mangadex.org`, returns
+  HTTP 200, and decodes a nonempty popular-manga page.
 - Its coroutine popular-manga method reaches
   `https://api.asurascans.com/api/series`, returns HTTP 200, and decodes 20
   typed manga summaries with `hasNextPage = true`.

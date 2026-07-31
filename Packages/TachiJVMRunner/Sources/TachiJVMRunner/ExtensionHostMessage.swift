@@ -3,6 +3,7 @@ import Foundation
 public struct ExtensionHostRequest: Codable, Sendable {
     public let operation: String
     public let extensionId: String?
+    public let sourceId: String?
     public let jarPath: String?
     public let entryClass: String?
     public let method: String?
@@ -12,6 +13,7 @@ public struct ExtensionHostRequest: Codable, Sendable {
     public init(
         operation: String,
         extensionId: String? = nil,
+        sourceId: String? = nil,
         jarPath: String? = nil,
         entryClass: String? = nil,
         method: String? = nil,
@@ -20,6 +22,7 @@ public struct ExtensionHostRequest: Codable, Sendable {
     ) {
         self.operation = operation
         self.extensionId = extensionId
+        self.sourceId = sourceId
         self.jarPath = jarPath
         self.entryClass = entryClass
         self.method = method
@@ -43,6 +46,7 @@ public struct ExtensionHostResponse: Codable, Sendable {
     public let targetSdk: String?
     public let nsfw: String?
     public let extensionLibrary: String?
+    public let sourceCount: String?
     public let classCount: String?
     public let maximumClassVersion: String?
     public let requiredJavaVersion: String?

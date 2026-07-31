@@ -148,6 +148,7 @@ actor JVMSourceRuntime {
 
     func popularManga(
         extensionId: String,
+        sourceId: Int64? = nil,
         page: Int
     ) async throws -> KeiyoushiMangaPage {
         guard page > 0 else {
@@ -159,6 +160,7 @@ actor JVMSourceRuntime {
             .init(
                 operation: "getPopularManga",
                 extensionId: extensionId,
+                sourceId: sourceId.map(String.init),
                 argument: String(page)
             )
         )
@@ -176,6 +178,33 @@ actor JVMSourceRuntime {
         } catch {
             throw RuntimeError.hostRejected(
                 "Unable to decode the manga page: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    func sources(
+        extensionId: String
+    ) async throws -> [KeiyoushiSourceDescriptor] {
+        let response = try await dispatch(
+            .init(
+                operation: "listSources",
+                extensionId: extensionId
+            )
+        )
+        try requireSuccess(response)
+        guard let result = response.result else {
+            throw RuntimeError.hostRejected(
+                "The source-list operation returned no payload."
+            )
+        }
+        do {
+            return try JSONDecoder().decode(
+                [KeiyoushiSourceDescriptor].self,
+                from: Data(result.utf8)
+            )
+        } catch {
+            throw RuntimeError.hostRejected(
+                "Unable to decode the source list: \(error.localizedDescription)"
             )
         }
     }

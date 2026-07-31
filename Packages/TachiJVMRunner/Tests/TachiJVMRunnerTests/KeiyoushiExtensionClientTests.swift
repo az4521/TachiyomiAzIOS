@@ -31,3 +31,29 @@ func mangaPageDecodesFromExtensionHostPayload() throws {
     #expect(page.mangas[0].title == "Nano Machine")
     #expect(page.hasNextPage)
 }
+
+@Test
+func sourceFactoryDescriptorsDecodeFromExtensionHostPayload() throws {
+    let payload = """
+    [
+      {
+        "id": 2499283573021220255,
+        "name": "MangaDex",
+        "lang": "en"
+      }
+    ]
+    """
+
+    let sources = try JSONDecoder().decode(
+        [KeiyoushiSourceDescriptor].self,
+        from: Data(payload.utf8)
+    )
+
+    #expect(sources == [
+        KeiyoushiSourceDescriptor(
+            id: 2499283573021220255,
+            name: "MangaDex",
+            lang: "en"
+        )
+    ])
+}

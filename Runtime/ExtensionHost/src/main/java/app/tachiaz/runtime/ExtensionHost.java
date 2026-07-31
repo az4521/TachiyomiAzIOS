@@ -8,6 +8,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -43,6 +44,8 @@ public final class ExtensionHost {
                     return initializeCompatibility();
                 case "getPopularManga":
                     return getPopularManga(request);
+                case "listSources":
+                    return listSources(request);
                 case "invoke":
                     return invoke(request);
                 case "unloadExtension":
@@ -99,20 +102,52 @@ public final class ExtensionHost {
         );
 
         Object instance;
+        List<Object> sources;
         try {
             Class<?> type = Class.forName(entryClass, true, loader);
             instance = type.getDeclaredConstructor().newInstance();
+            sources = createSources(instance);
         } catch (Throwable error) {
             loader.close();
             throw error;
         }
 
-        LoadedExtension replacement = new LoadedExtension(loader, instance);
+        LoadedExtension replacement =
+            new LoadedExtension(loader, instance, sources);
         LoadedExtension previous = EXTENSIONS.put(extensionId, replacement);
         if (previous != null) {
             previous.close();
         }
-        return MiniJson.response(true, entryClass, null, null);
+        Map<String, String> response = new LinkedHashMap<>();
+        response.put("sourceCount", Integer.toString(sources.size()));
+        return MiniJson.response(true, entryClass, null, response);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Object> createSources(Object entry) throws Exception {
+        try {
+            Object value = entry.getClass()
+                .getMethod("createSources")
+                .invoke(entry);
+            if (!(value instanceof List)) {
+                throw new IllegalArgumentException(
+                    "SourceFactory.createSources did not return a List"
+                );
+            }
+            List<Object> sources = new ArrayList<>((List<Object>) value);
+            if (sources.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "SourceFactory returned no sources"
+                );
+            }
+            return sources;
+        } catch (NoSuchMethodException notAFactory) {
+            List<Object> sources = new ArrayList<>();
+            sources.add(entry);
+            return sources;
+        } catch (InvocationTargetException error) {
+            throw rethrow(error.getCause());
+        }
     }
 
     private static String initializeCompatibility() throws Exception {
@@ -249,7 +284,7 @@ public final class ExtensionHost {
         }
 
         Object mangasPage = invokeSuspend(
-            extension.instance,
+            extension.source(request.get("sourceId")),
             "getPopularManga",
             new Class<?>[] { int.class },
             page
@@ -261,6 +296,32 @@ public final class ExtensionHost {
             null,
             null
         );
+    }
+
+    private static String listSources(Map<String, String> request)
+        throws Exception {
+        String extensionId = require(request, "extensionId");
+        LoadedExtension extension = EXTENSIONS.get(extensionId);
+        if (extension == null) {
+            throw new IllegalArgumentException(
+                "Extension is not loaded: " + extensionId
+            );
+        }
+
+        StringBuilder output = new StringBuilder("[");
+        for (int index = 0; index < extension.sources.size(); index++) {
+            if (index > 0) {
+                output.append(',');
+            }
+            Object source = extension.sources.get(index);
+            output.append('{');
+            appendJsonField(output, "id", getter(source, "getId"), false);
+            appendJsonField(output, "name", getter(source, "getName"), true);
+            appendJsonField(output, "lang", getter(source, "getLang"), true);
+            output.append('}');
+        }
+        output.append(']');
+        return MiniJson.response(true, output.toString(), null, null);
     }
 
     static Object invokeSuspend(
@@ -471,16 +532,17 @@ public final class ExtensionHost {
             );
         }
 
+        Object target = extension.source(request.get("sourceId"));
         Method method;
         Object value;
         if (argument == null) {
-            method = extension.instance.getClass().getMethod(methodName);
-            value = method.invoke(extension.instance);
+            method = target.getClass().getMethod(methodName);
+            value = method.invoke(target);
         } else {
-            method = extension.instance
+            method = target
                 .getClass()
                 .getMethod(methodName, String.class);
-            value = method.invoke(extension.instance, argument);
+            value = method.invoke(target, argument);
         }
         return MiniJson.response(
             true,
@@ -569,11 +631,49 @@ public final class ExtensionHost {
 
     private static final class LoadedExtension {
         final URLClassLoader loader;
-        final Object instance;
+        final Object entry;
+        final List<Object> sources;
+        final Object defaultSource;
 
-        LoadedExtension(URLClassLoader loader, Object instance) {
+        LoadedExtension(
+            URLClassLoader loader,
+            Object entry,
+            List<Object> sources
+        ) throws Exception {
             this.loader = loader;
-            this.instance = instance;
+            this.entry = entry;
+            this.sources = sources;
+            Object fallback = sources.get(0);
+            for (Object source : sources) {
+                try {
+                    Object lang = getter(source, "getLang");
+                    if ("en".equals(lang)) {
+                        fallback = source;
+                        break;
+                    }
+                } catch (NoSuchMethodException notASource) {
+                    // Host-only fixtures may expose arbitrary entry objects.
+                }
+            }
+            defaultSource = fallback;
+        }
+
+        Object source(String sourceId) throws Exception {
+            if (sourceId == null || sourceId.isEmpty()) {
+                return defaultSource;
+            }
+            for (Object source : sources) {
+                if (
+                    sourceId.equals(
+                        getter(source, "getId").toString()
+                    )
+                ) {
+                    return source;
+                }
+            }
+            throw new IllegalArgumentException(
+                "Source is not loaded: " + sourceId
+            );
         }
 
         void close() throws Exception {
