@@ -14,7 +14,6 @@ class BrowseViewController: BaseTableViewController {
 
     private lazy var dataSource = makeDataSource()
 
-    private lazy var refreshControl = UIRefreshControl()
     private lazy var emptyStackView = EmptyPageStackView()
 
     override var tableViewStyle: UITableView.Style {
@@ -72,9 +71,6 @@ class BrowseViewController: BaseTableViewController {
         tableView.keyboardDismissMode = .onDrag
         tableView.allowsMultipleSelectionDuringEditing = true
 
-        refreshControl.addTarget(self, action: #selector(refreshSourceLists(_:)), for: .valueChanged)
-        tableView.refreshControl = refreshControl
-
         // empty text
         emptyStackView.imageSystemName = "globe"
         emptyStackView.title = NSLocalizedString("BROWSE_NO_SOURCES", comment: "")
@@ -91,14 +87,6 @@ class BrowseViewController: BaseTableViewController {
             await viewModel.loadInstalledSources()
             await viewModel.loadPinnedSources()
             updateDataSource()
-            await viewModel.loadExternalSources()
-            viewModel.loadUpdates()
-            updateDataSource()
-
-            if viewModel.hasLegacySourceList && !UserDefaults.standard.bool(forKey: "Flag.showedLegacySourceListNotice") {
-                showLegacySourceListNotice()
-                UserDefaults.standard.set(true, forKey: "Flag.showedLegacySourceListNotice")
-            }
         }
     }
 
@@ -122,15 +110,6 @@ class BrowseViewController: BaseTableViewController {
                 if let query = self.navigationItem.searchController?.searchBar.text, !query.isEmpty {
                     self.viewModel.search(query: query)
                 }
-                self.updateDataSource()
-            }
-        }
-        // source lists added/removed
-        addObserver(forName: .updateSourceLists) { [weak self] _ in
-            guard let self = self else { return }
-            Task {
-                await self.viewModel.loadExternalSources()
-                self.viewModel.loadUpdates()
                 self.updateDataSource()
             }
         }
@@ -159,9 +138,6 @@ class BrowseViewController: BaseTableViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-
-        // fix refresh control snapping height
-        refreshControl.didMoveToSuperview()
 
         // hack to show search bar on initial presentation
         if !navigationItem.hidesSearchBarWhenScrolling {
@@ -261,7 +237,7 @@ extension BrowseViewController {
     @objc func openAddSourcePage() {
         let path = NavigationCoordinator(rootViewController: self)
         let hostingController = UIHostingController(
-            rootView: AddSourceView(externalSources: viewModel.unfilteredExternalSources)
+            rootView: AddSourceView()
                 .ignoresSafeArea() // fixes some weird keyboard clipping stuff
                 .environmentObject(path)
         )

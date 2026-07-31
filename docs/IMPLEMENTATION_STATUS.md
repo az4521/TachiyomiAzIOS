@@ -81,14 +81,18 @@ Last updated: 2026-07-31
   first-class `.tachibk` document registration and `tachiaz://` URLs.
 - Material Design 1-inspired hamburger drawer using the existing Aidoku
   library, browse, history, search, and settings controllers.
+- The iOS AIX/WASM importer, installed-interpreter reload path, delegated
+  source-list bootstrap/settings, and source-list backup restore are disabled
+  after Keiyoushi parity. Local files, Komga, and Kavita remain available.
 
 ## Compatibility transition
 
-AidokuRunner remains linked for the shared manga/chapter/filter/setting models
-and `Runner` protocol used throughout Aidoku's UI. Keiyoushi sources do not use
-its WASM interpreter. The old AIX/WASM installation path remains available only
-as a compatibility fallback until a macOS Xcode build confirms it can be
-removed without stranding local or self-hosted source adapters.
+AidokuRunner remains linked only for the shared
+manga/chapter/filter/setting models and `Runner` protocol used throughout
+Aidoku's UI. Keiyoushi sources use `KeiyoushiSourceRunner`; installed
+interpreter-backed sources are no longer loaded on iOS. Legacy implementations
+remain compiled for the upstream-compatible macOS target and to avoid a risky
+model-layer rewrite unrelated to JVM execution.
 
 ## Required before calling the fork complete
 
@@ -97,9 +101,6 @@ removed without stranding local or self-hosted source adapters.
 2. Validate Android graphics/resource edge cases across a broader extension
    fixture matrix. JavaScript/login challenges use the native WKWebView flow;
    desktop CEF is deliberately excluded.
-3. Remove the old WASM interpreter and AIX/delegated-source installation path
-   after the Xcode build confirms there are no remaining UI-only dependencies.
-
 Physical arm64 device validation remains desirable, but it is not a blocker
 for the simulator-first sideloading target.
 
@@ -112,6 +113,11 @@ for the simulator-first sideloading target.
   checksum-verified. Asura is confirmed as Java 11 / class-file version 55.
 - The pinned Suwayomi source API and AndroidCompat build successfully on
   JDK 21.
+- A fresh Git checkout with no ignored runtime artifacts successfully
+  bootstraps the checksum-pinned OpenJDK/mobile device and simulator bundles,
+  rebuilds the pinned Suwayomi runtime, and passes the compact-runtime
+  MangaDex/Asura suites. Shell scripts have repository-pinned LF endings and
+  executable modes for WSL, macOS, and CI checkouts.
 - A minimal `java.base` + EC-crypto runtime probe, using the same boot shim as
   iOS and no desktop Logback provider, completes every MangaDex 1.4 and Asura
   Scans 1.6 integration operation.

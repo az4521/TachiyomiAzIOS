@@ -55,7 +55,6 @@ struct AutomaticBackupsView: View {
                     }
                     Section(NSLocalizedString("SETTINGS")) {
                         toggle(key: "AutomaticBackups.settings", title: NSLocalizedString("SETTINGS"))
-                        toggle(key: "AutomaticBackups.sourceLists", title: NSLocalizedString("SOURCE_LISTS"))
                         toggle(key: "AutomaticBackups.sensitiveSettings", title: NSLocalizedString("SENSITIVE_SETTINGS"))
                     }
                 }

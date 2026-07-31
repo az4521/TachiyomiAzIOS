@@ -12,16 +12,6 @@
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
-			<string>Aidoku Source</string>
-			<key>LSHandlerRank</key>
-			<string>Owner</string>
-			<key>LSItemContentTypes</key>
-			<array>
-				<string>app.aidoku.Aidoku.aix</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
 			<string>Aidoku Backup</string>
 			<key>LSHandlerRank</key>
 			<string>Owner</string>
@@ -117,26 +107,6 @@
 	</array>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
-		<dict>
-			<key>UTTypeConformsTo</key>
-			<array>
-				<string>public.zip-archive</string>
-			</array>
-			<key>UTTypeDescription</key>
-			<string>Aidoku Source</string>
-			<key>UTTypeIconFiles</key>
-			<array/>
-			<key>UTTypeIdentifier</key>
-			<string>app.aidoku.Aidoku.aix</string>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>aix</string>
-					<string>zip</string>
-				</array>
-			</dict>
-		</dict>
 		<dict>
 			<key>UTTypeConformsTo</key>
 			<array>

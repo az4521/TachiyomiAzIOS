@@ -317,13 +317,16 @@ extension BackupManager {
                 }
             }
 
-            // restore source lists
+            #if !os(iOS)
+            // Restore delegated source lists only on upstream-compatible
+            // non-iOS targets.
             guard let sourceLists = backup.sourceLists else { return }
             SourceManager.shared.clearSourceLists()
             for sourceList in sourceLists {
                 guard let sourceListURL = URL(string: sourceList) else { continue }
                 _ = await SourceManager.shared.addSourceList(url: sourceListURL)
             }
+            #endif
         }
 
         let mangaTask = Task {

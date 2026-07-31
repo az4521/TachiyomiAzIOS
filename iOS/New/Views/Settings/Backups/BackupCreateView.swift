@@ -17,7 +17,6 @@ struct BackupCreateView: View {
     @State private var updates = false
     @State private var categories = true
     @State private var settings = true
-    @State private var sourceLists = true
     @State private var sensitiveSettings = false
 
     @Environment(\.dismiss) private var dismiss
@@ -45,7 +44,6 @@ struct BackupCreateView: View {
                 }
                 Section {
                     Toggle(NSLocalizedString("SETTINGS"), isOn: $settings)
-                    Toggle(NSLocalizedString("SOURCE_LISTS"), isOn: $sourceLists)
                     Toggle(NSLocalizedString("SENSITIVE_SETTINGS"), isOn: $sensitiveSettings)
                 } header: {
                     Text(NSLocalizedString("SETTINGS"))
@@ -73,7 +71,7 @@ struct BackupCreateView: View {
                                     updates: updates,
                                     categories: categories,
                                     settings: settings,
-                                    sourceLists: sourceLists,
+                                    sourceLists: false,
                                     sensitiveSettings: sensitiveSettings
                                 )
                             )

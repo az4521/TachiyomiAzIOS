@@ -55,18 +55,25 @@ extension SourceObjectData {
     }
 
     func toNewSource() async -> AidokuRunner.Source? {
-        if apiVersion == "0.6" {
-            let source = toSource()
-            return source.flatMap({ .legacy(source: $0) })
-        } else if
+        if
             let data = customSource as? Data,
             let config = try? CustomSourceConfig(from: data)
         {
             return config.toSource()
+        }
+        #if os(iOS)
+        // TachiAZ iOS no longer executes installed AIX/WASM sources. The
+        // AidokuRunner dependency remains only for shared models/protocols.
+        return nil
+        #else
+        if apiVersion == "0.6" {
+            let source = toSource()
+            return source.flatMap({ .legacy(source: $0) })
         } else if let path {
             let url = FileManager.default.applicationSupportDirectory.appendingPathComponent(path)
             return try? await AidokuRunner.Source(id: id, url: url)
         }
         return nil
+        #endif
     }
 }

@@ -18,7 +18,8 @@ still needs an Xcode simulator build on macOS. See
 
 ## Features
 - [x] No ads
-- [x] Aidoku WASM sources during the compatibility transition
+- [x] Keiyoushi JAR sources as the iOS extension path (AIX/WASM and delegated
+  source lists are disabled on iOS)
 - [x] Core Mihon/Keiyoushi extension-lib 1.4–1.6 source compatibility
 - [x] Keiyoushi JAR catalog installation and updates
 - [x] Mihon/TachiyomiAZ `.tachibk` import

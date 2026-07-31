@@ -60,9 +60,10 @@ whose source subsystem is compatible with the Mihon extension ecosystem.
 ## 3. Scope simplifications
 
 - Retain AidokuRunner's model and `Runner` protocol surface for the existing
-  app, but replace the production online-source execution path with the JVM
-  host and remove Aidoku's WASM interpreter after simulator validation.
-- Remove Aidoku-specific delegated-source behavior.
+  app, but use the JVM host for the production iOS online-source execution
+  path. Interpreter-backed sources are not installed or reloaded on iOS.
+- Remove Aidoku-specific delegated-source behavior from the iOS UI and backup
+  restore path.
 - Do not port bespoke E-Hentai/ExHentai integration or migration code.
 - Treat all supported sources through the generic JVM extension interface.
 - Retain Aidoku's reader implementation and restyle only its surrounding

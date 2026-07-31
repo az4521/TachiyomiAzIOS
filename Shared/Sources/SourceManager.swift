@@ -40,16 +40,23 @@ class SourceManager {
     }
 
     init() {
+        #if os(iOS)
+        // Keiyoushi's signed catalog replaces delegated Aidoku source lists.
+        sourceListURLs = []
+        #else
         sourceListURLs = (UserDefaults.standard.array(forKey: "Browse.sourceLists") as? [String] ?? [])
             .compactMap { URL(string: $0) }
+        #endif
 
         loadSourcesTask = Task {
             await reloadSources()
         }
 
+        #if !os(iOS)
         Task {
             await loadSourceLists(reload: true)
         }
+        #endif
     }
 
     func reloadSources() async {

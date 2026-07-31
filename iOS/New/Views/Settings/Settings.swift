@@ -109,15 +109,6 @@ enum Settings {
                 ))
             ),
             .init(
-                key: "SourceLists",
-                title: NSLocalizedString("SOURCE_LISTS"),
-                value: .page(.init(
-                    items: [],
-                    inlineTitle: true,
-                    icon: .system(name: "globe", color: "green")
-                ))
-            ),
-            .init(
                 key: "Backups",
                 title: NSLocalizedString("BACKUPS"),
                 value: .page(.init(

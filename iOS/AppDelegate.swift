@@ -196,7 +196,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 "AutomaticBackups.readingSessions": true,
                 "AutomaticBackups.updates": false,
                 "AutomaticBackups.settings": true,
-                "AutomaticBackups.sourceLists": true,
+                "AutomaticBackups.sourceLists": false,
                 "AutomaticBackups.sensitiveSettings": false,
 
                 "Library.downloadOnlyOnWifi": false,
@@ -504,27 +504,10 @@ extension AppDelegate {
             let scheme = url.scheme?.lowercased(),
             ["tachiaz", "aidoku"].contains(scheme)
         {
-            if url.host == "addSourceList" { // addSourceList?url=
-                let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-                if let listUrlString = components?.queryItems?.first(where: { $0.name == "url" })?.value,
-                   let listUrl = URL(string: listUrlString) {
-                    guard !SourceManager.shared.sourceListURLs.contains(listUrl) else { return }
-                    Task {
-                        let success = await SourceManager.shared.addSourceList(url: listUrl)
-                        if success {
-                            presentAlert(
-                                title: NSLocalizedString("SOURCE_LIST_ADDED", comment: ""),
-                                message: NSLocalizedString("SOURCE_LIST_ADDED_TEXT", comment: "")
-                            )
-                        } else {
-                            presentAlert(
-                                title: NSLocalizedString("SOURCE_LIST_ADD_FAIL", comment: ""),
-                                message: NSLocalizedString("SOURCE_LIST_ADD_FAIL_TEXT", comment: "")
-                            )
-                        }
-                    }
-                }
-            } else if let host = url.host, let source = SourceManager.shared.source(for: host) {
+            if
+                let host = url.host,
+                let source = SourceManager.shared.source(for: host)
+            {
                 // todo: we should support opening items in library even if the source isn't installed
                 Task { @MainActor in
                     // support percent encoding characters like "/" for manga and chapter keys
@@ -580,16 +563,6 @@ extension AppDelegate {
                     Task {
                         await handleDeepLink(url: url)
                     }
-                }
-            }
-        } else if url.pathExtension.lowercased() == "aix" {
-            Task {
-                let result = await SourceManager.shared.importSource(from: url)
-                if result == nil {
-                    presentAlert(
-                        title: NSLocalizedString("IMPORT_FAIL", comment: ""),
-                        message: NSLocalizedString("SOURCE_IMPORT_FAIL_TEXT", comment: "")
-                    )
                 }
             }
         } else if
