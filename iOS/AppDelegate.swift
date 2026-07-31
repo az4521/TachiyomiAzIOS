@@ -284,8 +284,20 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             name: Notification.Name(NotificationManager.settingKey),
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleLibraryUpdateIntervalChange(_:)),
+            name: Notification.Name("Library.updateInterval"),
+            object: nil
+        )
 
         return true
+    }
+
+    @objc private func handleLibraryUpdateIntervalChange(_ note: Notification) {
+        Task {
+            await MangaManager.shared.scheduleLibraryRefresh()
+        }
     }
 
     @objc private func handleNotifyNewChaptersToggle(_ note: Notification) {

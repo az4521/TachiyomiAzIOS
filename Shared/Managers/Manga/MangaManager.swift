@@ -273,6 +273,10 @@ extension MangaManager {
             }
 
             Task { @Sendable in
+                // BGTaskScheduler requests are one-shot. Queue the next request
+                // before starting any network work so the schedule survives an
+                // update failure or the app being suspended during the refresh.
+                await self.scheduleNextLibraryRefresh(after: .now)
                 await self.refreshLibrary(category: self.targetCategory, task: task as? ProgressReporting)
 
                 task.setTaskCompleted(success: true)
@@ -281,42 +285,49 @@ extension MangaManager {
 #endif
     }
 
-    func scheduleLibraryRefresh() {
-        let lastUpdated = Date(timeIntervalSince1970: UserDefaults.standard.double(forKey: "Library.lastUpdated"))
-        let interval: Double = switch UserDefaults.standard.string(forKey: "Library.updateInterval") {
-            case "12hours": 43200
-            case "daily": 86400
-            case "2days": 172800
-            case "weekly": 604800
-            default: 0
+    nonisolated static func libraryUpdateInterval(for value: String?) -> TimeInterval? {
+        switch value {
+            case "12hours": 43_200
+            case "daily": 86_400
+            case "2days": 172_800
+            case "weekly": 604_800
+            default: nil
         }
-        guard interval > 0 else {
+    }
+
+    nonisolated static func nextLibraryRefreshDate(
+        after date: Date,
+        intervalValue: String?
+    ) -> Date? {
+        guard let interval = libraryUpdateInterval(for: intervalValue) else {
+            return nil
+        }
+        return date.addingTimeInterval(interval)
+    }
+
+    func scheduleLibraryRefresh() async {
+        let lastUpdated = Date(timeIntervalSince1970: UserDefaults.standard.double(forKey: "Library.lastUpdated"))
+        let intervalValue = UserDefaults.standard.string(forKey: "Library.updateInterval")
+        guard let nextUpdateTime = Self.nextLibraryRefreshDate(
+            after: lastUpdated,
+            intervalValue: intervalValue
+        ) else {
 #if !os(macOS) && !targetEnvironment(simulator)
             BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.taskIdentifier)
 #endif
             return
         }
-        let nextUpdateTime = lastUpdated + interval
 
-        if nextUpdateTime < Date.now {
+        if nextUpdateTime <= Date.now {
             // interval time has passed, refresh now
-            Task {
-                await refreshLibrary()
-            }
-        } else {
-#if !os(macOS) && !targetEnvironment(simulator)
-            // schedule task for the future
-            let request = BGProcessingTaskRequest(identifier: Self.taskIdentifier)
-            request.earliestBeginDate = nextUpdateTime
-            request.requiresExternalPower = false
-            request.requiresNetworkConnectivity = true
+            await refreshLibrary()
 
-            do {
-                try BGTaskScheduler.shared.submit(request)
-            } catch {
-                LogManager.logger.error("Could not schedule library refresh: \(error)")
-            }
-#endif
+            // A refresh can finish without changing Library.lastUpdated (for
+            // example, when Wi-Fi-only updating is blocked). Rebase from now so
+            // launch does not immediately retry the same overdue refresh.
+            scheduleNextLibraryRefresh(after: .now)
+        } else {
+            submitLibraryRefresh(at: nextUpdateTime)
         }
     }
 
@@ -341,6 +352,39 @@ extension MangaManager {
 #endif
 
         await refreshLibrary(category: category)
+        scheduleNextLibraryRefresh(after: .now)
+    }
+
+    private func scheduleNextLibraryRefresh(after date: Date) {
+        let intervalValue = UserDefaults.standard.string(forKey: "Library.updateInterval")
+        guard let nextUpdateTime = Self.nextLibraryRefreshDate(
+            after: date,
+            intervalValue: intervalValue
+        ) else {
+#if !os(macOS) && !targetEnvironment(simulator)
+            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.taskIdentifier)
+#endif
+            return
+        }
+        submitLibraryRefresh(at: nextUpdateTime)
+    }
+
+    private func submitLibraryRefresh(at date: Date) {
+#if !os(macOS) && !targetEnvironment(simulator)
+        // Rescheduling also handles interval changes while a request is pending.
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.taskIdentifier)
+
+        let request = BGProcessingTaskRequest(identifier: Self.taskIdentifier)
+        request.earliestBeginDate = date
+        request.requiresExternalPower = false
+        request.requiresNetworkConnectivity = true
+
+        do {
+            try BGTaskScheduler.shared.submit(request)
+        } catch {
+            LogManager.logger.error("Could not schedule library refresh: \(error)")
+        }
+#endif
     }
 
     /// Refresh manga objects in library.
