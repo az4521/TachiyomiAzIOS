@@ -212,12 +212,13 @@ actor JVMSourceRuntime {
         {
             throw URLError(.badServerResponse)
         }
+        let downloadedSize = Int64(
+            (try temporaryJar.resourceValues(forKeys: [.fileSizeKey]))
+                .fileSize ?? 0
+        )
         if
             response.expectedContentLength > Self.maximumExtensionSize ||
-            Int64(
-                (try temporaryJar.resourceValues(forKeys: [.fileSizeKey]))
-                    .fileSize ?? 0
-            ) > Self.maximumExtensionSize
+            downloadedSize > Self.maximumExtensionSize
         {
             throw RuntimeError.extensionTooLarge(Self.maximumExtensionSize)
         }
@@ -815,6 +816,15 @@ actor JVMSourceRuntime {
         }
     }
 
+    private func decodedResult<Value: Decodable>(
+        _ request: ExtensionHostRequest,
+        as type: Value.Type
+    ) async throws -> Value {
+        let response = try await dispatch(request)
+        try requireSuccess(response)
+        return try decodeResult(response, as: type)
+    }
+
     func unload(extensionId: String) async throws {
         let response = try await dispatch(
             .init(
@@ -1366,7 +1376,7 @@ actor TachiyomiXSourceRunner: AidokuRunner.Runner {
             chapterURL: chapter.key,
             chapterName: chapter.title ?? ""
         )
-        return try pages.map(\.intoAidoku)
+        return try pages.map { try $0.intoAidoku }
     }
 
     func getImageRequest(
