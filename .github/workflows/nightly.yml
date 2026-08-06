@@ -43,7 +43,19 @@ jobs:
           bash Scripts/bootstrap-suwayomi-compat.sh
           bash Scripts/build-mobile-shims.sh
           bash Scripts/build-extension-host.sh --test
-          bash Scripts/test-mobile-java-base.sh
+
+      - name: Test optional real-world extension fixtures
+        env:
+          TACHIYOMIAZ_EXTLIB_1_4_FIXTURE_URL: ${{ secrets.TACHIYOMIAZ_EXTLIB_1_4_FIXTURE_URL }}
+          TACHIYOMIAZ_EXTLIB_1_6_FIXTURE_URL: ${{ secrets.TACHIYOMIAZ_EXTLIB_1_6_FIXTURE_URL }}
+        run: |
+          if [[ -n "$TACHIYOMIAZ_EXTLIB_1_4_FIXTURE_URL" && \
+                -n "$TACHIYOMIAZ_EXTLIB_1_6_FIXTURE_URL" ]]; then
+            bash Scripts/test-mobile-java-base.sh
+          else
+            echo "Skipping optional extension fixture tests."
+            echo "Configure both TACHIYOMIAZ_EXTLIB_1_4_FIXTURE_URL and TACHIYOMIAZ_EXTLIB_1_6_FIXTURE_URL repository secrets to enable them."
+          fi
 
       - name: Set artifact name
         id: metadata

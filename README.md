@@ -67,6 +67,12 @@ on an iPhone. Install it with AltStore, SideStore, or Sideloadly; that tool
 signs the IPA with your Apple ID during installation. The workflow artifact is
 kept for 14 days and includes a SHA-256 checksum.
 
+The external extension-lib 1.4 and 1.6 runtime tests are optional in CI. Add
+both `TACHIYOMIAZ_EXTLIB_1_4_FIXTURE_URL` and
+`TACHIYOMIAZ_EXTLIB_1_6_FIXTURE_URL` as repository secrets to enable them;
+the IPA build otherwise runs the self-contained extension-host tests and skips
+the external fixtures.
+
 ## Contributing
 The original application and reader are Aidoku work. JVM runtime changes in
 this fork are described in `docs/JVM_RUNTIME.md`.
