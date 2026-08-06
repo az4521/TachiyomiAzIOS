@@ -918,102 +918,155 @@ extension SettingView {
 
     private func loginWebSheetView(value: LoginSetting) -> some View {
         PlatformNavigationStack {
-            Group {
-                if let url = value.url.flatMap({ URL(string: $0) }) {
-                    loginWebView(url: url, value: value)
+            loginWebContent(value: value)
+                .toolbar {
+                    loginWebToolbar
                 }
+                .navigationTitle(setting.title)
+                .navigationBarTitleDisplayMode(.inline)
+                .onChange(
+                    of: loginCookies,
+                    perform: handleLoginCookiesChange
+                )
+                .onChange(
+                    of: loginLocalStorage,
+                    perform: handleLoginLocalStorageChange
+                )
+                .task {
+                    await prepareJVMWebLogin()
+                }
+                .alert(
+                    NSLocalizedString("LOGIN_FAILED"),
+                    isPresented: loginWebErrorIsPresented
+                ) {
+                    Button(NSLocalizedString("OK"), role: .cancel) {}
+                } message: {
+                    Text(loginWebError ?? "")
+                }
+        }
+    }
+
+    @ViewBuilder
+    private func loginWebContent(value: LoginSetting) -> some View {
+        if let url = value.url.flatMap({ URL(string: $0) }) {
+            loginWebView(url: url, value: value)
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var loginWebToolbar: some ToolbarContent {
+        ToolbarItem(placement: .cancellationAction) {
+            CloseButton {
+                showLoginWebView = false
             }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    CloseButton {
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                loginReload = true
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+        }
+        if source?.runner is TachiyomiXSourceRunner {
+            ToolbarItem(placement: .confirmationAction) {
+                Button(NSLocalizedString("DONE")) {
+                    commitJVMWebLogin()
+                }
+                .disabled(loginLoading || loginDetailedCookies.isEmpty)
+            }
+        }
+    }
+
+    private var loginWebErrorIsPresented: Binding<Bool> {
+        Binding(
+            get: { loginWebError != nil },
+            set: { if !$0 { loginWebError = nil } }
+        )
+    }
+
+    private func handleLoginCookiesChange(
+        _ cookies: [String: String]
+    ) {
+        let settingKey = key(setting.key)
+        let cookieKeys = Array(cookies.keys)
+        let cookieValues = cookieKeys.compactMap { cookies[$0] }
+        SettingsStore.shared.set(
+            key: settingKey + Self.cookieKeysKeySuffix,
+            value: cookieKeys
+        )
+        SettingsStore.shared.set(
+            key: settingKey + Self.cookieValuesKeySuffix,
+            value: cookieValues
+        )
+
+        if source?.runner is TachiyomiXSourceRunner {
+            return
+        }
+        if let source, source.features.handlesWebLogin {
+            Task {
+                do {
+                    let success = try await source.handleWebLogin(
+                        key: setting.key,
+                        cookies: cookies
+                    )
+                    if success {
                         showLoginWebView = false
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        loginReload = true
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                }
-                if source?.runner is TachiyomiXSourceRunner {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button(NSLocalizedString("DONE")) {
-                            commitJVMWebLogin()
-                        }
-                        .disabled(
-                            loginLoading || loginDetailedCookies.isEmpty
+                        commitWebLoginState(
+                            settingKey: settingKey,
+                            cookies: cookies
                         )
                     }
-                }
-            }
-            .navigationTitle(setting.title)
-            .navigationBarTitleDisplayMode(.inline)
-            .onChange(of: loginCookies) { newValue in
-                let key = key(setting.key)
-                let keys = Array(newValue.keys)
-                let values = keys.map { newValue[$0]! }
-                SettingsStore.shared.set(key: key + Self.cookieKeysKeySuffix, value: keys)
-                SettingsStore.shared.set(key: key + Self.cookieValuesKeySuffix, value: values)
-
-                func commit() {
-                    if newValue.isEmpty {
-                        SettingsStore.shared.remove(key: key)
-                    } else {
-                        SettingsStore.shared.set(key: key, value: "logged_in") // set key to indicate logged in
-                    }
-                }
-
-                if source?.runner is TachiyomiXSourceRunner {
-                    return
-                }
-                if let source, source.features.handlesWebLogin {
-                    Task {
-                        do {
-                            let success = try await source.handleWebLogin(key: setting.key, cookies: newValue)
-                            if success {
-                                showLoginWebView = false
-                                commit()
-                            }
-                        } catch {
-                            LogManager.logger.error("Error handling web login for \(source.key): \(error)")
-                        }
-                    }
-                } else {
-                    commit()
-                }
-            }
-            .onChange(of: loginLocalStorage) { newValue in
-                let key = key(setting.key)
-                for (lsKey, lsValue) in newValue {
-                    SettingsStore.shared.set(key: key + Self.localStoragePrefix + lsKey, value: lsValue)
-                }
-            }
-            .task {
-                guard
-                    loginPreferredUserAgent.isEmpty,
-                    let runner = source?.runner as? TachiyomiXSourceRunner
-                else { return }
-                do {
-                    loginPreferredUserAgent = try await runner
-                        .webLoginUserAgent()
                 } catch {
                     LogManager.logger.error(
-                        "Unable to obtain JVM web-login user agent: \(error)"
+                        "Error handling web login for \(source.key): \(error)"
                     )
                 }
             }
-            .alert(
-                NSLocalizedString("LOGIN_FAILED"),
-                isPresented: Binding(
-                    get: { loginWebError != nil },
-                    set: { if !$0 { loginWebError = nil } }
-                )
-            ) {
-                Button(NSLocalizedString("OK"), role: .cancel) {}
-            } message: {
-                Text(loginWebError ?? "")
-            }
+        } else {
+            commitWebLoginState(
+                settingKey: settingKey,
+                cookies: cookies
+            )
+        }
+    }
+
+    private func commitWebLoginState(
+        settingKey: String,
+        cookies: [String: String]
+    ) {
+        if cookies.isEmpty {
+            SettingsStore.shared.remove(key: settingKey)
+        } else {
+            SettingsStore.shared.set(
+                key: settingKey,
+                value: "logged_in"
+            )
+        }
+    }
+
+    private func handleLoginLocalStorageChange(
+        _ localStorage: [String: String]
+    ) {
+        let settingKey = key(setting.key)
+        for (storageKey, storageValue) in localStorage {
+            SettingsStore.shared.set(
+                key: settingKey + Self.localStoragePrefix + storageKey,
+                value: storageValue
+            )
+        }
+    }
+
+    private func prepareJVMWebLogin() async {
+        guard
+            loginPreferredUserAgent.isEmpty,
+            let runner = source?.runner as? TachiyomiXSourceRunner
+        else { return }
+        do {
+            loginPreferredUserAgent = try await runner.webLoginUserAgent()
+        } catch {
+            LogManager.logger.error(
+                "Unable to obtain JVM web-login user agent: \(error)"
+            )
         }
     }
 
