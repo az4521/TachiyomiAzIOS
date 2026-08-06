@@ -920,17 +920,7 @@ extension SettingView {
         PlatformNavigationStack {
             Group {
                 if let url = value.url.flatMap({ URL(string: $0) }) {
-                    WebView(
-                        url,
-                        localStorageKeys: value.localStorageKeys ?? [],
-                        cookies: $loginCookies,
-                        detailedCookies: $loginDetailedCookies,
-                        localStorage: $loginLocalStorage,
-                        userAgent: $loginUserAgent,
-                        preferredUserAgent: loginPreferredUserAgent,
-                        reloadToggle: $loginReload
-                    )
-                    .edgesIgnoringSafeArea(.bottom)
+                    loginWebView(url: url, value: value)
                 }
             }
             .toolbar {
@@ -1025,6 +1015,24 @@ extension SettingView {
                 Text(loginWebError ?? "")
             }
         }
+    }
+
+    private func loginWebView(
+        url: URL,
+        value: LoginSetting
+    ) -> some View {
+        let localStorageKeys = value.localStorageKeys ?? []
+        return WebView(
+            url,
+            localStorageKeys: localStorageKeys,
+            cookies: $loginCookies,
+            detailedCookies: $loginDetailedCookies,
+            localStorage: $loginLocalStorage,
+            userAgent: $loginUserAgent,
+            preferredUserAgent: loginPreferredUserAgent,
+            reloadToggle: $loginReload
+        )
+        .edgesIgnoringSafeArea(.bottom)
     }
 
     private func commitJVMWebLogin() {
