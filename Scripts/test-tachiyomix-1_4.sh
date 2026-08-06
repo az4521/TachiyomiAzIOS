@@ -43,7 +43,10 @@ if [[ "$actual_sha256" != "$expected_sha256" ]]; then
     exit 1
 fi
 
-mapfile -t compatibility_jars < <(
+compatibility_jars=()
+while IFS= read -r compatibility_jar; do
+    compatibility_jars+=("$compatibility_jar")
+done < <(
     find "$compatibility_root" -name '*.jar' -type f | sort
 )
 if [[ "${#compatibility_jars[@]}" -eq 0 ]]; then

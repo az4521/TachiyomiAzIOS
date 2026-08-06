@@ -48,7 +48,10 @@ mkdir -p \
     "$compat_test_classes_root" \
     "$distribution_root"
 
-mapfile -t main_sources < <(find "$source_root" -name '*.java' -type f | sort)
+main_sources=()
+while IFS= read -r source; do
+    main_sources+=("$source")
+done < <(find "$source_root" -name '*.java' -type f | sort)
 if [[ "${#main_sources[@]}" -eq 0 ]]; then
     echo "No ExtensionHost Java sources found under $source_root" >&2
     exit 1
@@ -68,7 +71,10 @@ find "$classes_root" -exec touch -t 198001010000 {} +
 "$jar" cMf "$output_jar" -C "$classes_root" .
 
 if [[ "${1:-}" == "--test" ]]; then
-    mapfile -t test_sources < <(find "$test_source_root" -name '*.java' -type f | sort)
+    test_sources=()
+    while IFS= read -r source; do
+        test_sources+=("$source")
+    done < <(find "$test_source_root" -name '*.java' -type f | sort)
     if [[ "${#test_sources[@]}" -eq 0 ]]; then
         echo "No ExtensionHost tests found under $test_source_root" >&2
         exit 1
@@ -101,7 +107,10 @@ if [[ "${1:-}" == "--test" ]]; then
     fi
 
     if [[ -n "${TACHIAZ_COMPAT_CLASSPATH:-}" ]]; then
-        mapfile -t compat_test_sources < <(
+        compat_test_sources=()
+        while IFS= read -r source; do
+            compat_test_sources+=("$source")
+        done < <(
             find "$compat_test_source_root" -name '*.java' -type f | sort
         )
         "$javac" \

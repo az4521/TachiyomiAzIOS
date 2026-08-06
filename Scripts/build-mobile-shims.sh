@@ -22,7 +22,10 @@ fi
 
 rm -rf "$build_root" "$output_root"
 mkdir -p "$build_root" "$output_root"
-mapfile -t sources < <(find "$source_root" -name '*.java' -type f | sort)
+sources=()
+while IFS= read -r source; do
+    sources+=("$source")
+done < <(find "$source_root" -name '*.java' -type f | sort)
 
 "$java_home/bin/javac" \
     -source 8 \
