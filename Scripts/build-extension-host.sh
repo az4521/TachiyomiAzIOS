@@ -30,9 +30,19 @@ jar="$java_home/bin/jar"
 test_java_home="${TACHIAZ_TEST_JAVA_HOME:-$java_home}"
 test_java="$test_java_home/bin/java"
 test_java_options=()
+test_java_options_set=0
 if [[ -n "${TACHIAZ_TEST_JAVA_OPTIONS:-}" ]]; then
     read -r -a test_java_options <<< "$TACHIAZ_TEST_JAVA_OPTIONS"
+    test_java_options_set=1
 fi
+
+run_test_java() {
+    if [[ "$test_java_options_set" -eq 1 ]]; then
+        "$test_java" "${test_java_options[@]}" "$@"
+    else
+        "$test_java" "$@"
+    fi
+}
 
 for executable in "$javac" "$java" "$jar" "$test_java"; do
     if [[ ! -x "$executable" ]]; then
@@ -94,13 +104,13 @@ if [[ "${1:-}" == "--test" ]]; then
         -C "$repository_root/Runtime/ExtensionHost/src/test/resources" \
         AndroidManifest.xml
 
-    "$test_java" "${test_java_options[@]}" \
+    run_test_java \
         -cp "$output_jar:$test_classes_root" \
         app.tachiaz.runtime.ExtensionHostTest \
         "$fixture_jar"
 
     if [[ -n "${TACHIAZ_EXTLIB_1_6_JAR:-}" ]]; then
-        "$test_java" "${test_java_options[@]}" \
+        run_test_java \
             -cp "$output_jar:$test_classes_root" \
             app.tachiaz.runtime.TachiyomiXExtensionLib16InspectionTest \
             "$TACHIAZ_EXTLIB_1_6_JAR"
@@ -121,20 +131,20 @@ if [[ "${1:-}" == "--test" ]]; then
             -d "$compat_test_classes_root" \
             "${compat_test_sources[@]}"
 
-        "$test_java" "${test_java_options[@]}" \
+        run_test_java \
             -cp \
             "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$compat_test_classes_root" \
             app.tachiaz.runtime.MihonExtensionLib16FallbackTest
 
         if [[ "${TACHIAZ_VERIFY_MOBILE_SHIMS:-}" == "1" ]]; then
-            "$test_java" "${test_java_options[@]}" \
+            run_test_java \
                 -cp \
                 "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$compat_test_classes_root" \
                 app.tachiaz.runtime.MobileShimPrecedenceTest
         fi
 
         if [[ -n "${TACHIAZ_MIHON_14_JAR:-}" ]]; then
-            "$test_java" "${test_java_options[@]}" \
+            run_test_java \
                 -cp \
                 "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$compat_test_classes_root" \
                 app.tachiaz.runtime.MihonExtensionLib14RuntimeTest \
@@ -142,7 +152,7 @@ if [[ "${1:-}" == "--test" ]]; then
         fi
 
         if [[ -n "${TACHIAZ_EXTLIB_1_4_JAR:-}" ]]; then
-            "$test_java" "${test_java_options[@]}" \
+            run_test_java \
                 -cp \
                 "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$test_classes_root" \
                 app.tachiaz.runtime.TachiyomiXExtensionLib14RuntimeTest \
@@ -150,7 +160,7 @@ if [[ "${1:-}" == "--test" ]]; then
         fi
 
         if [[ -n "${TACHIAZ_EXTLIB_1_6_JAR:-}" ]]; then
-            "$test_java" "${test_java_options[@]}" \
+            run_test_java \
                 -cp "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$test_classes_root" \
                 app.tachiaz.runtime.TachiyomiXExtensionLib16RuntimeTest \
                 "$TACHIAZ_EXTLIB_1_6_JAR"
