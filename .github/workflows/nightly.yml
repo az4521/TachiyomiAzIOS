@@ -1,27 +1,42 @@
-name: Build and upload nightly ipa
+name: Build iPhone IPA
 
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iphone-ipa-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-    runs-on: macos-15
+  build-ipa:
+    name: Build unsigned IPA
+    runs-on: macos-26
+    timeout-minutes: 90
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Setup Xcode
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: "26.0"
-      - name: Setup Java
+          xcode-version: "26.4.1"
+
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
+
       - name: Verify external AidokuRunner is absent
         run: Scripts/check-no-external-aidokurunner.sh
-      - name: Install Xcode platforms
-        run: |
-          xcrun simctl list > /dev/null # fixes next command sometimes failing
-          xcodebuild -downloadPlatform iOS
+
       - name: Bootstrap JVM runtime
         run: |
           Scripts/bootstrap-openjdk-ios.sh
@@ -29,55 +44,69 @@ jobs:
           Scripts/build-mobile-shims.sh
           Scripts/build-extension-host.sh --test
           Scripts/test-mobile-java-base.sh
-      - name: Build iOS Simulator
+
+      - name: Set artifact name
+        id: metadata
+        run: |
+          sha_short="${GITHUB_SHA:0:7}"
+          echo "sha_short=$sha_short" >> "$GITHUB_OUTPUT"
+          echo "ipa_name=TachiyomiAZ-iOS-$sha_short.ipa" >> "$GITHUB_OUTPUT"
+
+      - name: Archive iPhone app
         run: |
           xcodebuild \
+            -project Aidoku.xcodeproj \
             -scheme "Aidoku (iOS)" \
-            -configuration Debug \
-            -destination "generic/platform=iOS Simulator" \
-            -derivedDataPath build/simulator \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/TachiyomiAZ.xcarchive" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             -skipPackagePluginValidation \
             CODE_SIGN_IDENTITY= \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            build
-      - name: Compile iOS Simulator tests
+            archive
+
+      - name: Package unsigned IPA
+        id: package
+        env:
+          IPA_NAME: ${{ steps.metadata.outputs.ipa_name }}
         run: |
-          xcodebuild \
-            -scheme "Aidoku (iOS)" \
-            -configuration Debug \
-            -destination "generic/platform=iOS Simulator" \
-            -derivedDataPath build/simulator-tests \
-            -skipPackagePluginValidation \
-            CODE_SIGN_IDENTITY= \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            build-for-testing
-      - name: Get commit SHA
-        id: commitinfo
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-      - name: Package simulator app
-        run: |
-          ditto \
-            -c -k --sequesterRsrc --keepParent \
-            build/simulator/Build/Products/Debug-iphonesimulator/Aidoku.app \
-            TachiyomiAZ-iOS_Simulator-${{ steps.commitinfo.outputs.sha_short }}.zip
-      - name: Upload simulator app
+          app_path="$RUNNER_TEMP/TachiyomiAZ.xcarchive/Products/Applications/Aidoku.app"
+          package_dir="$RUNNER_TEMP/ipa-package"
+          ipa_path="$RUNNER_TEMP/$IPA_NAME"
+
+          test -d "$app_path"
+          mkdir -p "$package_dir/Payload"
+          ditto "$app_path" "$package_dir/Payload/Aidoku.app"
+          (
+            cd "$package_dir"
+            ditto -c -k --sequesterRsrc --keepParent Payload "$ipa_path"
+          )
+          unzip -t "$ipa_path"
+          shasum -a 256 "$ipa_path" > "$ipa_path.sha256"
+
+          echo "ipa_path=$ipa_path" >> "$GITHUB_OUTPUT"
+          echo "checksum_path=$ipa_path.sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TachiyomiAZ-iOS_Simulator-${{ steps.commitinfo.outputs.sha_short }}
-          path: TachiyomiAZ-iOS_Simulator-${{ steps.commitinfo.outputs.sha_short }}.zip
+          name: TachiyomiAZ-iOS-${{ steps.metadata.outputs.sha_short }}
+          path: |
+            ${{ steps.package.outputs.ipa_path }}
+            ${{ steps.package.outputs.checksum_path }}
           if-no-files-found: error
-      - name: Build
-        run: xcodebuild -scheme "Aidoku (iOS)" -configuration Release archive -archivePath build/Aidoku.xcarchive -skipPackagePluginValidation CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
-      - name: Package ipa
+          retention-days: 14
+
+      - name: Add installation note
+        env:
+          IPA_NAME: ${{ steps.metadata.outputs.ipa_name }}
         run: |
-          mkdir Payload
-          cp -r build/Aidoku.xcarchive/Products/Applications/Aidoku.app Payload
-          zip -r TachiyomiAZ-iOS_nightly-${{ steps.commitinfo.outputs.sha_short }}.ipa Payload
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: TachiyomiAZ-iOS_nightly-${{ steps.commitinfo.outputs.sha_short }}.ipa
-          path: TachiyomiAZ-iOS_nightly-${{ steps.commitinfo.outputs.sha_short }}.ipa
-          if-no-files-found: error
+          {
+            echo "## iPhone IPA"
+            echo
+            echo "Built \`$IPA_NAME\` as an unsigned IPA."
+            echo
+            echo "Download the artifact, extract the IPA, and install it with AltStore, SideStore, or Sideloadly. The sideloading tool signs the app with your Apple ID."
+          } >> "$GITHUB_STEP_SUMMARY"

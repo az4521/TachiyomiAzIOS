@@ -54,17 +54,18 @@ TACHIYOMIAZ_BUILD_JAVA_HOME=/path/to/jdk21 Scripts/test-mobile-java-base.sh
 
 The OpenJDK bootstrap installs separate device and simulator Java bundles. In
 Xcode, select an iPhone Simulator destination and run the `Aidoku (iOS)`
-scheme; the build phase embeds the simulator bundle automatically. The
-nightly workflow also uploads the unsigned universal simulator `.app` as a zip
-before producing the sideloadable device IPA.
+scheme; the build phase embeds the simulator bundle automatically.
 
-To install a downloaded simulator artifact after booting a simulator:
+### GitHub Actions IPA
 
-```sh
-unzip TachiyomiAZ-iOS_Simulator-*.zip
-xcrun simctl install booted Aidoku.app
-xcrun simctl launch booted app.tachiyomiaz.TachiyomiAZ
-```
+The **Build iPhone IPA** workflow runs after every push to `main` and can also
+be started manually from the repository's **Actions** tab. When it succeeds,
+download the `TachiyomiAZ-iOS-<commit>` artifact and extract the `.ipa` file.
+
+The CI artifact is unsigned, so it cannot be installed by opening it directly
+on an iPhone. Install it with AltStore, SideStore, or Sideloadly; that tool
+signs the IPA with your Apple ID during installation. The workflow artifact is
+kept for 14 days and includes a SHA-256 checksum.
 
 ## Contributing
 The original application and reader are Aidoku work. JVM runtime changes in
