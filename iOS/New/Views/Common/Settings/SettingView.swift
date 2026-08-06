@@ -967,8 +967,8 @@ extension SettingView {
                 Image(systemName: "arrow.clockwise")
             }
         }
-        if source?.runner is TachiyomiXSourceRunner {
-            ToolbarItem(placement: .confirmationAction) {
+        ToolbarItem(placement: .confirmationAction) {
+            if source?.runner is TachiyomiXSourceRunner {
                 Button(NSLocalizedString("DONE")) {
                     commitJVMWebLogin()
                 }
