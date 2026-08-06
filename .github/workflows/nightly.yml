@@ -35,15 +35,15 @@ jobs:
           java-version: "21"
 
       - name: Verify external AidokuRunner is absent
-        run: Scripts/check-no-external-aidokurunner.sh
+        run: bash Scripts/check-no-external-aidokurunner.sh
 
       - name: Bootstrap JVM runtime
         run: |
-          Scripts/bootstrap-openjdk-ios.sh
-          Scripts/bootstrap-suwayomi-compat.sh
-          Scripts/build-mobile-shims.sh
-          Scripts/build-extension-host.sh --test
-          Scripts/test-mobile-java-base.sh
+          bash Scripts/bootstrap-openjdk-ios.sh
+          bash Scripts/bootstrap-suwayomi-compat.sh
+          bash Scripts/build-mobile-shims.sh
+          bash Scripts/build-extension-host.sh --test
+          bash Scripts/test-mobile-java-base.sh
 
       - name: Set artifact name
         id: metadata
