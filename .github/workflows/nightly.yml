@@ -312,7 +312,11 @@ jobs:
             ditto -c -k --sequesterRsrc --keepParent Payload "$ipa_path"
           )
           unzip -t "$ipa_path"
-          shasum -a 256 "$ipa_path" > "$ipa_path.sha256"
+          (
+            cd "$(dirname "$ipa_path")"
+            ipa_name="$(basename "$ipa_path")"
+            shasum -a 256 "$ipa_name" > "$ipa_name.sha256"
+          )
 
           echo "ipa_path=$ipa_path" >> "$GITHUB_OUTPUT"
           echo "checksum_path=$ipa_path.sha256" >> "$GITHUB_OUTPUT"
