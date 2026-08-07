@@ -84,8 +84,8 @@ struct SourceSettingsView: View {
                 .ignoresSafeArea()
         )
         .toolbar {
-            if showsCloseButton {
-                ToolbarItem(placement: .cancellationAction) {
+            ToolbarItem(placement: .cancellationAction) {
+                if showsCloseButton {
                     CloseButton {
                         path.dismiss()
                     }

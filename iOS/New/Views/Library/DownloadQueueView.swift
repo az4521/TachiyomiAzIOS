@@ -142,8 +142,8 @@ struct DownloadQueueView: View {
             .navigationTitle(NSLocalizedString("DOWNLOAD_QUEUE"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if !embeddedInNavigationController {
-                    ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .cancellationAction) {
+                    if !embeddedInNavigationController {
                         CloseButton {
                             dismiss()
                         }
