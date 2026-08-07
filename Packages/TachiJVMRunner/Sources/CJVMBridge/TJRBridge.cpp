@@ -673,6 +673,12 @@ TJRRuntime *tjr_runtime_create(
         "-Xrs",
         "-Xmx192m",
 #if TARGET_OS_IPHONE
+        // Desktop HotSpot reserves a 1 GiB compressed class space by
+        // default. iOS refuses a single reservation that large even though
+        // the pages would only be committed on demand. JDK 26 treats
+        // UseCompressedClassPointers as obsolete, so size the reservation
+        // explicitly instead of attempting to disable compressed pointers.
+        "-XX:CompressedClassSpaceSize=64m",
         "-XX:+DisplayVMOutputToStderr",
 #endif
     };
