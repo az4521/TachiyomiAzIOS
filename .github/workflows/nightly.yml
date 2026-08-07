@@ -192,7 +192,10 @@ jobs:
         run: |
           app_binary="$RUNNER_TEMP/TachiyomiAZ.xcarchive/Products/Applications/Aidoku.app/Aidoku"
           test -f "$app_binary"
-          exported_symbols="$(xcrun nm -gjU "$app_binary")"
+          exported_symbols="$({
+            xcrun llvm-objdump --macho --exports-trie "$app_binary" |
+              awk '{ for (field = 1; field <= NF; field++) if ($field ~ /^_[A-Za-z0-9_$.]+$/) print $field }'
+          } | LC_ALL=C sort -u)"
           required_symbols=(
             _JNI_CreateJavaVM
             _JIMAGE_Open
