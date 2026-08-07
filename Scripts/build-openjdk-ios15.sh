@@ -11,19 +11,35 @@ ios_runtime_patch="$repository_root/Scripts/patches/openjdk-mobile-ios-runtime.p
 symbol_keeper_sha256="ec02a950b2c630b234aa393abdf48efe7ce95c3a637c189e0a2e492e8ec316db"
 device_libffi_sha256="4f39fd1d53fbd69d1bdbd915413077d130daa3f6792d1b3a03a690a9cbd4dea3"
 simulator_libffi_sha256="701b522e3eff0263f18d4a9e487f0a7ac30050fb2af20e86b6849daa14f5781f"
-stamp_value="openjdk-mobile-$mobile_revision-ios-$deployment_target-v6"
+stamp_value="openjdk-mobile-$mobile_revision-ios-$deployment_target-v7"
 stamp_file="$vendor_root/.ios-runtime"
+runtime_data_files=(
+    conf/net.properties
+    conf/security/java.security
+    lib/security/blocked.certs
+    lib/security/public_suffix_list.dat
+    lib/tzdb.dat
+    legal/java.base/LICENSE
+)
 
 if [[ -f "$stamp_file" ]] && [[ "$(<"$stamp_file")" == "$stamp_value" ]]; then
-    if [[
-        -f "$vendor_root/OpenJDK.xcframework/Info.plist" &&
-        -f "$vendor_root/java_bundle-device/lib/modules" &&
-        -f "$vendor_root/java_bundle-device/conf/security/java.security" &&
-        -f "$vendor_root/java_bundle-device/lib/tzdb.dat" &&
-        -f "$vendor_root/java_bundle-simulator/lib/modules" &&
-        -f "$vendor_root/java_bundle-simulator/conf/security/java.security" &&
-        -f "$vendor_root/java_bundle-simulator/lib/tzdb.dat"
-    ]]; then
+    runtime_cache_current=true
+    if [[ ! -f "$vendor_root/OpenJDK.xcframework/Info.plist" ]]; then
+        runtime_cache_current=false
+    fi
+    for cached_bundle in java_bundle-device java_bundle-simulator
+    do
+        if [[ ! -f "$vendor_root/$cached_bundle/lib/modules" ]]; then
+            runtime_cache_current=false
+        fi
+        for runtime_data_file in "${runtime_data_files[@]}"
+        do
+            if [[ ! -f "$vendor_root/$cached_bundle/$runtime_data_file" ]]; then
+                runtime_cache_current=false
+            fi
+        done
+    done
+    if [[ "$runtime_cache_current" == true ]]; then
         echo "OpenJDK iOS runtime cache is current"
         exit 0
     fi
@@ -128,6 +144,18 @@ macos_sdk="$(xcrun --sdk macosx --show-sdk-path)"
         --with-conf-name=macos-aarch64 \
         --disable-warnings-as-errors
     make LOG=info CONF=macos-aarch64 jdk-image
+
+    # Validate platform-neutral runtime data before starting the expensive iOS
+    # device and simulator builds. Keep this list shared with the final bundle
+    # validation so a JDK layout change fails here, not after both builds.
+    host_image="$mobile_root/build/macos-aarch64/images/jdk"
+    for runtime_data_file in "${runtime_data_files[@]}"
+    do
+        if [[ ! -f "$host_image/$runtime_data_file" ]]; then
+            echo "Matching macOS JDK image is missing $runtime_data_file" >&2
+            exit 1
+        fi
+    done
 
     git apply --check "$ios_runtime_patch"
     git apply "$ios_runtime_patch"
@@ -361,13 +389,7 @@ create_java_bundle() {
     done
 
     local required_runtime_file
-    for required_runtime_file in \
-        conf/net.properties \
-        conf/security/java.security \
-        lib/security/default.policy \
-        lib/security/public_suffix_list.dat \
-        lib/tzdb.dat \
-        legal/java.base/LICENSE
+    for required_runtime_file in "${runtime_data_files[@]}"
     do
         if [[ ! -f "$destination/$required_runtime_file" ]]; then
             echo "Java bundle is missing $required_runtime_file" >&2
