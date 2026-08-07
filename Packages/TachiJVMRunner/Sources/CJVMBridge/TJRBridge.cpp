@@ -18,14 +18,59 @@
 
 #if defined(__APPLE__) && TARGET_OS_IPHONE
 extern "C" void loadfunctions();
+extern "C" void JDK_Canonicalize();
+extern "C" void JIMAGE_Open();
+extern "C" void JIMAGE_Close();
+extern "C" void JIMAGE_FindResource();
+extern "C" void JIMAGE_GetResource();
+extern "C" void ZIP_Open();
+extern "C" void ZIP_Close();
+extern "C" void ZIP_FindEntry();
+extern "C" void ZIP_ReadEntry();
+extern "C" void ZIP_FreeEntry();
+extern "C" void ZIP_CRC32();
+extern "C" void ZIP_GZip_InitParams();
+extern "C" void ZIP_GZip_Fully();
+extern "C" void JNU_NewStringPlatform();
+extern "C" void GetStringPlatformChars();
+extern "C" void JNI_OnLoad_java();
+extern "C" void JNI_OnLoad_jimage();
+extern "C" void JNI_OnLoad_zip();
+extern "C" void JNI_OnLoad_net();
+extern "C" void JNI_OnLoad_nio();
 
 // Referencing the symbol-keeper entry point makes the static linker include
 // symbol_keeper.o and, through its relocations, all class-library JNI natives.
 // The function body only prints the retained addresses; executing it performs
 // no registration and needlessly runs hundreds of stdio calls on the UI thread.
 static void retain_ios_jvm_symbols() {
-    void (*volatile anchor)() = &loadfunctions;
-    (void)anchor;
+    using StaticSymbol = void (*)();
+    StaticSymbol volatile anchors[] = {
+        &loadfunctions,
+        &JDK_Canonicalize,
+        &JIMAGE_Open,
+        &JIMAGE_Close,
+        &JIMAGE_FindResource,
+        &JIMAGE_GetResource,
+        &ZIP_Open,
+        &ZIP_Close,
+        &ZIP_FindEntry,
+        &ZIP_ReadEntry,
+        &ZIP_FreeEntry,
+        &ZIP_CRC32,
+        &ZIP_GZip_InitParams,
+        &ZIP_GZip_Fully,
+        &JNU_NewStringPlatform,
+        &GetStringPlatformChars,
+        &JNI_OnLoad_java,
+        &JNI_OnLoad_jimage,
+        &JNI_OnLoad_zip,
+        &JNI_OnLoad_net,
+        &JNI_OnLoad_nio,
+    };
+    for (StaticSymbol anchor : anchors) {
+        (void)anchor;
+    }
 }
 #endif
 

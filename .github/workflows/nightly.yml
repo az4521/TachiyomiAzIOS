@@ -205,6 +205,11 @@ jobs:
             _ZIP_GZip_Fully
             _JNU_NewStringPlatform
             _GetStringPlatformChars
+            _JNI_OnLoad_java
+            _JNI_OnLoad_jimage
+            _JNI_OnLoad_zip
+            _JNI_OnLoad_net
+            _JNI_OnLoad_nio
             _Java_java_lang_System_registerNatives
             _Java_jdk_internal_loader_NativeLibraries_findBuiltinLib
           )
