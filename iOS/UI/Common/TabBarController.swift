@@ -16,9 +16,35 @@ class TabBarController: UITabBarController {
 
     private let drawerDestinations = [
         DrawerDestination(title: NSLocalizedString("LIBRARY"), symbol: "books.vertical.fill"),
+        DrawerDestination(
+            title: NSLocalizedString(
+                "RECENT_UPDATES",
+                value: "Recent Updates",
+                comment: "Recent updates drawer destination"
+            ),
+            symbol: "bell.fill"
+        ),
+        DrawerDestination(
+            title: NSLocalizedString(
+                "READING_HISTORY",
+                value: "Reading History",
+                comment: "Reading history drawer destination"
+            ),
+            symbol: "clock.fill"
+        ),
         DrawerDestination(title: NSLocalizedString("BROWSE"), symbol: "globe"),
-        DrawerDestination(title: NSLocalizedString("HISTORY"), symbol: "clock.fill"),
-        DrawerDestination(title: NSLocalizedString("SEARCH"), symbol: "magnifyingglass"),
+        DrawerDestination(
+            title: NSLocalizedString(
+                "EXTENSIONS",
+                value: "Extensions",
+                comment: "Extensions drawer destination"
+            ),
+            symbol: "shippingbox.fill"
+        ),
+        DrawerDestination(
+            title: NSLocalizedString("DOWNLOAD_QUEUE"),
+            symbol: "arrow.down.circle.fill"
+        ),
         DrawerDestination(title: NSLocalizedString("SETTINGS"), symbol: "gear")
     ]
 
@@ -107,13 +133,45 @@ class TabBarController: UITabBarController {
 
         let libraryViewController = NavigationController(rootViewController: LibraryViewController())
         let browseViewController = NavigationController(rootViewController: BrowseViewController())
-        let searchViewController = NavigationController(rootViewController: SearchViewController())
+
+        let updatesPath = NavigationCoordinator(rootViewController: nil)
+        let updatesHostingController = UIHostingController(
+            rootView: MangaUpdatesView(
+                title: NSLocalizedString(
+                    "RECENT_UPDATES",
+                    value: "Recent Updates",
+                    comment: "Recent updates screen title"
+                )
+            )
+            .environmentObject(updatesPath)
+        )
+        updatesPath.rootViewController = updatesHostingController
+        let updatesViewController = NavigationController(
+            rootViewController: updatesHostingController
+        )
 
         let historyPath = NavigationCoordinator(rootViewController: nil)
         let historyHostingController = UIHostingController(rootView: HistoryView()
             .environmentObject(historyPath))
         historyPath.rootViewController = historyHostingController
         let historyViewController = NavigationController(rootViewController: historyHostingController)
+
+        let extensionsPath = NavigationCoordinator(rootViewController: nil)
+        let extensionsHostingController = UIHostingController(
+            rootView: ExtensionManagementView()
+                .environmentObject(extensionsPath)
+        )
+        extensionsPath.rootViewController = extensionsHostingController
+        let extensionsViewController = NavigationController(
+            rootViewController: extensionsHostingController
+        )
+
+        let downloadQueueHostingController = UIHostingController(
+            rootView: DownloadQueueView(embeddedInNavigationController: true)
+        )
+        let downloadQueueViewController = NavigationController(
+            rootViewController: downloadQueueHostingController
+        )
 
         let settingsPath = NavigationCoordinator(rootViewController: nil)
         let settingsHostingController = UIHostingController(
@@ -127,15 +185,19 @@ class TabBarController: UITabBarController {
         self.settingsPath = settingsPath
 
         libraryViewController.navigationBar.prefersLargeTitles = true
+        updatesViewController.navigationBar.prefersLargeTitles = true
         browseViewController.navigationBar.prefersLargeTitles = true
         historyViewController.navigationBar.prefersLargeTitles = true
-        searchViewController.navigationBar.prefersLargeTitles = true
+        extensionsViewController.navigationBar.prefersLargeTitles = true
+        downloadQueueViewController.navigationBar.prefersLargeTitles = true
 
         let controllers = [
             libraryViewController,
-            browseViewController,
+            updatesViewController,
             historyViewController,
-            searchViewController,
+            browseViewController,
+            extensionsViewController,
+            downloadQueueViewController,
             settingsViewController
         ]
         for (index, controller) in controllers.enumerated() {
@@ -426,7 +488,7 @@ extension TabBarController: UITabBarControllerDelegate {
     }
 
     private func checkForSettingsPop() {
-        let settingsIndex = 4
+        let settingsIndex = 6
         if selectedIndex == previousSelectedIndex && previousSelectedIndex == settingsIndex {
             settingsPath?.navigationController?.popToRootViewController(animated: true)
         }

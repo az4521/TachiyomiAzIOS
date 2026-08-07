@@ -156,6 +156,42 @@ extension SourceManager {
         await reloadSources()
         return manifest
     }
+
+    func uninstallTachiyomiXExtension(id extensionId: String) async throws {
+        let removedSources = sources.filter {
+            ($0.runner as? TachiyomiXSourceRunner)?.extensionId == extensionId
+        }
+        let removedIds = Set(removedSources.map(\.id))
+        let removedKeys = removedSources.map(\.key)
+
+        try await JVMSourceRuntime.shared.uninstall(extensionId: extensionId)
+
+        for source in removedSources {
+            removeSettings(from: source)
+        }
+        var pinned = UserDefaults.standard.stringArray(
+            forKey: "Browse.pinnedList"
+        ) ?? []
+        pinned.removeAll { removedIds.contains($0) }
+        UserDefaults.standard.set(pinned, forKey: "Browse.pinnedList")
+        sources.removeAll { removedIds.contains($0.id) }
+
+        await CoreDataManager.shared.container.performBackgroundTask { context in
+            for key in removedKeys {
+                CoreDataManager.shared.removeSource(id: key, context: context)
+            }
+            try? context.save()
+        }
+        await MainActor.run {
+            for key in removedKeys {
+                NotificationCenter.default.post(
+                    name: .sourceUnloaded,
+                    object: key
+                )
+            }
+            NotificationCenter.default.post(name: .updateSourceList, object: nil)
+        }
+    }
 #endif
 
     func source(for id: String) -> AidokuRunner.Source? {

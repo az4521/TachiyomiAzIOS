@@ -38,6 +38,7 @@
 "DOWNLOADED" = "Downloaded";
 "DOWNLOADING" = "Downloading";
 "DOWNLOAD_QUEUE" = "Download Queue";
+"EXTENSIONS" = "Extensions";
 "CANCEL_DOWNLOAD" = "Cancel Download";
 "REMOVE_DOWNLOAD" = "Remove Download";
 "REMOVE_ALL_DOWNLOADS" = "Remove All Downloads";
@@ -394,6 +395,7 @@
 
 // History
 "HISTORY" = "History";
+"READING_HISTORY" = "Reading History";
 "%@_AGO" = "%@ ago";
 "PAGE_X" = "Page %i";
 "REMOVE_CHAPTER_HISTORY_TEXT" = "This will remove history for this chapter. Are you sure you want to continue?";
@@ -406,6 +408,7 @@
 
 // Manga Updates
 "MANGA_UPDATES" = "Updates";
+"RECENT_UPDATES" = "Recent Updates";
 "NO_UPDATES" = "No updates";
 "%lld_PLUS_MORE" = "+%lld more";
 

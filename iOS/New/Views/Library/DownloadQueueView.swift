@@ -8,15 +8,32 @@
 import SwiftUI
 
 struct DownloadQueueView: View {
+    let embeddedInNavigationController: Bool
+
     @State private var queue: [(sourceId: String, downloads: [Download])] = []
     @State private var progress: [ChapterIdentifier: (progress: Int, total: Int)] = [:]
     @State private var isPaused = false
 
     @Environment(\.dismiss) private var dismiss
 
+    init(embeddedInNavigationController: Bool = false) {
+        self.embeddedInNavigationController = embeddedInNavigationController
+    }
+
     var body: some View {
-        PlatformNavigationStack {
-            List {
+        Group {
+            if embeddedInNavigationController {
+                content
+            } else {
+                PlatformNavigationStack {
+                    content
+                }
+            }
+        }
+    }
+
+    private var content: some View {
+        List {
                 if isPaused {
                     Section {
                         let padding: CGFloat = if #available(iOS 26.0, *) {
@@ -111,14 +128,25 @@ struct DownloadQueueView: View {
                         }
                     }
                 }
+        }
+        .overlay {
+            if queue.isEmpty {
+                UnavailableView(
+                    NSLocalizedString("DOWNLOAD_QUEUE"),
+                    systemImage: "arrow.down.circle",
+                    description: Text("No downloads are queued.")
+                )
             }
-            .contentMarginsPlease(.top, 4)
+        }
+        .contentMarginsPlease(.top, 4)
             .navigationTitle(NSLocalizedString("DOWNLOAD_QUEUE"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    CloseButton {
-                        dismiss()
+                if !embeddedInNavigationController {
+                    ToolbarItem(placement: .cancellationAction) {
+                        CloseButton {
+                            dismiss()
+                        }
                     }
                 }
 
@@ -223,7 +251,6 @@ struct DownloadQueueView: View {
                     isPaused = false
                 }
             }
-        }
     }
 
     func remove(download: Download) {

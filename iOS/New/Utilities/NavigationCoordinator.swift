@@ -42,9 +42,9 @@ class NavigationCoordinator: ObservableObject {
         rootViewController?.present(viewController, animated: animated)
     }
 
-//    func pop(animated: Bool = true) {
-//        rootViewController?.navigationController?.popViewController(animated: animated)
-//    }
+    func pop(animated: Bool = true) {
+        navigationController?.popViewController(animated: animated)
+    }
 
     func dismiss(animated: Bool = true) {
         rootViewController?.dismiss(animated: animated)

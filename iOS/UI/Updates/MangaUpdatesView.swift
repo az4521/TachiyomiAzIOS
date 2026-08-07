@@ -27,6 +27,7 @@ struct MangaUpdatesView: View {
     }
 
     private let limit = 25
+    private let title: String
 
     @State private var entries: [UpdateSection] = []
     @State private var offset = 0
@@ -36,6 +37,10 @@ struct MangaUpdatesView: View {
     @State private var loadingTask: Task<(), Never>?
 
     @EnvironmentObject private var path: NavigationCoordinator
+
+    init(title: String = NSLocalizedString("MANGA_UPDATES")) {
+        self.title = title
+    }
 
     var body: some View {
         Group {
@@ -70,7 +75,7 @@ struct MangaUpdatesView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .navigationTitle(NSLocalizedString("MANGA_UPDATES"))
+        .navigationTitle(title)
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("mangaUpdatesViewed"))) { notification in
             guard let objects = notification.object as? [MangaUpdateItem] else { return }
 
@@ -173,7 +178,7 @@ extension MangaUpdatesView {
                 }
             }
         for obj in newUpdatesGrouped {
-            for info in obj.value.sorted(by: { $0.date < $1.date }) {
+            for info in obj.value.sorted(by: { $0.date > $1.date }) {
                 let day = Calendar.autoupdatingCurrent.dateComponents(
                     Set([Calendar.Component.day]),
                     from: info.date,

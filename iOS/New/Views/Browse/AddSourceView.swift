@@ -12,14 +12,12 @@ struct AddSourceView: View {
     @State private var showLocalSetup = false
     @State private var showKomgaSetup = false
     @State private var showKavitaSetup = false
-    @State private var showExtensionRepositories = false
 
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         PlatformNavigationStack {
             List {
-                extensionRepositories
                 builtInSources
             }
             .contentMarginsPlease(.top, 4)
@@ -32,28 +30,6 @@ struct AddSourceView: View {
             }
             .navigationTitle(NSLocalizedString("ADD_SOURCE"))
             .navigationBarTitleDisplayMode(.inline)
-        }
-    }
-
-    var extensionRepositories: some View {
-        Section {
-            Button {
-                showExtensionRepositories = true
-            } label: {
-                Label("Extension Repositories", systemImage: "shippingbox.fill")
-            }
-            .background(
-                NavigationLink(
-                    "",
-                    destination: ExtensionRepositoryListView(),
-                    isActive: $showExtensionRepositories
-                )
-                .hidden()
-            )
-        } header: {
-            Text("Extensions")
-        } footer: {
-            Text("No extension repositories are included with TachiyomiAZ.")
         }
     }
 
@@ -114,11 +90,308 @@ struct AddSourceView: View {
 
 }
 
+struct ExtensionManagementView: View {
+    @State private var manifests: [JVMExtensionManifest] = []
+    @State private var repositories = TachiyomiXJarRepository.repositories()
+    @State private var errorMessage: String?
+
+    @EnvironmentObject private var path: NavigationCoordinator
+
+    var body: some View {
+        List {
+            Section {
+                if manifests.isEmpty {
+                    Text("No extensions are installed.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(manifests, id: \.id) { manifest in
+                        Button {
+                            path.push(ExtensionDetailView(manifest: manifest))
+                        } label: {
+                            extensionRow(manifest)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            } header: {
+                Text("Installed")
+            }
+
+            Section {
+                if repositories.isEmpty {
+                    Text(
+                        "No extension repositories are configured. " +
+                            "Add one to browse available extensions."
+                    )
+                    .foregroundStyle(.secondary)
+                } else {
+                    ForEach(repositories) { repository in
+                        Button {
+                            path.push(ExtensionCatalogView(repository: repository))
+                        } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(repository.name)
+                                    .foregroundStyle(.primary)
+                                Text(repository.catalogURL.absoluteString)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                Button {
+                    path.push(ExtensionRepositoryListView())
+                } label: {
+                    Label("Manage Repositories", systemImage: "shippingbox")
+                }
+            } header: {
+                Text("Repositories")
+            } footer: {
+                Text(
+                    "TachiyomiAZ does not include or recommend any extension " +
+                        "repository. Only add repositories you trust."
+                )
+            }
+        }
+        .navigationTitle(
+            NSLocalizedString(
+                "EXTENSIONS",
+                value: "Extensions",
+                comment: "Extensions drawer destination"
+            )
+        )
+        .navigationBarTitleDisplayMode(.automatic)
+        .task {
+            await reload()
+        }
+        .onAppear {
+            repositories = TachiyomiXJarRepository.repositories()
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .updateSourceList)
+        ) { _ in
+            Task {
+                await reload()
+            }
+        }
+        .refreshable {
+            await reload()
+        }
+        .alert(
+            "Extension Error",
+            isPresented: Binding(
+                get: { errorMessage != nil },
+                set: { if !$0 { errorMessage = nil } }
+            )
+        ) {
+            Button(NSLocalizedString("OK"), role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "")
+        }
+    }
+
+    private func extensionRow(_ manifest: JVMExtensionManifest) -> some View {
+        let sources = extensionSources(for: manifest.id)
+        return HStack(spacing: 12) {
+            AsyncImage(url: manifest.iconURL) { image in
+                image.resizable().scaledToFit()
+            } placeholder: {
+                Image(systemName: "shippingbox.fill")
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 40, height: 40)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(manifest.name)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Text(
+                    "\(manifest.version) • " +
+                        "\(sources.count) " +
+                        (sources.count == 1 ? "source" : "sources")
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption.bold())
+                .foregroundStyle(.tertiary)
+        }
+        .contentShape(Rectangle())
+    }
+
+    private func reload() async {
+        do {
+            manifests = try await JVMSourceRuntime.shared.installedManifests()
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+private struct ExtensionDetailView: View {
+    let manifest: JVMExtensionManifest
+
+    @State private var showingUninstallConfirmation = false
+    @State private var uninstalling = false
+    @State private var errorMessage: String?
+
+    @EnvironmentObject private var path: NavigationCoordinator
+
+    private var sources: [AidokuRunner.Source] {
+        extensionSources(for: manifest.id)
+    }
+
+    var body: some View {
+        List {
+            Section {
+                HStack(spacing: 16) {
+                    AsyncImage(url: manifest.iconURL) { image in
+                        image.resizable().scaledToFit()
+                    } placeholder: {
+                        Image(systemName: "shippingbox.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(width: 56, height: 56)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(manifest.name)
+                            .font(.headline)
+                        Text(manifest.version)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        if let extensionLibrary = manifest.extensionLibrary {
+                            Text(extensionLibrary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+
+            Section("Source Settings") {
+                if sources.isEmpty {
+                    Text("This extension did not load any sources.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(sources, id: \.key) { source in
+                        Button {
+                            path.push(
+                                SourceSettingsView(
+                                    source: source,
+                                    showsCloseButton: false
+                                )
+                            )
+                        } label: {
+                            HStack(spacing: 12) {
+                                SourceIconView(
+                                    sourceId: source.key,
+                                    imageUrl: source.imageUrl,
+                                    iconSize: 32
+                                )
+                                Text(source.name)
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            Section {
+                Button(role: .destructive) {
+                    showingUninstallConfirmation = true
+                } label: {
+                    HStack {
+                        Spacer()
+                        if uninstalling {
+                            ProgressView()
+                        } else {
+                            Text("Uninstall Extension")
+                        }
+                        Spacer()
+                    }
+                }
+                .disabled(uninstalling)
+            }
+        }
+        .navigationTitle(manifest.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialogOrAlert(
+            "Uninstall Extension",
+            isPresented: $showingUninstallConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Uninstall", role: .destructive) {
+                uninstall()
+            }
+        } message: {
+            Text(
+                "This removes \(manifest.name) and all sources it provides."
+            )
+        }
+        .alert(
+            "Extension Error",
+            isPresented: Binding(
+                get: { errorMessage != nil },
+                set: { if !$0 { errorMessage = nil } }
+            )
+        ) {
+            Button(NSLocalizedString("OK"), role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "")
+        }
+    }
+
+    private func uninstall() {
+        uninstalling = true
+        Task {
+            defer {
+                uninstalling = false
+            }
+            do {
+                try await SourceManager.shared.uninstallTachiyomiXExtension(
+                    id: manifest.id
+                )
+                path.pop()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+}
+
+private func extensionSources(
+    for extensionId: String
+) -> [AidokuRunner.Source] {
+    SourceManager.shared.sources
+        .filter {
+            ($0.runner as? TachiyomiXSourceRunner)?.extensionId == extensionId
+        }
+        .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+}
+
 private struct ExtensionRepositoryListView: View {
     @State private var repositories = TachiyomiXJarRepository.repositories()
     @State private var repositoryURL = ""
     @State private var validating = false
     @State private var errorMessage: String?
+
+    @EnvironmentObject private var path: NavigationCoordinator
 
     var body: some View {
         List {
@@ -131,17 +404,20 @@ private struct ExtensionRepositoryListView: View {
                     .foregroundStyle(.secondary)
                 } else {
                     ForEach(repositories) { repository in
-                        NavigationLink {
-                            ExtensionCatalogView(repository: repository)
+                        Button {
+                            path.push(ExtensionCatalogView(repository: repository))
                         } label: {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(repository.name)
+                                    .foregroundStyle(.primary)
                                 Text(repository.catalogURL.absoluteString)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
+                        .buttonStyle(.plain)
                     }
                     .onDelete(perform: deleteRepositories)
                 }

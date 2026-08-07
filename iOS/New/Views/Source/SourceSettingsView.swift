@@ -11,6 +11,7 @@ import WebKit
 
 struct SourceSettingsView: View {
     let source: AidokuRunner.Source
+    let showsCloseButton: Bool
 
     @State private var settings: [Setting] = []
     @State private var showingClearCacheConfirm = false
@@ -19,8 +20,12 @@ struct SourceSettingsView: View {
 
     @EnvironmentObject var path: NavigationCoordinator
 
-    init(source: AidokuRunner.Source) {
+    init(
+        source: AidokuRunner.Source,
+        showsCloseButton: Bool = true
+    ) {
         self.source = source
+        self.showsCloseButton = showsCloseButton
         if !source.features.dynamicSettings {
             self._settings = State(initialValue: source.staticSettings)
         }
@@ -79,9 +84,11 @@ struct SourceSettingsView: View {
                 .ignoresSafeArea()
         )
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                CloseButton {
-                    path.dismiss()
+            if showsCloseButton {
+                ToolbarItem(placement: .cancellationAction) {
+                    CloseButton {
+                        path.dismiss()
+                    }
                 }
             }
         }
