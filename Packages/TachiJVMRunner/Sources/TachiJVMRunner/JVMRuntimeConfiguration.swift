@@ -48,19 +48,47 @@ public struct JVMRuntimeConfiguration: Sendable {
             isDirectory: true
         )
         let fileManager = FileManager.default
-        guard fileManager.fileExists(atPath: javaHomeURL.path) else {
+        var javaHomeIsDirectory: ObjCBool = false
+        guard
+            fileManager.fileExists(
+                atPath: javaHomeURL.path,
+                isDirectory: &javaHomeIsDirectory
+            ),
+            javaHomeIsDirectory.boolValue
+        else {
             throw JVMRuntimeError.invalidConfiguration(
                 "Bundled java_bundle is missing"
             )
         }
-        guard fileManager.fileExists(
-            atPath: javaHomeURL
-                .appendingPathComponent("lib/security/cacerts")
-                .path
-        ) else {
-            throw JVMRuntimeError.invalidConfiguration(
-                "Bundled JVM trust store is missing"
-            )
+
+        // HotSpot may terminate the process during JNI_CreateJavaVM when its
+        // boot image is absent. Validate the complete minimal image before
+        // crossing into native startup so a damaged bundle produces a normal
+        // recoverable configuration error instead.
+        let requiredRuntimeFiles = [
+            "lib/modules",
+            "conf/net.properties",
+            "conf/security/java.security",
+            "lib/security/blocked.certs",
+            "lib/security/public_suffix_list.dat",
+            "lib/security/tzdb.dat",
+            "lib/security/cacerts",
+        ]
+        for relativePath in requiredRuntimeFiles {
+            let fileURL = javaHomeURL.appendingPathComponent(relativePath)
+            var isDirectory: ObjCBool = false
+            guard
+                fileManager.fileExists(
+                    atPath: fileURL.path,
+                    isDirectory: &isDirectory
+                ),
+                !isDirectory.boolValue,
+                fileManager.isReadableFile(atPath: fileURL.path)
+            else {
+                throw JVMRuntimeError.invalidConfiguration(
+                    "Bundled JVM runtime file is missing or unreadable: \(relativePath)"
+                )
+            }
         }
         guard fileManager.fileExists(atPath: hostURL.path) else {
             throw JVMRuntimeError.invalidConfiguration(
@@ -129,6 +157,7 @@ public struct JVMRuntimeConfiguration: Sendable {
             additionalOptions: [
                 "-Xbootclasspath/a:\(mobileShimsURL.path)",
                 "-Duser.home=\(jvmHome.path)",
+                "-Duser.dir=\(jvmHome.path)",
                 "-Djava.io.tmpdir=\(FileManager.default.temporaryDirectory.path)"
             ] + additionalOptions
         )
