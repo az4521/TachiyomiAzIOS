@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <cstdio>
 #include <new>
 #include <string>
 #include <vector>
@@ -302,7 +303,11 @@ TJRRuntime *tjr_runtime_create(
 
     using CreateJavaVM = jint (*)(JavaVM **, void **, void *);
 #if TARGET_OS_IPHONE
+    std::fprintf(stderr, "[TachiJVMRunner] registering iOS JVM functions\n");
+    std::fflush(stderr);
     loadfunctions();
+    std::fprintf(stderr, "[TachiJVMRunner] iOS JVM functions registered\n");
+    std::fflush(stderr);
     CreateJavaVM create_vm = &JNI_CreateJavaVM;
 #else
     const char *required_libraries[] = {
@@ -377,11 +382,19 @@ TJRRuntime *tjr_runtime_create(
     arguments.ignoreUnrecognized = JNI_TRUE;
 
     JNIEnv *environment = nullptr;
+    std::fprintf(stderr, "[TachiJVMRunner] creating Java VM\n");
+    std::fflush(stderr);
     const jint result = create_vm(
         &runtime->vm,
         reinterpret_cast<void **>(&environment),
         &arguments
     );
+    std::fprintf(
+        stderr,
+        "[TachiJVMRunner] Java VM creation returned %d\n",
+        static_cast<int>(result)
+    );
+    std::fflush(stderr);
     if (
         result != JNI_OK ||
         runtime->vm == nullptr ||
