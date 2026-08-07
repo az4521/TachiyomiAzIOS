@@ -3,6 +3,13 @@ import AidokuRunner
 import Foundation
 import TachiJVMRunner
 
+private enum JVMRuntimeBootstrap {
+    static let result: Result<JVMRuntime, Error> = Result {
+        let configuration = try JVMRuntimeConfiguration.bundled(in: .main)
+        return try JVMRuntime(configuration: configuration)
+    }
+}
+
 actor JVMSourceRuntime {
     static let shared = JVMSourceRuntime()
 
@@ -45,6 +52,10 @@ actor JVMSourceRuntime {
 
     init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
+    }
+
+    nonisolated static func prepareBeforeUIApplicationMain() {
+        _ = JVMRuntimeBootstrap.result
     }
 
     func ping() async throws -> ExtensionHostResponse {
@@ -1018,15 +1029,7 @@ actor JVMSourceRuntime {
     }
 
     private func makeRuntime() async throws -> JVMRuntime {
-        let configuration = try JVMRuntimeConfiguration.bundled(in: .main)
-        // openjdk-mobile's iOS launcher creates the VM on the process main
-        // thread before entering UIApplicationMain. Keep that thread affinity
-        // even though the extension runtime itself is actor-isolated: VM
-        // creation performs process-wide native initialization, while later
-        // JNI calls attach whichever worker thread is executing them.
-        return try await MainActor.run {
-            try JVMRuntime(configuration: configuration)
-        }
+        try JVMRuntimeBootstrap.result.get()
     }
 
     private func extensionDirectory(

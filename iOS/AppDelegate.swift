@@ -11,7 +11,6 @@ import Nuke
 import SwiftUI
 import UserNotifications
 
-@UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
     static let isSideloaded = true
 
