@@ -10,7 +10,7 @@ builder_revision="0a753240e2b143137e73593c48d646a4956c2351"
 symbol_keeper_sha256="ec02a950b2c630b234aa393abdf48efe7ce95c3a637c189e0a2e492e8ec316db"
 device_libffi_sha256="4f39fd1d53fbd69d1bdbd915413077d130daa3f6792d1b3a03a690a9cbd4dea3"
 simulator_libffi_sha256="701b522e3eff0263f18d4a9e487f0a7ac30050fb2af20e86b6849daa14f5781f"
-stamp_value="openjdk-mobile-$mobile_revision-ios-$deployment_target-v3"
+stamp_value="openjdk-mobile-$mobile_revision-ios-$deployment_target-v4"
 stamp_file="$vendor_root/.ios-runtime"
 
 if [[ -f "$stamp_file" ]] && [[ "$(<"$stamp_file")" == "$stamp_value" ]]; then
@@ -107,7 +107,6 @@ git -C "$mobile_root" init
 git -C "$mobile_root" remote add origin https://github.com/openjdk/mobile.git
 git -C "$mobile_root" fetch --depth=1 origin "$mobile_revision"
 git -C "$mobile_root" checkout --detach FETCH_HEAD
-cp "$symbol_keeper" "$mobile_root/src/hotspot/os/bsd/symbol_keeper.cpp"
 
 device_sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
 simulator_sdk="$(xcrun --sdk iphonesimulator --show-sdk-path)"
@@ -115,6 +114,18 @@ macos_sdk="$(xcrun --sdk macosx --show-sdk-path)"
 
 (
     cd "$mobile_root"
+
+    # jlink validates an internal build signature in java.base. Build the
+    # image tools from this exact source revision rather than using a released
+    # JDK 26 whose signature may differ. This normal macOS build must happen
+    # before symbol_keeper.cpp is added for the static iOS builds.
+    bash configure \
+        --with-conf-name=macos-aarch64 \
+        --disable-warnings-as-errors
+    make LOG=info CONF=macos-aarch64 jdk-image
+
+    cp "$symbol_keeper" src/hotspot/os/bsd/symbol_keeper.cpp
+
     bash configure \
         --with-conf-name=ios-aarch64-zero-release \
         --disable-warnings-as-errors \
@@ -140,14 +151,6 @@ macos_sdk="$(xcrun --sdk macosx --show-sdk-path)"
         --with-extra-ldflags="-target arm64-apple-ios${deployment_target}-simulator -mios-simulator-version-min=$deployment_target" \
         --with-cups-include="$macos_sdk/usr/include"
     make LOG=info CONF=iossim-aarch64-zero-release static-libs-image
-
-    # jlink validates an internal build signature in java.base. Build the
-    # image tools from this exact source revision rather than using a released
-    # JDK 26 whose signature may differ.
-    bash configure \
-        --with-conf-name=macos-aarch64 \
-        --disable-warnings-as-errors
-    make LOG=info CONF=macos-aarch64 jdk-image
 )
 
 image_java_home="$mobile_root/build/macos-aarch64/images/jdk"
