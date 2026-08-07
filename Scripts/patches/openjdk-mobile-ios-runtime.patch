@@ -22,10 +22,10 @@ diff --git a/src/hotspot/os/bsd/os_bsd.cpp b/src/hotspot/os/bsd/os_bsd.cpp
 index d860e823..dea72e30 100644
 --- a/src/hotspot/os/bsd/os_bsd.cpp
 +++ b/src/hotspot/os/bsd/os_bsd.cpp
-@@ -369,6 +369,22 @@ void os::init_system_properties_values() {
+@@ -449,6 +449,22 @@ void os::init_system_properties_values() {
    // sysclasspath, java_home, dll_dir
    {
-     char *pslash;
+-    char *pslash;
 +#ifdef __IOS__
 +    // A statically linked iOS VM cannot infer java.home from a libjvm path:
 +    // os::jvm_path() resolves to the app executable. The embedding app sets
@@ -42,10 +42,11 @@ index d860e823..dea72e30 100644
 +    strcat(buf, "/lib");
 +    Arguments::set_dll_dir(buf);
 +#else
++    char *pslash;
      os::jvm_path(buf, bufsize);
 
      // Found the full path to libjvm.so.
-@@ -475,6 +491,7 @@ void os::init_system_properties_values() {
+@@ -474,6 +490,7 @@ void os::init_system_properties_values() {
      }
  #endif
      Arguments::set_java_home(buf);
