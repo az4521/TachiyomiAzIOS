@@ -1,6 +1,7 @@
 package app.tachiaz.runtime;
 
 import java.io.File;
+import java.io.InputStream;
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
@@ -10,6 +11,10 @@ import java.net.URL;
 import java.net.URLDecoder;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.LinkedHashMap;
@@ -98,6 +103,8 @@ public final class ExtensionHost {
                     return getPageList(request);
                 case "getImageRequest":
                     return getImageRequest(request);
+                case "materializeImage":
+                    return materializeImage(request);
                 case "getCookieSummary":
                     return getCookieSummary(request);
                 case "clearCookies":
@@ -270,6 +277,9 @@ public final class ExtensionHost {
         }
 
         startAndroidMainLooper(loader);
+        if (java.net.CookieHandler.getDefault() == null) {
+            java.net.CookieHandler.setDefault(new java.net.CookieManager());
+        }
 
         Object app = appType.getDeclaredConstructor().newInstance();
         Class<?> applicationType =
@@ -1191,6 +1201,184 @@ public final class ExtensionHost {
         }
         output.append("}}");
         return MiniJson.response(true, output.toString(), null, null);
+    }
+
+    private static String materializeImage(Map<String, String> request)
+        throws Exception {
+        return materializeImage(
+            requireSource(request),
+            require(request, "imageURL"),
+            request.get("pageURL"),
+            require(request, "destinationPath")
+        );
+    }
+
+    static String materializeImage(
+        Object source,
+        String imageURL,
+        String pageURL,
+        String destinationPath
+    ) throws Exception {
+        ClassLoader loader = source.getClass().getClassLoader();
+        Class<?> pageType = Class.forName(
+            "eu.kanade.tachiyomi.source.model.Page",
+            true,
+            loader
+        );
+        Class<?> uriType = Class.forName("android.net.Uri", true, loader);
+        Object page = pageType
+            .getConstructor(
+                int.class,
+                String.class,
+                String.class,
+                uriType
+            )
+            .newInstance(
+                0,
+                defaultValue(pageURL, imageURL),
+                imageURL,
+                null
+            );
+        Method imageRequest = findMethod(
+            source.getClass(),
+            "imageRequest",
+            pageType
+        );
+        imageRequest.setAccessible(true);
+        Object nativeRequest = imageRequest.invoke(source, page);
+        Object client = getter(source, "getClient");
+        Class<?> requestType = Class.forName("okhttp3.Request", true, loader);
+        Object call = client.getClass()
+            .getMethod("newCall", requestType)
+            .invoke(client, nativeRequest);
+        Class<?> callType = Class.forName("okhttp3.Call", true, loader);
+        Object response = callType.getMethod("execute").invoke(call);
+
+        Path destination = new File(
+            destinationPath
+        ).toPath().toAbsolutePath().normalize();
+        Path parent = destination.getParent();
+        if (parent == null) {
+            throw new IllegalArgumentException(
+                "The image destination has no parent directory"
+            );
+        }
+        Files.createDirectories(parent);
+        Path partial = destination.resolveSibling(
+            destination.getFileName() + ".partial"
+        );
+        String contentType = "application/octet-stream";
+        try {
+            Class<?> responseType = Class.forName(
+                "okhttp3.Response",
+                true,
+                loader
+            );
+            int code = (Integer) responseType.getMethod("code").invoke(response);
+            Object body = responseType.getMethod("body").invoke(response);
+            if (code < 200 || code >= 300) {
+                throw new java.io.IOException(
+                    "Image request returned HTTP " + code
+                );
+            }
+            if (body == null) {
+                throw new java.io.IOException("Image response body is empty");
+            }
+            Class<?> bodyType = Class.forName(
+                "okhttp3.ResponseBody",
+                true,
+                loader
+            );
+            Object mediaType = bodyType.getMethod("contentType").invoke(body);
+            if (mediaType != null) {
+                contentType = String.valueOf(mediaType);
+            }
+            try (InputStream stream = (InputStream) bodyType
+                .getMethod("byteStream")
+                .invoke(body)) {
+                Files.copy(
+                    stream,
+                    partial,
+                    StandardCopyOption.REPLACE_EXISTING
+                );
+            }
+            try {
+                Files.move(
+                    partial,
+                    destination,
+                    StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE
+                );
+            } catch (AtomicMoveNotSupportedException ignored) {
+                Files.move(
+                    partial,
+                    destination,
+                    StandardCopyOption.REPLACE_EXISTING
+                );
+            }
+            if (Files.size(destination) == 0) {
+                throw new java.io.IOException("Image response body is empty");
+            }
+            contentType = detectedImageContentType(destination, contentType);
+        } finally {
+            Files.deleteIfExists(partial);
+            if (response instanceof java.io.Closeable) {
+                ((java.io.Closeable) response).close();
+            }
+        }
+        String result = "{\"contentType\":\"" +
+            MiniJson.escapeValue(contentType) + "\"}";
+        return MiniJson.response(true, result, null, null);
+    }
+
+    private static String detectedImageContentType(
+        Path path,
+        String fallback
+    ) throws Exception {
+        byte[] prefix = new byte[16];
+        int count;
+        try (InputStream stream = Files.newInputStream(path)) {
+            count = stream.read(prefix);
+        }
+        if (
+            count >= 8 &&
+            (prefix[0] & 0xff) == 0x89 &&
+            prefix[1] == 'P' && prefix[2] == 'N' && prefix[3] == 'G'
+        ) {
+            return "image/png";
+        }
+        if (
+            count >= 3 &&
+            (prefix[0] & 0xff) == 0xff &&
+            (prefix[1] & 0xff) == 0xd8 &&
+            (prefix[2] & 0xff) == 0xff
+        ) {
+            return "image/jpeg";
+        }
+        if (
+            count >= 12 &&
+            prefix[0] == 'R' && prefix[1] == 'I' &&
+            prefix[2] == 'F' && prefix[3] == 'F' &&
+            prefix[8] == 'W' && prefix[9] == 'E' &&
+            prefix[10] == 'B' && prefix[11] == 'P'
+        ) {
+            return "image/webp";
+        }
+        if (
+            count >= 6 && prefix[0] == 'G' && prefix[1] == 'I' &&
+            prefix[2] == 'F'
+        ) {
+            return "image/gif";
+        }
+        if (
+            count >= 12 && prefix[4] == 'f' && prefix[5] == 't' &&
+            prefix[6] == 'y' && prefix[7] == 'p' &&
+            prefix[8] == 'a' && prefix[9] == 'v' &&
+            prefix[10] == 'i' && prefix[11] == 'f'
+        ) {
+            return "image/avif";
+        }
+        return fallback;
     }
 
     @SuppressWarnings("unchecked")

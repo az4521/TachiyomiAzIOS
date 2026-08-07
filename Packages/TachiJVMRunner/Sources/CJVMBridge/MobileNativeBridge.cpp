@@ -1,0 +1,813 @@
+#include "MobileNativeBridge.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <cstring>
+#include <new>
+#include <vector>
+
+#if defined(__APPLE__)
+#include <CoreFoundation/CoreFoundation.h>
+#include <CoreGraphics/CoreGraphics.h>
+#include <CoreText/CoreText.h>
+#include <ImageIO/ImageIO.h>
+#include <JavaScriptCore/JavaScriptCore.h>
+#endif
+
+namespace {
+
+#if defined(__APPLE__)
+struct NativeBitmap {
+    size_t width;
+    size_t height;
+    size_t bytes_per_row;
+    std::vector<uint8_t> pixels;
+    CGColorSpaceRef color_space;
+    CGContextRef context;
+
+    NativeBitmap(size_t bitmap_width, size_t bitmap_height)
+        : width(bitmap_width),
+          height(bitmap_height),
+          bytes_per_row(bitmap_width * 4),
+          pixels(bytes_per_row * bitmap_height, 0),
+          color_space(CGColorSpaceCreateDeviceRGB()),
+          context(nullptr) {
+        context = CGBitmapContextCreate(
+            pixels.data(),
+            width,
+            height,
+            8,
+            bytes_per_row,
+            color_space,
+            kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big
+        );
+    }
+
+    ~NativeBitmap() {
+        if (context != nullptr) {
+            CGContextRelease(context);
+        }
+        if (color_space != nullptr) {
+            CGColorSpaceRelease(color_space);
+        }
+    }
+
+    bool valid() const {
+        return context != nullptr;
+    }
+};
+
+NativeBitmap *bitmap(jlong handle) {
+    return reinterpret_cast<NativeBitmap *>(static_cast<intptr_t>(handle));
+}
+
+jlong handle(NativeBitmap *value) {
+    return static_cast<jlong>(reinterpret_cast<intptr_t>(value));
+}
+
+bool valid_bitmap_dimensions(size_t width, size_t height) {
+    constexpr size_t maximum_pixel_count =
+        (256ULL * 1024ULL * 1024ULL) / 4ULL;
+    return width > 0 && height > 0 &&
+        width <= maximum_pixel_count &&
+        height <= maximum_pixel_count / width;
+}
+
+void throw_runtime(JNIEnv *environment, const char *message) {
+    jclass type = environment->FindClass("java/lang/RuntimeException");
+    if (type != nullptr) {
+        environment->ThrowNew(type, message);
+        environment->DeleteLocalRef(type);
+    }
+}
+
+void throw_quickjs(JNIEnv *environment, const char *message) {
+    jclass type = environment->FindClass("app/cash/quickjs/QuickJsException");
+    if (type == nullptr) {
+        environment->ExceptionClear();
+        throw_runtime(environment, message);
+        return;
+    }
+    environment->ThrowNew(type, message);
+    environment->DeleteLocalRef(type);
+}
+
+jlongArray bitmap_result(JNIEnv *environment, NativeBitmap *value) {
+    if (value == nullptr || !value->valid()) {
+        delete value;
+        return nullptr;
+    }
+    const jlong values[] = {
+        handle(value),
+        static_cast<jlong>(value->width),
+        static_cast<jlong>(value->height),
+    };
+    jlongArray result = environment->NewLongArray(3);
+    if (result == nullptr) {
+        delete value;
+        return nullptr;
+    }
+    environment->SetLongArrayRegion(result, 0, 3, values);
+    return result;
+}
+
+CFStringRef cf_string(JNIEnv *environment, jstring value) {
+    if (value == nullptr) {
+        return CFStringCreateWithCString(
+            kCFAllocatorDefault,
+            "",
+            kCFStringEncodingUTF8
+        );
+    }
+    const jsize length = environment->GetStringLength(value);
+    const jchar *characters = environment->GetStringChars(value, nullptr);
+    if (characters == nullptr) {
+        return nullptr;
+    }
+    CFStringRef result = CFStringCreateWithCharacters(
+        kCFAllocatorDefault,
+        reinterpret_cast<const UniChar *>(characters),
+        length
+    );
+    environment->ReleaseStringChars(value, characters);
+    return result;
+}
+
+jstring java_string(JNIEnv *environment, JSStringRef value) {
+    const size_t capacity = JSStringGetMaximumUTF8CStringSize(value);
+    std::vector<char> utf8(capacity);
+    JSStringGetUTF8CString(value, utf8.data(), capacity);
+    return environment->NewStringUTF(utf8.data());
+}
+
+CTFontRef create_font(float size, bool bold) {
+    return CTFontCreateWithName(
+        bold ? CFSTR("Helvetica-Bold") : CFSTR("Helvetica"),
+        std::max(1.0f, size),
+        nullptr
+    );
+}
+
+CFAttributedStringRef attributed_text(
+    CFStringRef text,
+    float size,
+    bool bold,
+    int32_t color
+) {
+    CTFontRef font = create_font(size, bold);
+    const CGFloat alpha = static_cast<CGFloat>((color >> 24) & 0xff) / 255.0;
+    const CGFloat red = static_cast<CGFloat>((color >> 16) & 0xff) / 255.0;
+    const CGFloat green = static_cast<CGFloat>((color >> 8) & 0xff) / 255.0;
+    const CGFloat blue = static_cast<CGFloat>(color & 0xff) / 255.0;
+    CGColorSpaceRef color_space = CGColorSpaceCreateDeviceRGB();
+    const CGFloat components[] = {red, green, blue, alpha};
+    CGColorRef foreground = CGColorCreate(color_space, components);
+    CGColorSpaceRelease(color_space);
+    const void *keys[] = {kCTFontAttributeName, kCTForegroundColorAttributeName};
+    const void *values[] = {font, foreground};
+    CFDictionaryRef attributes = CFDictionaryCreate(
+        kCFAllocatorDefault,
+        keys,
+        values,
+        2,
+        &kCFTypeDictionaryKeyCallBacks,
+        &kCFTypeDictionaryValueCallBacks
+    );
+    CFAttributedStringRef result = CFAttributedStringCreate(
+        kCFAllocatorDefault,
+        text,
+        attributes
+    );
+    CFRelease(attributes);
+    CGColorRelease(foreground);
+    CFRelease(font);
+    return result;
+}
+
+void write_color(uint8_t *pixel, int32_t color) {
+    pixel[0] = static_cast<uint8_t>((color >> 16) & 0xff);
+    pixel[1] = static_cast<uint8_t>((color >> 8) & 0xff);
+    pixel[2] = static_cast<uint8_t>(color & 0xff);
+    pixel[3] = static_cast<uint8_t>((color >> 24) & 0xff);
+}
+
+int32_t read_color(const uint8_t *pixel) {
+    return
+        (static_cast<int32_t>(pixel[3]) << 24) |
+        (static_cast<int32_t>(pixel[0]) << 16) |
+        (static_cast<int32_t>(pixel[1]) << 8) |
+        static_cast<int32_t>(pixel[2]);
+}
+
+jlongArray JNICALL bitmap_create(JNIEnv *environment, jclass, jint width, jint height) {
+    if (
+        width <= 0 || height <= 0 ||
+        !valid_bitmap_dimensions(
+            static_cast<size_t>(width),
+            static_cast<size_t>(height)
+        )
+    ) {
+        throw_runtime(environment, "Invalid bitmap dimensions");
+        return nullptr;
+    }
+    try {
+        return bitmap_result(environment, new NativeBitmap(width, height));
+    } catch (const std::bad_alloc &) {
+        throw_runtime(environment, "Unable to allocate bitmap storage");
+        return nullptr;
+    }
+}
+
+jlongArray JNICALL bitmap_decode(
+    JNIEnv *environment,
+    jclass,
+    jbyteArray data,
+    jint offset,
+    jint length
+) {
+    if (data == nullptr || offset < 0 || length <= 0) {
+        return nullptr;
+    }
+    std::vector<uint8_t> encoded(static_cast<size_t>(length));
+    environment->GetByteArrayRegion(
+        data,
+        offset,
+        length,
+        reinterpret_cast<jbyte *>(encoded.data())
+    );
+    CFDataRef input = CFDataCreate(
+        kCFAllocatorDefault,
+        encoded.data(),
+        encoded.size()
+    );
+    CGImageSourceRef source = CGImageSourceCreateWithData(input, nullptr);
+    CFRelease(input);
+    if (source == nullptr) {
+        return nullptr;
+    }
+    CGImageRef image = CGImageSourceCreateImageAtIndex(source, 0, nullptr);
+    CFRelease(source);
+    if (image == nullptr) {
+        return nullptr;
+    }
+    const size_t decoded_width = CGImageGetWidth(image);
+    const size_t decoded_height = CGImageGetHeight(image);
+    if (!valid_bitmap_dimensions(decoded_width, decoded_height)) {
+        CGImageRelease(image);
+        throw_runtime(environment, "Decoded bitmap dimensions are too large");
+        return nullptr;
+    }
+    NativeBitmap *result = nullptr;
+    try {
+        result = new NativeBitmap(decoded_width, decoded_height);
+    } catch (const std::bad_alloc &) {
+        CGImageRelease(image);
+        throw_runtime(environment, "Unable to allocate decoded bitmap storage");
+        return nullptr;
+    }
+    if (result != nullptr && result->valid()) {
+        CGContextSaveGState(result->context);
+        CGContextTranslateCTM(result->context, 0, result->height);
+        CGContextScaleCTM(result->context, 1, -1);
+        CGContextDrawImage(
+            result->context,
+            CGRectMake(0, 0, result->width, result->height),
+            image
+        );
+        CGContextRestoreGState(result->context);
+    }
+    CGImageRelease(image);
+    return bitmap_result(environment, result);
+}
+
+jlongArray JNICALL bitmap_crop(
+    JNIEnv *environment,
+    jclass,
+    jlong source_handle,
+    jint x,
+    jint y,
+    jint width,
+    jint height
+) {
+    NativeBitmap *source = bitmap(source_handle);
+    if (
+        source == nullptr || width <= 0 || height <= 0 ||
+        x < 0 || y < 0 ||
+        static_cast<size_t>(x) + static_cast<size_t>(width) > source->width ||
+        static_cast<size_t>(y) + static_cast<size_t>(height) > source->height ||
+        !valid_bitmap_dimensions(
+            static_cast<size_t>(width),
+            static_cast<size_t>(height)
+        )
+    ) {
+        return nullptr;
+    }
+    NativeBitmap *result = nullptr;
+    try {
+        result = new NativeBitmap(width, height);
+    } catch (const std::bad_alloc &) {
+        throw_runtime(environment, "Unable to allocate cropped bitmap storage");
+        return nullptr;
+    }
+    if (result == nullptr || !result->valid()) {
+        return bitmap_result(environment, result);
+    }
+    for (int row = 0; row < height; ++row) {
+        std::memcpy(
+            result->pixels.data() + (row * result->bytes_per_row),
+            source->pixels.data() + ((y + row) * source->bytes_per_row) + (x * 4),
+            static_cast<size_t>(width) * 4
+        );
+    }
+    return bitmap_result(environment, result);
+}
+
+void JNICALL bitmap_release(JNIEnv *, jclass, jlong value) {
+    delete bitmap(value);
+}
+
+jbyteArray JNICALL bitmap_compress(
+    JNIEnv *environment,
+    jclass,
+    jlong value,
+    jint format,
+    jint quality
+) {
+    NativeBitmap *source = bitmap(value);
+    if (source == nullptr) {
+        return nullptr;
+    }
+    CGImageRef image = CGBitmapContextCreateImage(source->context);
+    if (image == nullptr) {
+        return nullptr;
+    }
+    CFMutableDataRef output = CFDataCreateMutable(kCFAllocatorDefault, 0);
+    CFStringRef type = format == 0 ? CFSTR("public.jpeg") : CFSTR("public.png");
+    CGImageDestinationRef destination = CGImageDestinationCreateWithData(
+        output,
+        type,
+        1,
+        nullptr
+    );
+    if (destination == nullptr) {
+        CGImageRelease(image);
+        CFRelease(output);
+        return nullptr;
+    }
+    CFDictionaryRef properties = nullptr;
+    if (format == 0) {
+        const double normalized = std::max(0, std::min(100, quality)) / 100.0;
+        CFNumberRef quality_value = CFNumberCreate(
+            kCFAllocatorDefault,
+            kCFNumberDoubleType,
+            &normalized
+        );
+        const void *keys[] = {kCGImageDestinationLossyCompressionQuality};
+        const void *values[] = {quality_value};
+        properties = CFDictionaryCreate(
+            kCFAllocatorDefault,
+            keys,
+            values,
+            1,
+            &kCFTypeDictionaryKeyCallBacks,
+            &kCFTypeDictionaryValueCallBacks
+        );
+        CFRelease(quality_value);
+    }
+    CGImageDestinationAddImage(destination, image, properties);
+    const bool success = CGImageDestinationFinalize(destination);
+    if (properties != nullptr) {
+        CFRelease(properties);
+    }
+    CFRelease(destination);
+    CGImageRelease(image);
+    if (!success || CFDataGetLength(output) > INT32_MAX) {
+        CFRelease(output);
+        return nullptr;
+    }
+    const CFIndex length = CFDataGetLength(output);
+    jbyteArray result = environment->NewByteArray(static_cast<jsize>(length));
+    if (result != nullptr) {
+        environment->SetByteArrayRegion(
+            result,
+            0,
+            static_cast<jsize>(length),
+            reinterpret_cast<const jbyte *>(CFDataGetBytePtr(output))
+        );
+    }
+    CFRelease(output);
+    return result;
+}
+
+void JNICALL bitmap_erase(JNIEnv *, jclass, jlong value, jint color) {
+    NativeBitmap *target = bitmap(value);
+    if (target == nullptr) {
+        return;
+    }
+    for (size_t position = 0; position < target->pixels.size(); position += 4) {
+        write_color(target->pixels.data() + position, color);
+    }
+}
+
+jint JNICALL bitmap_get_pixel(JNIEnv *, jclass, jlong value, jint x, jint y) {
+    NativeBitmap *target = bitmap(value);
+    return read_color(
+        target->pixels.data() + (y * target->bytes_per_row) + (x * 4)
+    );
+}
+
+void JNICALL bitmap_set_pixel(
+    JNIEnv *, jclass, jlong value, jint x, jint y, jint color
+) {
+    NativeBitmap *target = bitmap(value);
+    write_color(
+        target->pixels.data() + (y * target->bytes_per_row) + (x * 4),
+        color
+    );
+}
+
+void transfer_pixels(
+    JNIEnv *environment,
+    jlong value,
+    jintArray pixels,
+    jint offset,
+    jint stride,
+    jint x,
+    jint y,
+    jint width,
+    jint height,
+    bool write
+) {
+    NativeBitmap *target = bitmap(value);
+    std::vector<jint> row(static_cast<size_t>(width));
+    for (int line = 0; line < height; ++line) {
+        const jint array_offset = offset + (line * stride);
+        if (write) {
+            environment->GetIntArrayRegion(
+                pixels,
+                array_offset,
+                width,
+                row.data()
+            );
+            for (int column = 0; column < width; ++column) {
+                write_color(
+                    target->pixels.data() +
+                        ((y + line) * target->bytes_per_row) +
+                        ((x + column) * 4),
+                    row[column]
+                );
+            }
+        } else {
+            for (int column = 0; column < width; ++column) {
+                row[column] = read_color(
+                    target->pixels.data() +
+                        ((y + line) * target->bytes_per_row) +
+                        ((x + column) * 4)
+                );
+            }
+            environment->SetIntArrayRegion(
+                pixels,
+                array_offset,
+                width,
+                row.data()
+            );
+        }
+    }
+}
+
+void JNICALL bitmap_get_pixels(
+    JNIEnv *environment, jclass, jlong value, jintArray pixels,
+    jint offset, jint stride, jint x, jint y, jint width, jint height
+) {
+    transfer_pixels(
+        environment, value, pixels, offset, stride, x, y, width, height, false
+    );
+}
+
+void JNICALL bitmap_set_pixels(
+    JNIEnv *environment, jclass, jlong value, jintArray pixels,
+    jint offset, jint stride, jint x, jint y, jint width, jint height
+) {
+    transfer_pixels(
+        environment, value, pixels, offset, stride, x, y, width, height, true
+    );
+}
+
+void JNICALL canvas_draw_bitmap(
+    JNIEnv *, jclass, jlong destination_handle, jlong source_handle,
+    jint source_left, jint source_top, jint source_right, jint source_bottom,
+    jint destination_left, jint destination_top,
+    jint destination_right, jint destination_bottom
+) {
+    NativeBitmap *destination = bitmap(destination_handle);
+    NativeBitmap *source = bitmap(source_handle);
+    const int source_width = source_right - source_left;
+    const int source_height = source_bottom - source_top;
+    const int destination_width = destination_right - destination_left;
+    const int destination_height = destination_bottom - destination_top;
+    if (
+        destination == nullptr || source == nullptr ||
+        source_width <= 0 || source_height <= 0 ||
+        destination_width <= 0 || destination_height <= 0
+    ) {
+        return;
+    }
+    for (int y = 0; y < destination_height; ++y) {
+        const int output_y = destination_top + y;
+        if (output_y < 0 || output_y >= static_cast<int>(destination->height)) {
+            continue;
+        }
+        const int input_y = source_top + ((y * source_height) / destination_height);
+        for (int x = 0; x < destination_width; ++x) {
+            const int output_x = destination_left + x;
+            if (output_x < 0 || output_x >= static_cast<int>(destination->width)) {
+                continue;
+            }
+            const int input_x = source_left + ((x * source_width) / destination_width);
+            if (
+                input_x < 0 || input_y < 0 ||
+                input_x >= static_cast<int>(source->width) ||
+                input_y >= static_cast<int>(source->height)
+            ) {
+                continue;
+            }
+            std::memcpy(
+                destination->pixels.data() +
+                    (output_y * destination->bytes_per_row) + (output_x * 4),
+                source->pixels.data() +
+                    (input_y * source->bytes_per_row) + (input_x * 4),
+                4
+            );
+        }
+    }
+}
+
+void JNICALL canvas_draw_text(
+    JNIEnv *environment,
+    jclass,
+    jlong value,
+    jstring text,
+    jfloat x,
+    jfloat baseline,
+    jfloat size,
+    jint color,
+    jboolean bold
+) {
+    NativeBitmap *target = bitmap(value);
+    CFStringRef string = cf_string(environment, text);
+    if (target == nullptr || string == nullptr) {
+        if (string != nullptr) CFRelease(string);
+        return;
+    }
+    CFAttributedStringRef attributed = attributed_text(
+        string,
+        size,
+        bold == JNI_TRUE,
+        color
+    );
+    CTLineRef line = CTLineCreateWithAttributedString(attributed);
+    CGContextRef context = CGBitmapContextCreate(
+        target->pixels.data(),
+        target->width,
+        target->height,
+        8,
+        target->bytes_per_row,
+        target->color_space,
+        kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big
+    );
+    CGContextSetTextPosition(context, x, target->height - baseline);
+    CTLineDraw(line, context);
+    CGContextRelease(context);
+    CFRelease(line);
+    CFRelease(attributed);
+    CFRelease(string);
+}
+
+jfloatArray JNICALL text_font_metrics(
+    JNIEnv *environment,
+    jclass,
+    jfloat size,
+    jboolean bold
+) {
+    CTFontRef font = create_font(size, bold == JNI_TRUE);
+    const jfloat values[] = {
+        static_cast<jfloat>(CTFontGetAscent(font)),
+        static_cast<jfloat>(CTFontGetDescent(font)),
+        static_cast<jfloat>(CTFontGetLeading(font)),
+    };
+    CFRelease(font);
+    jfloatArray result = environment->NewFloatArray(3);
+    if (result != nullptr) {
+        environment->SetFloatArrayRegion(result, 0, 3, values);
+    }
+    return result;
+}
+
+jintArray JNICALL text_line_ends(
+    JNIEnv *environment,
+    jclass,
+    jstring text,
+    jfloat width,
+    jfloat size,
+    jboolean bold
+) {
+    CFStringRef string = cf_string(environment, text);
+    if (string == nullptr) {
+        return nullptr;
+    }
+    CFAttributedStringRef attributed = attributed_text(
+        string,
+        size,
+        bold == JNI_TRUE,
+        0xff000000
+    );
+    CTTypesetterRef typesetter = CTTypesetterCreateWithAttributedString(attributed);
+    const CFIndex length = CFStringGetLength(string);
+    std::vector<jint> ends;
+    CFIndex position = 0;
+    if (length == 0) {
+        ends.push_back(0);
+    }
+    while (position < length) {
+        CFIndex count = CTTypesetterSuggestLineBreak(typesetter, position, width);
+        if (count <= 0) {
+            count = 1;
+        }
+        CFIndex hard_break = position;
+        while (hard_break < position + count && hard_break < length) {
+            UniChar character = CFStringGetCharacterAtIndex(string, hard_break);
+            hard_break++;
+            if (character == '\n') {
+                count = hard_break - position;
+                break;
+            }
+        }
+        position = std::min(length, position + count);
+        ends.push_back(static_cast<jint>(position));
+    }
+    CFRelease(typesetter);
+    CFRelease(attributed);
+    CFRelease(string);
+    jintArray result = environment->NewIntArray(static_cast<jsize>(ends.size()));
+    if (result != nullptr && !ends.empty()) {
+        environment->SetIntArrayRegion(
+            result,
+            0,
+            static_cast<jsize>(ends.size()),
+            ends.data()
+        );
+    }
+    return result;
+}
+
+jlong JNICALL javascript_create(JNIEnv *, jclass) {
+    return static_cast<jlong>(reinterpret_cast<intptr_t>(JSGlobalContextCreate(nullptr)));
+}
+
+jobject JNICALL javascript_evaluate(
+    JNIEnv *environment,
+    jclass,
+    jlong value,
+    jstring script
+) {
+    JSGlobalContextRef context = reinterpret_cast<JSGlobalContextRef>(
+        static_cast<intptr_t>(value)
+    );
+    CFStringRef source_cf = cf_string(environment, script);
+    if (context == nullptr || source_cf == nullptr) {
+        if (source_cf != nullptr) CFRelease(source_cf);
+        return nullptr;
+    }
+    JSStringRef source = JSStringCreateWithCFString(source_cf);
+    CFRelease(source_cf);
+    JSValueRef exception = nullptr;
+    JSValueRef result = JSEvaluateScript(
+        context,
+        source,
+        nullptr,
+        nullptr,
+        1,
+        &exception
+    );
+    JSStringRelease(source);
+    if (exception != nullptr) {
+        JSStringRef message = JSValueToStringCopy(context, exception, nullptr);
+        const size_t capacity = JSStringGetMaximumUTF8CStringSize(message);
+        std::vector<char> utf8(capacity);
+        JSStringGetUTF8CString(message, utf8.data(), capacity);
+        JSStringRelease(message);
+        throw_quickjs(environment, utf8.data());
+        return nullptr;
+    }
+    if (result == nullptr || JSValueIsNull(context, result) || JSValueIsUndefined(context, result)) {
+        return nullptr;
+    }
+    if (JSValueIsString(context, result)) {
+        JSStringRef string = JSValueToStringCopy(context, result, nullptr);
+        jstring output = java_string(environment, string);
+        JSStringRelease(string);
+        return output;
+    }
+    if (JSValueIsBoolean(context, result)) {
+        jclass type = environment->FindClass("java/lang/Boolean");
+        jmethodID method = environment->GetStaticMethodID(
+            type,
+            "valueOf",
+            "(Z)Ljava/lang/Boolean;"
+        );
+        jobject output = environment->CallStaticObjectMethod(
+            type,
+            method,
+            JSValueToBoolean(context, result) ? JNI_TRUE : JNI_FALSE
+        );
+        environment->DeleteLocalRef(type);
+        return output;
+    }
+    if (JSValueIsNumber(context, result)) {
+        const double number = JSValueToNumber(context, result, nullptr);
+        const bool integral = std::floor(number) == number &&
+            number >= INT32_MIN && number <= INT32_MAX;
+        const char *class_name = integral ? "java/lang/Integer" : "java/lang/Double";
+        const char *signature = integral
+            ? "(I)Ljava/lang/Integer;"
+            : "(D)Ljava/lang/Double;";
+        jclass type = environment->FindClass(class_name);
+        jmethodID method = environment->GetStaticMethodID(type, "valueOf", signature);
+        jobject output = integral
+            ? environment->CallStaticObjectMethod(type, method, static_cast<jint>(number))
+            : environment->CallStaticObjectMethod(type, method, static_cast<jdouble>(number));
+        environment->DeleteLocalRef(type);
+        return output;
+    }
+    JSValueRef json_exception = nullptr;
+    JSStringRef json = JSValueCreateJSONString(context, result, 0, &json_exception);
+    if (json == nullptr) {
+        return nullptr;
+    }
+    jstring output = java_string(environment, json);
+    JSStringRelease(json);
+    return output;
+}
+
+void JNICALL javascript_close(JNIEnv *, jclass, jlong value) {
+    JSGlobalContextRef context = reinterpret_cast<JSGlobalContextRef>(
+        static_cast<intptr_t>(value)
+    );
+    if (context != nullptr) {
+        JSGlobalContextRelease(context);
+    }
+}
+
+const JNINativeMethod methods[] = {
+    {const_cast<char *>("bitmapCreate"), const_cast<char *>("(II)[J"), reinterpret_cast<void *>(&bitmap_create)},
+    {const_cast<char *>("bitmapDecode"), const_cast<char *>("([BII)[J"), reinterpret_cast<void *>(&bitmap_decode)},
+    {const_cast<char *>("bitmapCrop"), const_cast<char *>("(JIIII)[J"), reinterpret_cast<void *>(&bitmap_crop)},
+    {const_cast<char *>("bitmapRelease"), const_cast<char *>("(J)V"), reinterpret_cast<void *>(&bitmap_release)},
+    {const_cast<char *>("bitmapCompress"), const_cast<char *>("(JII)[B"), reinterpret_cast<void *>(&bitmap_compress)},
+    {const_cast<char *>("bitmapErase"), const_cast<char *>("(JI)V"), reinterpret_cast<void *>(&bitmap_erase)},
+    {const_cast<char *>("bitmapGetPixel"), const_cast<char *>("(JII)I"), reinterpret_cast<void *>(&bitmap_get_pixel)},
+    {const_cast<char *>("bitmapSetPixel"), const_cast<char *>("(JIII)V"), reinterpret_cast<void *>(&bitmap_set_pixel)},
+    {const_cast<char *>("bitmapGetPixels"), const_cast<char *>("(J[IIIIIII)V"), reinterpret_cast<void *>(&bitmap_get_pixels)},
+    {const_cast<char *>("bitmapSetPixels"), const_cast<char *>("(J[IIIIIII)V"), reinterpret_cast<void *>(&bitmap_set_pixels)},
+    {const_cast<char *>("canvasDrawBitmap"), const_cast<char *>("(JJIIIIIIII)V"), reinterpret_cast<void *>(&canvas_draw_bitmap)},
+    {const_cast<char *>("canvasDrawText"), const_cast<char *>("(JLjava/lang/String;FFFIZ)V"), reinterpret_cast<void *>(&canvas_draw_text)},
+    {const_cast<char *>("textFontMetrics"), const_cast<char *>("(FZ)[F"), reinterpret_cast<void *>(&text_font_metrics)},
+    {const_cast<char *>("textLineEnds"), const_cast<char *>("(Ljava/lang/String;FFZ)[I"), reinterpret_cast<void *>(&text_line_ends)},
+    {const_cast<char *>("javascriptCreate"), const_cast<char *>("()J"), reinterpret_cast<void *>(&javascript_create)},
+    {const_cast<char *>("javascriptEvaluate"), const_cast<char *>("(JLjava/lang/String;)Ljava/lang/Object;"), reinterpret_cast<void *>(&javascript_evaluate)},
+    {const_cast<char *>("javascriptClose"), const_cast<char *>("(J)V"), reinterpret_cast<void *>(&javascript_close)},
+};
+#endif
+
+} // namespace
+
+bool tjr_register_mobile_natives(
+    JNIEnv *environment,
+    std::string &error
+) {
+#if defined(__APPLE__)
+    jclass type = environment->FindClass("app/tachiaz/compat/NativeBridge");
+    if (type == nullptr) {
+        environment->ExceptionClear();
+        error = "Unable to load the mobile Android native bridge";
+        return false;
+    }
+    const jint result = environment->RegisterNatives(
+        type,
+        methods,
+        static_cast<jint>(sizeof(methods) / sizeof(methods[0]))
+    );
+    environment->DeleteLocalRef(type);
+    if (result != JNI_OK) {
+        environment->ExceptionClear();
+        error = "Unable to register the mobile Android native bridge";
+        return false;
+    }
+    return true;
+#else
+    (void)environment;
+    error = "The mobile Android native bridge requires an Apple platform";
+    return false;
+#endif
+}

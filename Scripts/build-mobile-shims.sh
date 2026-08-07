@@ -74,10 +74,8 @@ while IFS= read -r source; do
 done < <(find "$compat_source_root" -name '*.java' -type f | sort)
 compat_classpath="$(
     find "$compat_root" -maxdepth 1 -type f \
-        \( -name 'aircompressor-*.jar' \
-            -o -name 'kotlin-stdlib-*.jar' \
-            -o -name 'okhttp-jvm-*.jar' \
-            -o -name 'okio-jvm-*.jar' \) \
+        -name '*.jar' \
+        ! -name '000-tachiaz-mobile-compat-shims.jar' \
         -print | sort | paste -sd: -
 )"
 if [[ -z "$compat_classpath" ]]; then
@@ -108,6 +106,9 @@ done < <(find "$compat_test_source_root" -name '*.java' -type f | sort)
 "$java_home/bin/java" \
     -cp "$compat_output_jar:$compat_classpath:$compat_test_build_root" \
     app.tachiaz.runtime.MobileZstdShimTest
+"$java_home/bin/java" \
+    -cp "$compat_output_jar:$compat_classpath:$compat_test_build_root" \
+    app.tachiaz.runtime.AndroidCompatibilitySurfaceTest
 if [[ ! -f "$java_home/lib/security/cacerts" ]]; then
     echo "JDK trust store is missing: $java_home/lib/security/cacerts" >&2
     exit 1

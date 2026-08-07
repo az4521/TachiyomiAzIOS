@@ -40,6 +40,19 @@ actor DownloadTask: Identifiable {
     private static let retryBaseDelay: TimeInterval = 1
     private static let maxRetryDelay: TimeInterval = 60
 
+    private nonisolated static let imageSession: URLSession = {
+#if os(iOS)
+        let configuration = URLSessionConfiguration.default
+        configuration.urlCache = nil
+        var protocolClasses = configuration.protocolClasses ?? []
+        protocolClasses.insert(JVMImageURLProtocol.self, at: 0)
+        configuration.protocolClasses = protocolClasses
+        return URLSession(configuration: configuration)
+#else
+        return URLSession.shared
+#endif
+    }()
+
     enum DownloadError: Error {
         case pageProcessorFailed
     }
@@ -381,7 +394,7 @@ extension DownloadTask {
     private func fetchPageData(for urlRequest: URLRequest, tmpDirectory: URL) async -> (Data, URLResponse)? {
         var attempt = 0
         while true {
-            let result = try? await URLSession.shared.data(for: urlRequest)
+            let result = try? await Self.imageSession.data(for: urlRequest)
 
             // response was okay, bail out
             if let result, self.isSuccessResponse(result.1) {
@@ -480,7 +493,7 @@ extension DownloadTask {
                     let source = SourceManager.shared.source(for: download.chapterIdentifier.sourceKey)
                 {
                     let request = await source.getModifiedImageRequest(url: coverUrl, context: nil)
-                    let result = try? await URLSession.shared.data(for: request)
+                    let result = try? await Self.imageSession.data(for: request)
                     if let data = result?.0, self.isSuccessResponse(result?.1) {
                         try? data.write(to: coverPath)
                     }

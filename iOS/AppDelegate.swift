@@ -233,6 +233,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             let dataLoader: DataLoader = {
                 let config = URLSessionConfiguration.default
                 config.urlCache = nil
+                var protocolClasses = config.protocolClasses ?? []
+                protocolClasses.insert(JVMImageURLProtocol.self, at: 0)
+                config.protocolClasses = protocolClasses
                 return DataLoader(configuration: config)
             }()
             let dataCache = try? DataCache(

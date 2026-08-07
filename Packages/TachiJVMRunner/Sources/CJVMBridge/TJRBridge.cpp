@@ -1,4 +1,5 @@
 #include "TJRBridge.h"
+#include "MobileNativeBridge.h"
 #include "jni.h"
 
 #include <cstdarg>
@@ -775,6 +776,16 @@ TJRRuntime *tjr_runtime_create(
             error_message,
             "JNI_CreateJavaVM failed with code " + std::to_string(result)
         );
+        for (void *loaded_handle : runtime->library_handles) {
+            dlclose(loaded_handle);
+        }
+        delete runtime;
+        return nullptr;
+    }
+
+    std::string mobile_native_error;
+    if (!tjr_register_mobile_natives(environment, mobile_native_error)) {
+        set_error(error_message, mobile_native_error);
         for (void *loaded_handle : runtime->library_handles) {
             dlclose(loaded_handle);
         }

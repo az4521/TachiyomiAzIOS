@@ -17,6 +17,22 @@ let package = Package(
             publicHeadersPath: "include",
             linkerSettings: [
                 .linkedLibrary("z"),
+                .linkedFramework(
+                    "CoreGraphics",
+                    .when(platforms: [.iOS, .macOS])
+                ),
+                .linkedFramework(
+                    "CoreText",
+                    .when(platforms: [.iOS, .macOS])
+                ),
+                .linkedFramework(
+                    "ImageIO",
+                    .when(platforms: [.iOS, .macOS])
+                ),
+                .linkedFramework(
+                    "JavaScriptCore",
+                    .when(platforms: [.iOS, .macOS])
+                ),
             ]
         ),
         .target(

@@ -44,6 +44,8 @@ if [[ -z "${TACHIAZ_SUWAYOMI_SOURCE:-}" ]]; then
     fi
     git -C "$checkout_root" fetch --depth 1 origin "$suwayomi_commit"
     git -C "$checkout_root" checkout --detach "$suwayomi_commit"
+    git -C "$checkout_root" reset --hard "$suwayomi_commit"
+    git -C "$checkout_root" clean -fd
 else
     actual_commit="$(git -C "$checkout_root" rev-parse HEAD)"
     if [[ "$actual_commit" != "$suwayomi_commit" ]]; then

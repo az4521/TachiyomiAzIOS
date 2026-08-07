@@ -2,7 +2,6 @@ import CryptoKit
 import AidokuRunner
 import Foundation
 import TachiJVMRunner
-import UIKit
 
 actor JVMSourceRuntime {
     static let shared = JVMSourceRuntime()
@@ -36,6 +35,7 @@ actor JVMSourceRuntime {
     private let fileManager: FileManager
     private var runtime: JVMRuntime?
     private var cloudflareBypassTasks: [String: Task<Void, Error>] = [:]
+    private var preparedImageDirectory = false
 
     private static let maximumExtensionSize: Int64 = 64 * 1_048_576
 
@@ -1036,6 +1036,63 @@ actor JVMSourceRuntime {
         )
     }
 
+    func materializeImage(
+        extensionId: String,
+        sourceId: Int64,
+        imageURL: String,
+        pageURL: String?
+    ) async throws -> TachiyomiXMaterializedImage {
+        let directory = fileManager.temporaryDirectory.appendingPathComponent(
+            "TachiyomiAZ-JVM-Images",
+            isDirectory: true
+        )
+        if !preparedImageDirectory {
+            try? fileManager.removeItem(at: directory)
+            preparedImageDirectory = true
+        }
+        try fileManager.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        let destination = directory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: false
+        )
+        do {
+            let descriptor: TachiyomiXMaterializedImageDescriptor =
+                try await decodedResult(
+                    .init(
+                        operation: "materializeImage",
+                        extensionId: extensionId,
+                        sourceId: String(sourceId),
+                        imageURL: imageURL,
+                        pageURL: pageURL,
+                        destinationPath: destination.path
+                    ),
+                    as: TachiyomiXMaterializedImageDescriptor.self
+                )
+            let values = try destination.resourceValues(
+                forKeys: [.fileSizeKey, .isRegularFileKey]
+            )
+            guard
+                values.isRegularFile == true,
+                let size = values.fileSize,
+                size > 0
+            else {
+                throw RuntimeError.hostRejected(
+                    "The extension returned an empty image."
+                )
+            }
+            return .init(
+                fileURL: destination,
+                contentType: descriptor.contentType
+            )
+        } catch {
+            try? fileManager.removeItem(at: destination)
+            throw error
+        }
+    }
+
     private func makeRuntime() async throws -> JVMRuntime {
         let configuration = try JVMRuntimeConfiguration.bundled(in: .main)
         // Construct the process-wide VM on the main actor. Runtime requests
@@ -1423,54 +1480,19 @@ actor TachiyomiXSourceRunner: AidokuRunner.Runner {
             chapterURL: chapter.key,
             chapterName: chapter.title ?? ""
         )
-        var convertedPages: [AidokuRunner.Page] = []
-        convertedPages.reserveCapacity(pages.count)
-        for page in pages {
-            let convertedPage = try page.intoAidoku
-            if
-                case let .url(url, _) = convertedPage.content,
-                TachiyomiTextPageRenderer.handles(url)
-            {
-                guard
-                    let renderedPage = await TachiyomiTextPageRenderer.render(
-                        convertedPage,
-                        url: url
-                    )
-                else {
-                    throw AidokuRunner.SourceError.message(
-                        "Unable to decode the generated text page"
-                    )
-                }
-                convertedPages.append(renderedPage)
-            } else {
-                convertedPages.append(convertedPage)
-            }
-        }
-        return convertedPages
+        return try pages.map { try $0.intoAidoku }
     }
 
     func getImageRequest(
         url: String,
         context: AidokuRunner.PageContext?
     ) async throws -> URLRequest {
-        do {
-            let descriptor = try await JVMSourceRuntime.shared.imageRequest(
-                extensionId: extensionId,
-                sourceId: self.descriptor.id,
-                imageURL: url,
-                pageURL: context?["mihonPageURL"]
-            )
-            var request = URLRequest(url: descriptor.url)
-            for (name, value) in descriptor.headers {
-                request.setValue(value, forHTTPHeaderField: name)
-            }
-            return request
-        } catch {
-            guard let url = URL(string: url) else {
-                throw error
-            }
-            return URLRequest(url: url)
-        }
+        JVMImageURLProtocol.request(
+            extensionId: extensionId,
+            sourceId: descriptor.id,
+            imageURL: url,
+            pageURL: context?["mihonPageURL"]
+        )
     }
 }
 
@@ -1704,157 +1726,128 @@ private extension TachiyomiXPage {
     }
 }
 
-private enum TachiyomiTextPageRenderer {
-    private static let host = "tachiyomi-lib-textinterceptor"
-    private static let width: CGFloat = 1_000
-    private static let horizontalPadding: CGFloat = 50
-    private static let verticalPadding: CGFloat = 25
+struct TachiyomiXMaterializedImageDescriptor: Decodable, Sendable {
+    let contentType: String
+}
 
-    static func handles(_ url: URL) -> Bool {
-        url.host?.lowercased() == host
+struct TachiyomiXMaterializedImage: Sendable {
+    let fileURL: URL
+    let contentType: String
+}
+
+final class JVMImageURLProtocol: URLProtocol {
+    private struct Descriptor: Sendable {
+        let extensionId: String
+        let sourceId: Int64
+        let imageURL: String
+        let pageURL: String?
     }
 
-    @MainActor
-    static func render(
-        _ page: AidokuRunner.Page,
-        url: URL
-    ) -> AidokuRunner.Page? {
-        guard
-            handles(url),
-            let path = URLComponents(
-                url: url,
-                resolvingAgainstBaseURL: false
-            )?.percentEncodedPath
-        else {
-            return nil
-        }
+    private static let registryLock = NSLock()
+    nonisolated(unsafe) private static var registry: [String: Descriptor] = [:]
+    private var loadingTask: Task<Void, Never>?
 
-        let encodedParts = path.split(
-            separator: "/",
-            omittingEmptySubsequences: false
-        )
-        guard encodedParts.count >= 3 else {
-            return nil
-        }
-
-        let heading = decode(String(encodedParts[1]))
-        let body = decode(String(encodedParts[2]))
-        let textWidth = width - (horizontalPadding * 2)
-        let headingAttributes = attributes(
-            font: .boldSystemFont(ofSize: 36)
-        )
-        let bodyAttributes = attributes(
-            font: .systemFont(ofSize: 30)
-        )
-        let headingHeight = textHeight(
-            heading,
-            width: textWidth,
-            attributes: headingAttributes
-        )
-        let bodyHeight = textHeight(
-            body,
-            width: textWidth,
-            attributes: bodyAttributes
-        )
-        let imageHeight = max(
-            1,
-            ceil(headingHeight + bodyHeight + (verticalPadding * 2))
-        )
-
-        let format = UIGraphicsImageRendererFormat.default()
-        format.opaque = true
-        format.scale = 1
-        let image = UIGraphicsImageRenderer(
-            size: CGSize(width: width, height: imageHeight),
-            format: format
-        ).image { context in
-            context.cgContext.setFillColor(UIColor.white.cgColor)
-            context.cgContext.fill(
-                CGRect(x: 0, y: 0, width: width, height: imageHeight)
-            )
-            if !heading.isEmpty {
-                (heading as NSString).draw(
-                    in: CGRect(
-                        x: horizontalPadding,
-                        y: verticalPadding,
-                        width: textWidth,
-                        height: headingHeight
-                    ),
-                    withAttributes: headingAttributes
-                )
-            }
-            if !body.isEmpty {
-                (body as NSString).draw(
-                    in: CGRect(
-                        x: horizontalPadding,
-                        y: verticalPadding + headingHeight,
-                        width: textWidth,
-                        height: bodyHeight
-                    ),
-                    withAttributes: bodyAttributes
-                )
+    static func request(
+        extensionId: String,
+        sourceId: Int64,
+        imageURL: String,
+        pageURL: String?
+    ) -> URLRequest {
+        let identity = [
+            extensionId,
+            String(sourceId),
+            imageURL,
+            pageURL ?? ""
+        ].joined(separator: "\u{0}")
+        let token = SHA256.hash(data: Data(identity.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        registryLock.lock()
+        if registry.count >= 4_096, registry[token] == nil {
+            if let discardedToken = registry.keys.first {
+                registry.removeValue(forKey: discardedToken)
             }
         }
-        return .init(
-            content: .image(image),
-            thumbnail: page.thumbnail,
-            hasDescription: page.hasDescription,
-            description: page.description
+        registry[token] = .init(
+            extensionId: extensionId,
+            sourceId: sourceId,
+            imageURL: imageURL,
+            pageURL: pageURL
+        )
+        registryLock.unlock()
+        return URLRequest(
+            url: URL(string: "tachiyomiaz-jvm-image://\(token)")!
         )
     }
 
-    @MainActor
-    private static func decode(_ encodedHTML: String) -> String {
-        let html = encodedHTML.removingPercentEncoding ?? encodedHTML
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.url?.scheme == "tachiyomiaz-jvm-image"
+    }
+
+    override class func canonicalRequest(
+        for request: URLRequest
+    ) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
         guard
-            let data = html.data(using: .utf8),
-            let attributed = try? NSAttributedString(
-                data: data,
-                options: [
-                    .documentType: NSAttributedString.DocumentType.html,
-                    .characterEncoding: String.Encoding.utf8.rawValue
-                ],
-                documentAttributes: nil
-            )
+            let token = request.url?.host,
+            let descriptor = Self.descriptor(for: token)
         else {
-            return html
+            client?.urlProtocol(
+                self,
+                didFailWithError: URLError(.resourceUnavailable)
+            )
+            return
         }
-        return attributed.string
+        loadingTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let image = try await JVMSourceRuntime.shared.materializeImage(
+                    extensionId: descriptor.extensionId,
+                    sourceId: descriptor.sourceId,
+                    imageURL: descriptor.imageURL,
+                    pageURL: descriptor.pageURL
+                )
+                defer {
+                    try? FileManager.default.removeItem(at: image.fileURL)
+                }
+                try Task.checkCancellation()
+                let data = try Data(
+                    contentsOf: image.fileURL,
+                    options: [.mappedIfSafe]
+                )
+                try Task.checkCancellation()
+                let response = URLResponse(
+                    url: request.url!,
+                    mimeType: image.contentType,
+                    expectedContentLength: data.count,
+                    textEncodingName: nil
+                )
+                client?.urlProtocol(
+                    self,
+                    didReceive: response,
+                    cacheStoragePolicy: .notAllowed
+                )
+                client?.urlProtocol(self, didLoad: data)
+                client?.urlProtocolDidFinishLoading(self)
+            } catch is CancellationError {
+                return
+            } catch {
+                client?.urlProtocol(self, didFailWithError: error)
+            }
+        }
     }
 
-    @MainActor
-    private static func attributes(
-        font: UIFont
-    ) -> [NSAttributedString.Key: Any] {
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.lineHeightMultiple = 1.1
-        paragraph.lineSpacing = 2
-        return [
-            .font: font,
-            .foregroundColor: UIColor.black,
-            .paragraphStyle: paragraph
-        ]
+    override func stopLoading() {
+        loadingTask?.cancel()
+        loadingTask = nil
     }
 
-    @MainActor
-    private static func textHeight(
-        _ text: String,
-        width: CGFloat,
-        attributes: [NSAttributedString.Key: Any]
-    ) -> CGFloat {
-        guard !text.isEmpty else {
-            return 0
-        }
-        return ceil(
-            (text as NSString).boundingRect(
-                with: CGSize(
-                    width: width,
-                    height: .greatestFiniteMagnitude
-                ),
-                options: [.usesLineFragmentOrigin, .usesFontLeading],
-                attributes: attributes,
-                context: nil
-            ).height
-        )
+    private static func descriptor(for token: String) -> Descriptor? {
+        registryLock.lock()
+        defer { registryLock.unlock() }
+        return registry[token]
     }
 }

@@ -141,6 +141,11 @@ if [[ "${1:-}" == "--test" ]]; then
             "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$compat_test_classes_root" \
             app.tachiaz.runtime.AndroidMainLooperTest
 
+        run_test_java \
+            -cp \
+            "$TACHIAZ_COMPAT_CLASSPATH:$output_jar:$compat_test_classes_root" \
+            app.tachiaz.runtime.ImageInterceptorMaterializationTest
+
         if [[ "${TACHIAZ_VERIFY_MOBILE_SHIMS:-}" == "1" ]]; then
             run_test_java \
                 -cp \
