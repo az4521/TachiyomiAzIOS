@@ -138,6 +138,22 @@ jobs:
       - name: Generate JVM export list
         run: bash Scripts/generate-openjdk-exports.sh
 
+      - name: Verify iPhone linker configuration
+        run: |
+          build_settings="$(
+            xcodebuild \
+              -project Aidoku.xcodeproj \
+              -scheme "Aidoku (iOS)" \
+              -configuration Release \
+              -destination "generic/platform=iOS" \
+              -showBuildSettings
+          )"
+          if ! grep -F -- "-Wl,-exported_symbols_list,$GITHUB_WORKSPACE/iOS/JVM/OpenJDK.exports" <<<"$build_settings" >/dev/null; then
+            echo "The iPhone target is not passing the JVM export list to the linker." >&2
+            grep -E '^[[:space:]]*(OTHER_LDFLAGS|SRCROOT)[[:space:]]*=' <<<"$build_settings" >&2 || true
+            exit 1
+          fi
+
       - name: Test optional real-world extension fixtures
         env:
           TACHIYOMIAZ_EXTLIB_1_4_FIXTURE_URL: ${{ secrets.TACHIYOMIAZ_EXTLIB_1_4_FIXTURE_URL }}
