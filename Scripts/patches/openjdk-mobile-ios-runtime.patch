@@ -17,3 +17,39 @@ index 927ab682c..4e6c9013e 100644
 +        return OperatingSystem.valueOf(osName.toUpperCase(Locale.ROOT));
      }
  }
+
+diff --git a/src/hotspot/os/bsd/os_bsd.cpp b/src/hotspot/os/bsd/os_bsd.cpp
+index d860e823..dea72e30 100644
+--- a/src/hotspot/os/bsd/os_bsd.cpp
++++ b/src/hotspot/os/bsd/os_bsd.cpp
+@@ -369,6 +369,22 @@ void os::init_system_properties_values() {
+   // sysclasspath, java_home, dll_dir
+   {
+     char *pslash;
++#ifdef __IOS__
++    // A statically linked iOS VM cannot infer java.home from a libjvm path:
++    // os::jvm_path() resolves to the app executable. The embedding app sets
++    // JAVA_HOME to its bundled runtime before JNI_CreateJavaVM.
++    const char *configured_java_home = ::getenv("JAVA_HOME");
++    if (configured_java_home == nullptr || configured_java_home[0] == '\0') {
++      vm_exit_during_initialization("JAVA_HOME is not set for the iOS VM");
++    }
++    if (strlen(configured_java_home) + sizeof("/lib") > bufsize) {
++      vm_exit_during_initialization("JAVA_HOME exceeds the iOS VM path limit");
++    }
++    strcpy(buf, configured_java_home);
++    Arguments::set_java_home(buf);
++    strcat(buf, "/lib");
++    Arguments::set_dll_dir(buf);
++#else
+     os::jvm_path(buf, bufsize);
+
+     // Found the full path to libjvm.so.
+@@ -475,6 +491,7 @@ void os::init_system_properties_values() {
+     }
+ #endif
+     Arguments::set_java_home(buf);
++#endif
+     if (!set_boot_path('/', ':')) {
+         vm_exit_during_initialization("Failed setting boot class path.", nullptr);
+     }

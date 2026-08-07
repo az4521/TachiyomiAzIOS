@@ -11,7 +11,7 @@ ios_runtime_patch="$repository_root/Scripts/patches/openjdk-mobile-ios-runtime.p
 symbol_keeper_sha256="ec02a950b2c630b234aa393abdf48efe7ce95c3a637c189e0a2e492e8ec316db"
 device_libffi_sha256="4f39fd1d53fbd69d1bdbd915413077d130daa3f6792d1b3a03a690a9cbd4dea3"
 simulator_libffi_sha256="701b522e3eff0263f18d4a9e487f0a7ac30050fb2af20e86b6849daa14f5781f"
-stamp_value="openjdk-mobile-$mobile_revision-ios-$deployment_target-v7"
+stamp_value="openjdk-mobile-$mobile_revision-ios-$deployment_target-v8"
 stamp_file="$vendor_root/.ios-runtime"
 runtime_data_files=(
     conf/net.properties
