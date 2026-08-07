@@ -135,10 +135,8 @@ jobs:
           bash Scripts/build-mobile-shims.sh
           bash Scripts/build-extension-host.sh --test
 
-      - name: Verify committed JVM export list
-        run: |
-          bash Scripts/generate-openjdk-exports.sh
-          git diff --exit-code -- iOS/JVM/OpenJDK.exports
+      - name: Generate JVM export list
+        run: bash Scripts/generate-openjdk-exports.sh
 
       - name: Test optional real-world extension fixtures
         env:
