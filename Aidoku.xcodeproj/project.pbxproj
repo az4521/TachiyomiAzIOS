@@ -3479,6 +3479,7 @@
 				);
 				OTHER_LDFLAGS = (
 					"$(inherited)",
+					"-Wl,-export_dynamic",
 					"-lz",
 					"-lc++",
 				);
@@ -3527,6 +3528,7 @@
 				);
 				OTHER_LDFLAGS = (
 					"$(inherited)",
+					"-Wl,-export_dynamic",
 					"-lz",
 					"-lc++",
 				);

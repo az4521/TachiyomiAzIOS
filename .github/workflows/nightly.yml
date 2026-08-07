@@ -163,6 +163,39 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             archive
 
+      - name: Verify statically linked JVM exports
+        run: |
+          app_binary="$RUNNER_TEMP/TachiyomiAZ.xcarchive/Products/Applications/Aidoku.app/Aidoku"
+          test -f "$app_binary"
+          exported_symbols="$(xcrun nm -gjU "$app_binary")"
+          required_symbols=(
+            _JNI_CreateJavaVM
+            _JIMAGE_Open
+            _JIMAGE_Close
+            _JIMAGE_FindResource
+            _JIMAGE_GetResource
+            _JDK_Canonicalize
+            _ZIP_Open
+            _ZIP_Close
+            _ZIP_FindEntry
+            _ZIP_ReadEntry
+            _ZIP_FreeEntry
+            _ZIP_CRC32
+            _ZIP_GZip_InitParams
+            _ZIP_GZip_Fully
+            _JNU_NewStringPlatform
+            _GetStringPlatformChars
+            _Java_java_lang_System_registerNatives
+            _Java_jdk_internal_loader_NativeLibraries_findBuiltinLib
+          )
+
+          for symbol in "${required_symbols[@]}"; do
+            if ! grep -Fx "$symbol" <<<"$exported_symbols" >/dev/null; then
+              echo "Missing required statically linked JVM export: $symbol" >&2
+              exit 1
+            fi
+          done
+
       - name: Package unsigned IPA
         id: package
         env:

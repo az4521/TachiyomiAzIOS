@@ -13,10 +13,20 @@
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
 #include <dlfcn.h>
+#include <os/log.h>
 #endif
 
 #if defined(__APPLE__) && TARGET_OS_IPHONE
 extern "C" void loadfunctions();
+
+// Referencing the symbol-keeper entry point makes the static linker include
+// symbol_keeper.o and, through its relocations, all class-library JNI natives.
+// The function body only prints the retained addresses; executing it performs
+// no registration and needlessly runs hundreds of stdio calls on the UI thread.
+static void retain_ios_jvm_symbols() {
+    void (*volatile anchor)() = &loadfunctions;
+    (void)anchor;
+}
 #endif
 
 struct TJRRuntime {
@@ -303,11 +313,17 @@ TJRRuntime *tjr_runtime_create(
 
     using CreateJavaVM = jint (*)(JavaVM **, void **, void *);
 #if TARGET_OS_IPHONE
-    std::fprintf(stderr, "[TachiJVMRunner] registering iOS JVM functions\n");
-    std::fflush(stderr);
-    loadfunctions();
-    std::fprintf(stderr, "[TachiJVMRunner] iOS JVM functions registered\n");
-    std::fflush(stderr);
+    os_log_with_type(
+        OS_LOG_DEFAULT,
+        OS_LOG_TYPE_ERROR,
+        "[TachiJVMRunner] retaining static JNI symbols"
+    );
+    retain_ios_jvm_symbols();
+    os_log_with_type(
+        OS_LOG_DEFAULT,
+        OS_LOG_TYPE_ERROR,
+        "[TachiJVMRunner] static JNI symbols retained"
+    );
     CreateJavaVM create_vm = &JNI_CreateJavaVM;
 #else
     const char *required_libraries[] = {
@@ -382,19 +398,36 @@ TJRRuntime *tjr_runtime_create(
     arguments.ignoreUnrecognized = JNI_TRUE;
 
     JNIEnv *environment = nullptr;
+#if TARGET_OS_IPHONE
+    os_log_with_type(
+        OS_LOG_DEFAULT,
+        OS_LOG_TYPE_ERROR,
+        "[TachiJVMRunner] entering JNI_CreateJavaVM"
+    );
+#else
     std::fprintf(stderr, "[TachiJVMRunner] creating Java VM\n");
     std::fflush(stderr);
+#endif
     const jint result = create_vm(
         &runtime->vm,
         reinterpret_cast<void **>(&environment),
         &arguments
     );
+#if TARGET_OS_IPHONE
+    os_log_with_type(
+        OS_LOG_DEFAULT,
+        OS_LOG_TYPE_ERROR,
+        "[TachiJVMRunner] JNI_CreateJavaVM returned %{public}d",
+        static_cast<int>(result)
+    );
+#else
     std::fprintf(
         stderr,
         "[TachiJVMRunner] Java VM creation returned %d\n",
         static_cast<int>(result)
     );
     std::fflush(stderr);
+#endif
     if (
         result != JNI_OK ||
         runtime->vm == nullptr ||
