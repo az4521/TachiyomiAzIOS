@@ -99,6 +99,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+          cache: gradle
 
       - name: Verify external AidokuRunner is absent
         run: bash Scripts/check-no-external-aidokurunner.sh
@@ -109,9 +110,28 @@ jobs:
           name: OpenJDK-iOS15
           path: Vendor/OpenJDK
 
+      - name: Restore JVM compatibility cache
+        id: compatibility-cache
+        uses: actions/cache@v4
+        with:
+          path: Runtime/ExtensionHost/compat
+          key: tachiyomiaz-suwayomi-${{ runner.os }}-${{ hashFiles('Scripts/bootstrap-suwayomi-compat.sh', 'Scripts/gradle/copy-suwayomi-runtime.init.gradle') }}
+
       - name: Bootstrap JVM compatibility layer
         run: |
-          bash Scripts/bootstrap-suwayomi-compat.sh
+          if [[ "${{ steps.compatibility-cache.outputs.cache-hit }}" != "true" ]]; then
+            for attempt in 1 2 3; do
+              if bash Scripts/bootstrap-suwayomi-compat.sh; then
+                break
+              fi
+              if [[ "$attempt" == 3 ]]; then
+                echo "JVM compatibility bootstrap failed after $attempt attempts." >&2
+                exit 1
+              fi
+              echo "JVM compatibility bootstrap attempt $attempt failed; retrying in 15 seconds." >&2
+              sleep 15
+            done
+          fi
           bash Scripts/build-mobile-shims.sh
           bash Scripts/build-extension-host.sh --test
 
