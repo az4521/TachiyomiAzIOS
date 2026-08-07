@@ -51,8 +51,13 @@ fi
     cat "$symbol_keeper"
     printf '\n// iOS cannot reliably resolve statically linked JVM symbols through dyld.\n'
     printf '// Keep a direct name-to-address registry inside libjvm instead.\n'
+    printf '// Unique assembler aliases avoid collisions with declarations from the HotSpot PCH.\n'
+    index=0
     while IFS= read -r symbol; do
-        printf 'extern void* %s;\n' "$symbol"
+        printf 'extern void* tachiyomiaz_static_address_%d asm("_%s");\n' \
+            "$index" \
+            "$symbol"
+        ((index += 1))
     done < "$symbols"
     cat <<'EOF'
 
@@ -65,8 +70,12 @@ extern "C" int strcmp(const char*, const char*);
 
 static const TachiyomiAZStaticSymbol tachiyomiaz_static_symbols[] = {
 EOF
+    index=0
     while IFS= read -r symbol; do
-        printf '    { "%s", reinterpret_cast<void*>(&%s) },\n' "$symbol" "$symbol"
+        printf '    { "%s", reinterpret_cast<void*>(&tachiyomiaz_static_address_%d) },\n' \
+            "$symbol" \
+            "$index"
+        ((index += 1))
     done < "$symbols"
     cat <<'EOF'
 };
