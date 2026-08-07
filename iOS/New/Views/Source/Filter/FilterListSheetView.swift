@@ -14,6 +14,7 @@ import UIKit
 struct FilterListSheetView: View {
     let sourceKey: String?
     let filters: [AidokuRunner.Filter]
+    let onApply: (() -> Void)?
 
     @Binding var search: String
     @Binding var enabledFilters: [FilterValue]
@@ -24,6 +25,7 @@ struct FilterListSheetView: View {
     @State private var showConfirm = false
     @State private var showSaveErrorAlert = false
     @State private var discardChanges = false
+    @State private var applyChanges = false
     @StateObject private var incognitoMode = UserDefaultsBool(key: "General.incognitoMode")
 
     @Environment(\.dismiss) private var dismiss
@@ -32,10 +34,12 @@ struct FilterListSheetView: View {
         sourceKey: String? = nil,
         filters: [AidokuRunner.Filter],
         search: Binding<String>,
-        enabledFilters: Binding<[FilterValue]>
+        enabledFilters: Binding<[FilterValue]>,
+        onApply: (() -> Void)? = nil
     ) {
         self.sourceKey = sourceKey
         self.filters = filters
+        self.onApply = onApply
         self._search = search
         self._enabledFilters = enabledFilters
         self._newEnabledFilters = State(initialValue: enabledFilters.wrappedValue)
@@ -90,11 +94,16 @@ struct FilterListSheetView: View {
             }
             .onDisappear {
                 saveSavedSearches()
-                guard !discardChanges, newEnabledFilters != enabledFilters || newSearch != nil else { return }
-                if let newSearch {
-                    search = newSearch
+                guard !discardChanges else { return }
+                if newEnabledFilters != enabledFilters || newSearch != nil {
+                    if let newSearch {
+                        search = newSearch
+                    }
+                    enabledFilters = newEnabledFilters
                 }
-                enabledFilters = newEnabledFilters
+                if applyChanges {
+                    onApply?()
+                }
             }
 
             if #available(iOS 26.0, *) {
@@ -124,6 +133,7 @@ struct FilterListSheetView: View {
         }
         ToolbarItem(placement: .topBarTrailing) {
             Button(NSLocalizedString("APPLY")) {
+                applyChanges = true
                 dismiss()
             }
             .font(.body.weight(.medium))
@@ -138,6 +148,7 @@ struct FilterListSheetView: View {
         ToolbarItem(placement: .bottomBar) {
             Button(NSLocalizedString("RESET")) {
                 newEnabledFilters = []
+                applyChanges = true
                 dismiss()
             }
         }
@@ -161,6 +172,7 @@ struct FilterListSheetView: View {
             HStack {
                 Button(NSLocalizedString("RESET")) {
                     newEnabledFilters = []
+                    applyChanges = true
                     dismiss()
                 }
                 Spacer()

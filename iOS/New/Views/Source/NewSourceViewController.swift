@@ -159,7 +159,10 @@ class NewSourceViewController: UIViewController {
             sourceKey: source.key,
             filters: filters ?? [],
             search: searchBinding,
-            enabledFilters: enabledFiltersBinding
+            enabledFilters: enabledFiltersBinding,
+            onApply: { [weak self] in
+                self?.showSearchAfterApplyingFilters()
+            }
         )
     }
 
@@ -713,6 +716,21 @@ extension NewSourceViewController {
         guard presenter.presentedViewController == nil else { return }
         presentedFilterDrawer = controller
         presenter.present(controller, animated: true)
+    }
+
+    private func showSearchAfterApplyingFilters() {
+        guard !onlySearch, !searchController.isActive else { return }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard
+                let self,
+                self.view.window != nil,
+                !self.searchController.isActive
+            else {
+                return
+            }
+            self.showSearchView()
+        }
     }
 
     // find a uiscrollview in a view hierarchy
