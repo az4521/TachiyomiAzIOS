@@ -143,7 +143,6 @@
 		FB1B4846277CE1920056D02C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FB1B4830277CE1920056D02C /* Assets.xcassets */; };
 		FB1B4847277CE1920056D02C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FB1B4830277CE1920056D02C /* Assets.xcassets */; };
 		FB1B4853277CE4510056D02C /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB1B4852277CE4510056D02C /* AppDelegate.swift */; };
-		A10F000127F0000000000001 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10F000227F0000000000002 /* main.swift */; };
 		FB1B4856277CE5560056D02C /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB1B4855277CE5560056D02C /* SceneDelegate.swift */; };
 		FB1B4866277CE76B0056D02C /* Chapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB1B4863277CE76A0056D02C /* Chapter.swift */; };
 		FB1B4867277CE76B0056D02C /* Chapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB1B4863277CE76A0056D02C /* Chapter.swift */; };
@@ -717,7 +716,6 @@
 		FB1B483D277CE1920056D02C /* macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = macOS.entitlements; sourceTree = "<group>"; };
 		FB1B4850277CE2300056D02C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		FB1B4852277CE4510056D02C /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		A10F000227F0000000000002 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		FB1B4855277CE5560056D02C /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		FB1B4863277CE76A0056D02C /* Chapter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Chapter.swift; sourceTree = "<group>"; };
 		FB1B4864277CE76A0056D02C /* MangaModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MangaModels.swift; sourceTree = "<group>"; };
@@ -1441,7 +1439,6 @@
 			children = (
 				91D7BEF72DD7E46800898539 /* Aidoku-IOS.xcconfig */,
 				FB1B4852277CE4510056D02C /* AppDelegate.swift */,
-				A10F000227F0000000000002 /* main.swift */,
 				FB1B4855277CE5560056D02C /* SceneDelegate.swift */,
 				A12100000000000000000005 /* JVM */,
 				FB662E892DA58B0900007514 /* New */,
@@ -2919,7 +2916,6 @@
 				FB077DA62E7DC5C400C9C214 /* SettingSearchResult.swift in Sources */,
 				FBED232127BB2BBE0095D0C0 /* FilterModalViewController.swift in Sources */,
 				FB1B4853277CE4510056D02C /* AppDelegate.swift in Sources */,
-				A10F000127F0000000000001 /* main.swift in Sources */,
 				FBFF58952E807282009367B7 /* DoneButton.swift in Sources */,
 				FB72502227CBE9170037F1C9 /* SourceInfoHeaderView.swift in Sources */,
 				FBD6A411285B7789007116C9 /* TrackItem.swift in Sources */,
