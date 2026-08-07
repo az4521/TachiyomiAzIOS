@@ -45,11 +45,11 @@ JAR paths to `Scripts/test-tachiyomix-1_4.sh` and
 `TACHIYOMIAZ_EXTLIB_1_4_FIXTURE_URL` and `TACHIYOMIAZ_EXTLIB_1_6_FIXTURE_URL`.
 
 ```sh
-TACHIAZ_JDK26_HOME=/path/to/jdk26 Scripts/build-openjdk-ios15.sh
-TACHIYOMIAZ_BUILD_JAVA_HOME=/path/to/jdk26 Scripts/bootstrap-suwayomi-compat.sh
-TACHIYOMIAZ_BUILD_JAVA_HOME=/path/to/jdk26 Scripts/build-mobile-shims.sh
-TACHIYOMIAZ_BUILD_JAVA_HOME=/path/to/jdk26 Scripts/build-extension-host.sh --test
-TACHIYOMIAZ_BUILD_JAVA_HOME=/path/to/jdk26 Scripts/test-mobile-java-base.sh
+Scripts/build-openjdk-ios15.sh
+TACHIYOMIAZ_BUILD_JAVA_HOME=/path/to/jdk24 Scripts/bootstrap-suwayomi-compat.sh
+TACHIYOMIAZ_BUILD_JAVA_HOME=/path/to/jdk24 Scripts/build-mobile-shims.sh
+TACHIYOMIAZ_BUILD_JAVA_HOME=/path/to/jdk24 Scripts/build-extension-host.sh --test
+TACHIYOMIAZ_BUILD_JAVA_HOME=/path/to/jdk24 Scripts/test-mobile-java-base.sh
 ```
 
 The OpenJDK build installs matching iOS 15-targeted device and arm64 simulator

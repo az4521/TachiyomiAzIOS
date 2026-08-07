@@ -6,13 +6,14 @@ device and simulator snapshot. The binaries are intentionally not checked into
 this repository.
 
 For the iOS 15-compatible runtime, use macOS with OpenJDK 24 as the active
-boot JDK and OpenJDK 26 for the matching module-image tools, then run:
+boot JDK, then run:
 
 ```sh
-TACHIAZ_JDK26_HOME=/path/to/jdk26 Scripts/build-openjdk-ios15.sh
+Scripts/build-openjdk-ios15.sh
 ```
 
 The script builds a checksum- and revision-pinned OpenJDK Mobile 26 Zero VM,
+matching macOS image tools,
 matching `java.base` module images, and an XCFramework with arm64 device and
 arm64 simulator slices. Both native targets are compiled with an explicit iOS
 15 deployment target. CI caches the complete matching runtime.

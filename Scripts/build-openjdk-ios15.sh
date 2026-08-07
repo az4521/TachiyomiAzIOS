@@ -10,7 +10,7 @@ builder_revision="0a753240e2b143137e73593c48d646a4956c2351"
 symbol_keeper_sha256="ec02a950b2c630b234aa393abdf48efe7ce95c3a637c189e0a2e492e8ec316db"
 device_libffi_sha256="4f39fd1d53fbd69d1bdbd915413077d130daa3f6792d1b3a03a690a9cbd4dea3"
 simulator_libffi_sha256="701b522e3eff0263f18d4a9e487f0a7ac30050fb2af20e86b6849daa14f5781f"
-stamp_value="openjdk-mobile-$mobile_revision-ios-$deployment_target-v2"
+stamp_value="openjdk-mobile-$mobile_revision-ios-$deployment_target-v3"
 stamp_file="$vendor_root/.ios-runtime"
 
 if [[ -f "$stamp_file" ]] && [[ "$(<"$stamp_file")" == "$stamp_value" ]]; then
@@ -44,24 +44,6 @@ if [[ "$java_feature" != "24" ]]; then
     # This source revision predates JDK 26's LAZY_CONSTANTS preview metadata.
     # Using JDK 26 as the boot JDK breaks the interim langtools -Werror build.
     echo "OpenJDK 24 is required as the OpenJDK Mobile 26 boot JDK." >&2
-    exit 1
-fi
-
-image_java_home="${TACHIAZ_JDK26_HOME:-}"
-if [[
-    ! -x "$image_java_home/bin/java" ||
-    ! -x "$image_java_home/bin/jmod" ||
-    ! -x "$image_java_home/bin/jlink"
-]]; then
-    echo "Set TACHIAZ_JDK26_HOME to OpenJDK 26 for jmod and jlink." >&2
-    exit 1
-fi
-image_java_feature="$(
-    "$image_java_home/bin/java" -version 2>&1 |
-        awk -F '[\".]' '/version/ { print $2; exit }'
-)"
-if [[ "$image_java_feature" != "26" ]]; then
-    echo "TACHIAZ_JDK26_HOME must contain OpenJDK 26." >&2
     exit 1
 fi
 
@@ -158,7 +140,24 @@ macos_sdk="$(xcrun --sdk macosx --show-sdk-path)"
         --with-extra-ldflags="-target arm64-apple-ios${deployment_target}-simulator -mios-simulator-version-min=$deployment_target" \
         --with-cups-include="$macos_sdk/usr/include"
     make LOG=info CONF=iossim-aarch64-zero-release static-libs-image
+
+    # jlink validates an internal build signature in java.base. Build the
+    # image tools from this exact source revision rather than using a released
+    # JDK 26 whose signature may differ.
+    bash configure \
+        --with-conf-name=macos-aarch64 \
+        --disable-warnings-as-errors
+    make LOG=info CONF=macos-aarch64 jdk-image
 )
+
+image_java_home="$mobile_root/build/macos-aarch64/images/jdk"
+if [[
+    ! -x "$image_java_home/bin/jmod" ||
+    ! -x "$image_java_home/bin/jlink"
+]]; then
+    echo "The matching macOS JDK image tools were not built." >&2
+    exit 1
+fi
 
 combine_runtime() {
     local configuration="$1"
