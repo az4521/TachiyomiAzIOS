@@ -57,10 +57,16 @@ jobs:
 
       - name: Verify direct static symbol lookup
         run: |
+          shopt -s nullglob
           archives=(
             Vendor/OpenJDK/OpenJDK.xcframework/ios-arm64/libdevice.a
-            Vendor/OpenJDK/OpenJDK.xcframework/ios-arm64_x86_64-simulator/libsim.a
+            Vendor/OpenJDK/OpenJDK.xcframework/ios-*-simulator/libsim.a
           )
+          if (( ${#archives[@]} != 2 )); then
+            echo "Expected one device and one simulator OpenJDK archive; found ${#archives[@]}." >&2
+            find Vendor/OpenJDK/OpenJDK.xcframework -type f -name '*.a' -print >&2
+            exit 1
+          fi
           for archive in "${archives[@]}"; do
             if ! xcrun nm -gjU "$archive" | grep -Fx _tachiyomiaz_lookup_static_symbol >/dev/null; then
               echo "Direct static JVM lookup is missing from $archive" >&2
