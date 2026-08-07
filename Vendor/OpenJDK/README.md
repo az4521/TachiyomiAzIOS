@@ -11,18 +11,6 @@ Run:
 Scripts/bootstrap-openjdk-ios.sh
 ```
 
-The upstream snapshot's device objects currently inherit the build machine's
-iOS 17.5 deployment target. To support the app's iOS 15 minimum, macOS builds
-must then run:
-
-```sh
-Scripts/rebuild-openjdk-device-ios.sh
-```
-
-This checksum-pinned rebuild uses the same OpenJDK Mobile revision as the
-bundled Java 27 module image, but compiles the device runtime with an explicit
-iOS 15 deployment target. CI caches the resulting device XCFramework slice.
-
 The bootstrap script downloads checksum-pinned copies of
 `OpenJDK.xcframework.zip`, `java_bundle-device.zip`, and
 `java_bundle-simulator.zip`. The XCFramework contains `arm64` device plus
