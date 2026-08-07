@@ -36,9 +36,41 @@ public final class ExtensionHost {
      */
     public static String dispatch(String requestJson) {
         try {
-            Map<String, String> request = MiniJson.parseObject(requestJson);
-            String operation = require(request, "operation");
-            switch (operation) {
+            return withContextClassLoader(
+                ExtensionHost.class.getClassLoader(),
+                () -> dispatchWithHostClassLoader(requestJson)
+            );
+        } catch (Throwable error) {
+            String description = describe(error);
+            if (isCloudflareChallenge(error)) {
+                description += " [TachiyomiAZCloudflareChallenge]";
+            }
+            return MiniJson.response(false, null, description, null);
+        }
+    }
+
+    private static String dispatchWithHostClassLoader(String requestJson)
+        throws Exception {
+        Map<String, String> request = MiniJson.parseObject(requestJson);
+        String operation = require(request, "operation");
+        String extensionId = request.get("extensionId");
+        LoadedExtension extension = extensionId == null
+            ? null
+            : EXTENSIONS.get(extensionId);
+        ClassLoader loader = extension == null
+            ? ExtensionHost.class.getClassLoader()
+            : extension.loader;
+        return withContextClassLoader(
+            loader,
+            () -> dispatchOperation(operation, request)
+        );
+    }
+
+    private static String dispatchOperation(
+        String operation,
+        Map<String, String> request
+    ) throws Exception {
+        switch (operation) {
                 case "ping":
                     return ping();
                 case "inspectExtension":
@@ -85,14 +117,33 @@ public final class ExtensionHost {
                     throw new IllegalArgumentException(
                         "Unsupported operation: " + operation
                     );
-            }
-        } catch (Throwable error) {
-            String description = describe(error);
-            if (isCloudflareChallenge(error)) {
-                description += " [TachiyomiAZCloudflareChallenge]";
-            }
-            return MiniJson.response(false, null, description, null);
         }
+    }
+
+    private static <T> T withContextClassLoader(
+        ClassLoader loader,
+        ContextClassLoaderAction<T> action
+    ) throws Exception {
+        Thread thread = Thread.currentThread();
+        ClassLoader previous = thread.getContextClassLoader();
+        ClassLoader effective = loader == null
+            ? ClassLoader.getSystemClassLoader()
+            : loader;
+        boolean changed = previous != effective;
+        if (changed) {
+            thread.setContextClassLoader(effective);
+        }
+        try {
+            return action.run();
+        } finally {
+            if (changed) {
+                thread.setContextClassLoader(previous);
+            }
+        }
+    }
+
+    private interface ContextClassLoaderAction<T> {
+        T run() throws Exception;
     }
 
     private static String ping() {
@@ -134,25 +185,29 @@ public final class ExtensionHost {
             ExtensionHost.class.getClassLoader()
         );
 
-        Object instance;
-        List<Object> sources;
+        LoadedExtension replacement;
         try {
-            Class<?> type = Class.forName(entryClass, true, loader);
-            instance = type.getDeclaredConstructor().newInstance();
-            sources = createSources(instance);
+            final String extensionClass = entryClass;
+            replacement = withContextClassLoader(loader, () -> {
+                Class<?> type = Class.forName(extensionClass, true, loader);
+                Object instance = type.getDeclaredConstructor().newInstance();
+                List<Object> sources = createSources(instance);
+                return new LoadedExtension(loader, instance, sources);
+            });
         } catch (Throwable error) {
             loader.close();
             throw error;
         }
 
-        LoadedExtension replacement =
-            new LoadedExtension(loader, instance, sources);
         LoadedExtension previous = EXTENSIONS.put(extensionId, replacement);
         if (previous != null) {
             previous.close();
         }
         Map<String, String> response = new LinkedHashMap<>();
-        response.put("sourceCount", Integer.toString(sources.size()));
+        response.put(
+            "sourceCount",
+            Integer.toString(replacement.sources.size())
+        );
         return MiniJson.response(true, entryClass, null, response);
     }
 

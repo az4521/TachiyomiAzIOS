@@ -23,20 +23,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v5
 
-      - name: Select Xcode
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: "15.4"
-
-      # The pinned OpenJDK Mobile revision was built upstream with JDK 24.
-      # A JDK 26 boot compiler exposes newer PreviewFeature metadata and makes
-      # the interim langtools build fail under its mandatory -Werror.
-      - name: Set up Java 24 boot JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "24"
-
       - name: Restore runtime cache
         id: runtime-cache
         uses: actions/cache/restore@v4
@@ -48,6 +34,22 @@ jobs:
             Vendor/OpenJDK/.ios-runtime
           key: openjdk-mobile-ios15-${{ runner.arch }}-${{ hashFiles('Scripts/build-openjdk-ios15.sh', 'Scripts/add-openjdk-static-lookup.sh', 'Scripts/patches/openjdk-mobile-ios-runtime.patch', 'iOS/JVM/OpenJDK.exports') }}
 
+      - name: Select Xcode
+        if: steps.runtime-cache.outputs.cache-matched-key == ''
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "15.4"
+
+      # The pinned OpenJDK Mobile revision was built upstream with JDK 24.
+      # A JDK 26 boot compiler exposes newer PreviewFeature metadata and makes
+      # the interim langtools build fail under its mandatory -Werror.
+      - name: Set up Java 24 boot JDK
+        if: steps.runtime-cache.outputs.cache-matched-key == ''
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "24"
+
       - name: Build runtime
         if: steps.runtime-cache.outputs.cache-matched-key == ''
         run: |
@@ -56,6 +58,7 @@ jobs:
           bash Scripts/build-openjdk-ios15.sh
 
       - name: Verify direct static symbol lookup
+        if: steps.runtime-cache.outputs.cache-matched-key == ''
         run: |
           shopt -s nullglob
           archives=(

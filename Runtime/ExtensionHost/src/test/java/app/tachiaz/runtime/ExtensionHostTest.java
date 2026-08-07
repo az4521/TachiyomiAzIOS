@@ -50,31 +50,40 @@ public final class ExtensionHostTest {
         String escapedPath = arguments[0]
             .replace("\\", "\\\\")
             .replace("\"", "\\\"");
-        assertContains(
-            ExtensionHost.dispatch(
-                "{\"operation\":\"loadExtension\"," +
-                    "\"extensionId\":\"fixture\"," +
-                    "\"jarPath\":\"" + escapedPath + "\"," +
-                    "\"entryClass\":\"fixture.EchoExtension\"}"
-            ),
-            "\"success\":true"
-        );
-        assertContains(
-            ExtensionHost.dispatch(
-                "{\"operation\":\"invoke\"," +
-                    "\"extensionId\":\"fixture\"," +
-                    "\"method\":\"echo\"," +
-                    "\"argument\":\"hello\"}"
-            ),
-            "\"result\":\"echo:hello\""
-        );
-        assertContains(
-            ExtensionHost.dispatch(
-                "{\"operation\":\"unloadExtension\"," +
-                    "\"extensionId\":\"fixture\"}"
-            ),
-            "\"success\":true"
-        );
+        ClassLoader originalLoader = Thread.currentThread()
+            .getContextClassLoader();
+        Thread.currentThread().setContextClassLoader(null);
+        try {
+            assertContains(
+                ExtensionHost.dispatch(
+                    "{\"operation\":\"loadExtension\"," +
+                        "\"extensionId\":\"fixture\"," +
+                        "\"jarPath\":\"" + escapedPath + "\"," +
+                        "\"entryClass\":\"fixture.EchoExtension\"}"
+                ),
+                "\"success\":true"
+            );
+            assertNull(Thread.currentThread().getContextClassLoader());
+            assertContains(
+                ExtensionHost.dispatch(
+                    "{\"operation\":\"invoke\"," +
+                        "\"extensionId\":\"fixture\"," +
+                        "\"method\":\"echo\"," +
+                        "\"argument\":\"hello\"}"
+                ),
+                "\"result\":\"echo:hello\""
+            );
+            assertNull(Thread.currentThread().getContextClassLoader());
+            assertContains(
+                ExtensionHost.dispatch(
+                    "{\"operation\":\"unloadExtension\"," +
+                        "\"extensionId\":\"fixture\"}"
+                ),
+                "\"success\":true"
+            );
+        } finally {
+            Thread.currentThread().setContextClassLoader(originalLoader);
+        }
 
         File backup = createBackupFixture();
         String escapedBackupPath = backup.getAbsolutePath()
@@ -205,6 +214,12 @@ public final class ExtensionHostTest {
     private static void assertTrue(boolean value) {
         if (!value) {
             throw new AssertionError("Expected condition to be true");
+        }
+    }
+
+    private static void assertNull(Object value) {
+        if (value != null) {
+            throw new AssertionError("Expected null, got " + value);
         }
     }
 }
