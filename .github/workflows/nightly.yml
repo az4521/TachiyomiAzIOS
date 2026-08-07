@@ -46,9 +46,7 @@ jobs:
             Vendor/OpenJDK/java_bundle-device
             Vendor/OpenJDK/java_bundle-simulator
             Vendor/OpenJDK/.ios-runtime
-          key: openjdk-mobile-ios15-${{ runner.arch }}-${{ hashFiles('Scripts/build-openjdk-ios15.sh') }}
-          restore-keys: |
-            openjdk-mobile-jdk26-ios15-ad8bb1b065bf-v4
+          key: openjdk-mobile-ios15-${{ runner.arch }}-${{ hashFiles('Scripts/build-openjdk-ios15.sh', 'Scripts/patches/openjdk-mobile-ios-runtime.patch') }}
 
       - name: Build runtime
         if: steps.runtime-cache.outputs.cache-matched-key == ''
@@ -129,6 +127,16 @@ jobs:
             echo "Skipping optional extension fixture tests."
             echo "Configure both TACHIYOMIAZ_EXTLIB_1_4_FIXTURE_URL and TACHIYOMIAZ_EXTLIB_1_6_FIXTURE_URL repository secrets to enable them."
           fi
+
+      - name: Build simulator app
+        run: |
+          xcodebuild \
+            -project Aidoku.xcodeproj \
+            -scheme "Aidoku (iOS)" \
+            -configuration Release \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
 
       - name: Set artifact name
         id: metadata

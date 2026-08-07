@@ -17,7 +17,14 @@ matching macOS image tools,
 matching `java.base` module images, and an XCFramework with arm64 device and
 arm64 simulator slices. Both native targets are compiled with an explicit iOS
 15 deployment target. CI caches the complete matching runtime using a key
-derived from the build script and skips compilation on unrelated commits.
+derived from the build script and compatibility patch, and skips compilation
+on unrelated commits.
+The build applies the tracked iOS runtime compatibility patch in
+`Scripts/patches/` and records the Java module target as Darwin/aarch64 because
+the pinned revision's `jlink` predates a distinct iOS platform enum.
+The Java images also include `jdk.crypto.ec` for modern TLS, `jdk.unsupported`
+for libraries that use `sun.misc` compatibility APIs, required security and
+time-zone data, and the corresponding OpenJDK legal notices.
 
 `Scripts/bootstrap-openjdk-ios.sh` remains available only for inspecting the
 upstream snapshot. Do not mix its Java 27 module images with this Java 26 VM.

@@ -1,0 +1,19 @@
+diff --git a/src/java.base/share/classes/jdk/internal/util/OperatingSystem.java b/src/java.base/share/classes/jdk/internal/util/OperatingSystem.java
+index 927ab682c..4e6c9013e 100644
+--- a/src/java.base/share/classes/jdk/internal/util/OperatingSystem.java
++++ b/src/java.base/share/classes/jdk/internal/util/OperatingSystem.java
+@@ -131,6 +131,13 @@ public static OperatingSystem current() {
+      * Names not recognized throw ExceptionInInitializerError with IllegalArgumentException.
+      */
+     private static OperatingSystem initOS() {
+-        return OperatingSystem.valueOf(PlatformProps.CURRENT_OS_STRING.toUpperCase(Locale.ROOT));
++        String osName = PlatformProps.CURRENT_OS_STRING;
++        // This OpenJDK Mobile revision configures iOS as a distinct build OS,
++        // but java.base's OperatingSystem enum predates an IOS value. iOS has
++        // the Darwin/POSIX behavior expected by the existing MACOS branches.
++        if (osName.equalsIgnoreCase("ios")) {
++            return MACOS;
++        }
++        return OperatingSystem.valueOf(osName.toUpperCase(Locale.ROOT));
+     }
+ }

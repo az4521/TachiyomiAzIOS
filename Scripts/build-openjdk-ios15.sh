@@ -7,17 +7,22 @@ vendor_root="$repository_root/Vendor/OpenJDK"
 deployment_target="15.0"
 mobile_revision="ad8bb1b065bf230d193a1dfd0ebd39a8b1fedf53"
 builder_revision="0a753240e2b143137e73593c48d646a4956c2351"
+ios_runtime_patch="$repository_root/Scripts/patches/openjdk-mobile-ios-runtime.patch"
 symbol_keeper_sha256="ec02a950b2c630b234aa393abdf48efe7ce95c3a637c189e0a2e492e8ec316db"
 device_libffi_sha256="4f39fd1d53fbd69d1bdbd915413077d130daa3f6792d1b3a03a690a9cbd4dea3"
 simulator_libffi_sha256="701b522e3eff0263f18d4a9e487f0a7ac30050fb2af20e86b6849daa14f5781f"
-stamp_value="openjdk-mobile-$mobile_revision-ios-$deployment_target-v5"
+stamp_value="openjdk-mobile-$mobile_revision-ios-$deployment_target-v6"
 stamp_file="$vendor_root/.ios-runtime"
 
 if [[ -f "$stamp_file" ]] && [[ "$(<"$stamp_file")" == "$stamp_value" ]]; then
     if [[
         -f "$vendor_root/OpenJDK.xcframework/Info.plist" &&
         -f "$vendor_root/java_bundle-device/lib/modules" &&
-        -f "$vendor_root/java_bundle-simulator/lib/modules"
+        -f "$vendor_root/java_bundle-device/conf/security/java.security" &&
+        -f "$vendor_root/java_bundle-device/lib/tzdb.dat" &&
+        -f "$vendor_root/java_bundle-simulator/lib/modules" &&
+        -f "$vendor_root/java_bundle-simulator/conf/security/java.security" &&
+        -f "$vendor_root/java_bundle-simulator/lib/tzdb.dat"
     ]]; then
         echo "OpenJDK iOS runtime cache is current"
         exit 0
@@ -124,6 +129,8 @@ macos_sdk="$(xcrun --sdk macosx --show-sdk-path)"
         --disable-warnings-as-errors
     make LOG=info CONF=macos-aarch64 jdk-image
 
+    git apply --check "$ios_runtime_patch"
+    git apply "$ios_runtime_patch"
     cp "$symbol_keeper" src/hotspot/os/bsd/symbol_keeper.cpp
 
     bash configure \
@@ -137,7 +144,8 @@ macos_sdk="$(xcrun --sdk macosx --show-sdk-path)"
         --with-extra-cxxflags="-miphoneos-version-min=$deployment_target" \
         --with-extra-ldflags="-miphoneos-version-min=$deployment_target" \
         --with-cups-include="$macos_sdk/usr/include"
-    make LOG=info CONF=ios-aarch64-zero-release static-libs-image
+    make LOG=info CONF=ios-aarch64-zero-release \
+        static-libs-image jdk.crypto.ec-java jdk.unsupported-java
 
     bash configure \
         --with-conf-name=iossim-aarch64-zero-release \
@@ -150,14 +158,16 @@ macos_sdk="$(xcrun --sdk macosx --show-sdk-path)"
         --with-extra-cxxflags="-target arm64-apple-ios${deployment_target}-simulator -mios-simulator-version-min=$deployment_target" \
         --with-extra-ldflags="-target arm64-apple-ios${deployment_target}-simulator -mios-simulator-version-min=$deployment_target" \
         --with-cups-include="$macos_sdk/usr/include"
-    make LOG=info CONF=iossim-aarch64-zero-release static-libs-image
+    make LOG=info CONF=iossim-aarch64-zero-release \
+        static-libs-image jdk.crypto.ec-java jdk.unsupported-java
 )
 
 image_java_home="$mobile_root/build/macos-aarch64/images/jdk"
 if [[
     ! -x "$image_java_home/bin/java" ||
     ! -x "$image_java_home/bin/jmod" ||
-    ! -x "$image_java_home/bin/jlink"
+    ! -x "$image_java_home/bin/jlink" ||
+    ! -x "$image_java_home/bin/jimage"
 ]]; then
     echo "The matching macOS JDK image tools were not built." >&2
     exit 1
@@ -258,17 +268,58 @@ xcodebuild -create-xcframework \
 
 create_java_bundle() {
     local configuration="$1"
-    local platform="$2"
-    local destination="$3"
-    local module_classes="$mobile_root/build/$configuration/jdk/modules/java.base"
+    local destination="$2"
+    local base_module_classes="$mobile_root/build/$configuration/jdk/modules/java.base"
     local jmods="$build_root/jmods-$configuration"
+    local spec="$mobile_root/build/$configuration/spec.gmk"
+    local configured_platform
+    configured_platform="$(
+        awk '/^OPENJDK_MODULE_TARGET_PLATFORM := / { print $3; exit }' "$spec"
+    )"
+    if [[ "$configured_platform" != "ios-aarch64" ]]; then
+        echo "Unexpected module target platform for $configuration: $configured_platform" >&2
+        exit 1
+    fi
+    # This source revision's jlink Platform parser has no IOS enum. The module
+    # classes are platform-independent, and iOS uses the Darwin implementation,
+    # so encode the supported Darwin module target instead.
+    local platform="macos-aarch64"
     mkdir -p "$jmods"
+
+    local module
+    local descriptor
+    local module_classes_path
+    for module in jdk.crypto.ec jdk.unsupported
+    do
+        module_classes_path="$mobile_root/build/$configuration/jdk/modules/$module"
+        if [[ ! -f "$module_classes_path/module-info.class" ]]; then
+            echo "$configuration did not build $module" >&2
+            exit 1
+        fi
+        "$image_java_home/bin/jmod" create \
+            --class-path "$module_classes_path" \
+            --module-version "$module_version" \
+            --target-platform "$platform" \
+            "$jmods/$module.jmod"
+        descriptor="$(
+            "$image_java_home/bin/jmod" describe "$jmods/$module.jmod" |
+                awk 'NR == 1 { print; exit }'
+        )"
+        if [[ "$descriptor" != "$module@$module_version" ]]; then
+            echo "Invalid $module descriptor: $descriptor" >&2
+            exit 1
+        fi
+    done
+
+    # Create java.base last so its recorded module hashes match the recreated
+    # mobile crypto and Unsafe modules rather than the host JDK's copies.
     "$image_java_home/bin/jmod" create \
-        --class-path "$module_classes" \
+        --class-path "$base_module_classes" \
         --module-version "$module_version" \
         --target-platform "$platform" \
+        --module-path "$jmods" \
+        --hash-modules '^(jdk\.crypto\.ec|jdk\.unsupported)$' \
         "$jmods/java.base.jmod"
-    local descriptor
     descriptor="$(
         "$image_java_home/bin/jmod" describe "$jmods/java.base.jmod" |
             awk 'NR == 1 { print; exit }'
@@ -279,14 +330,56 @@ create_java_bundle() {
     fi
     "$image_java_home/bin/jlink" \
         --module-path "$jmods" \
-        --add-modules java.base \
+        --add-modules java.base,jdk.crypto.ec,jdk.unsupported \
         --output "$destination"
+    "$image_java_home/bin/jimage" verify "$destination/lib/modules"
+    local linked_modules
+    linked_modules="$(
+        "$image_java_home/bin/jimage" list "$destination/lib/modules" |
+            awk '/^Module: / { print $2 }'
+    )"
+    for module in java.base jdk.crypto.ec jdk.unsupported
+    do
+        if ! grep -Fxq "$module" <<< "$linked_modules"; then
+            echo "Java image is missing module $module" >&2
+            exit 1
+        fi
+    done
+
+    # A classes-only jmod does not carry the non-class java.base runtime data
+    # that the security, networking, TLS, and time-zone implementations read
+    # from java.home. These files are platform-neutral and come from the exact
+    # matching JDK build; the app build replaces cacerts with its curated copy.
+    ditto "$image_java_home/conf" "$destination/conf"
+    mkdir -p "$destination/lib"
+    ditto "$image_java_home/lib/security" "$destination/lib/security"
+    ditto "$image_java_home/lib/tzdb.dat" "$destination/lib/tzdb.dat"
+    mkdir -p "$destination/legal"
+    for module in java.base jdk.crypto.ec jdk.unsupported
+    do
+        ditto "$image_java_home/legal/$module" "$destination/legal/$module"
+    done
+
+    local required_runtime_file
+    for required_runtime_file in \
+        conf/net.properties \
+        conf/security/java.security \
+        lib/security/default.policy \
+        lib/security/public_suffix_list.dat \
+        lib/tzdb.dat \
+        legal/java.base/LICENSE
+    do
+        if [[ ! -f "$destination/$required_runtime_file" ]]; then
+            echo "Java bundle is missing $required_runtime_file" >&2
+            exit 1
+        fi
+    done
 }
 
 device_bundle="$build_root/java_bundle-device"
 simulator_bundle="$build_root/java_bundle-simulator"
-create_java_bundle ios-aarch64-zero-release ios-aarch64 "$device_bundle"
-create_java_bundle iossim-aarch64-zero-release ios-aarch64-simulator "$simulator_bundle"
+create_java_bundle ios-aarch64-zero-release "$device_bundle"
+create_java_bundle iossim-aarch64-zero-release "$simulator_bundle"
 
 rm -rf \
     "$vendor_root/OpenJDK.xcframework" \
