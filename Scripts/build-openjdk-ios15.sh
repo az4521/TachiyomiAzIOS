@@ -10,7 +10,7 @@ builder_revision="0a753240e2b143137e73593c48d646a4956c2351"
 symbol_keeper_sha256="ec02a950b2c630b234aa393abdf48efe7ce95c3a637c189e0a2e492e8ec316db"
 device_libffi_sha256="4f39fd1d53fbd69d1bdbd915413077d130daa3f6792d1b3a03a690a9cbd4dea3"
 simulator_libffi_sha256="701b522e3eff0263f18d4a9e487f0a7ac30050fb2af20e86b6849daa14f5781f"
-stamp_value="openjdk-mobile-$mobile_revision-ios-$deployment_target-v4"
+stamp_value="openjdk-mobile-$mobile_revision-ios-$deployment_target-v5"
 stamp_file="$vendor_root/.ios-runtime"
 
 if [[ -f "$stamp_file" ]] && [[ "$(<"$stamp_file")" == "$stamp_value" ]]; then
@@ -155,10 +155,19 @@ macos_sdk="$(xcrun --sdk macosx --show-sdk-path)"
 
 image_java_home="$mobile_root/build/macos-aarch64/images/jdk"
 if [[
+    ! -x "$image_java_home/bin/java" ||
     ! -x "$image_java_home/bin/jmod" ||
     ! -x "$image_java_home/bin/jlink"
 ]]; then
     echo "The matching macOS JDK image tools were not built." >&2
+    exit 1
+fi
+module_version="$(
+    "$image_java_home/bin/java" --describe-module java.base |
+        awk 'NR == 1 && /^java\.base@/ { sub(/^java\.base@/, ""); print; exit }'
+)"
+if [[ -z "$module_version" ]]; then
+    echo "Could not read the matching java.base module version." >&2
     exit 1
 fi
 
@@ -256,8 +265,18 @@ create_java_bundle() {
     mkdir -p "$jmods"
     "$image_java_home/bin/jmod" create \
         --class-path "$module_classes" \
+        --module-version "$module_version" \
         --target-platform "$platform" \
         "$jmods/java.base.jmod"
+    local descriptor
+    descriptor="$(
+        "$image_java_home/bin/jmod" describe "$jmods/java.base.jmod" |
+            awk 'NR == 1 { print; exit }'
+    )"
+    if [[ "$descriptor" != "java.base@$module_version" ]]; then
+        echo "Invalid java.base descriptor: $descriptor" >&2
+        exit 1
+    fi
     "$image_java_home/bin/jlink" \
         --module-path "$jmods" \
         --add-modules java.base \
