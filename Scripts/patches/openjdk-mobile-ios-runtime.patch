@@ -70,3 +70,45 @@ diff --git a/src/hotspot/share/runtime/os.cpp b/src/hotspot/share/runtime/os.cpp
    if (jimage == nullptr) return false;
    bool has_jimage = (os::stat(jimage, &st) == 0);
    if (has_jimage) {
+
+diff --git a/src/hotspot/os/posix/os_posix.cpp b/src/hotspot/os/posix/os_posix.cpp
+--- a/src/hotspot/os/posix/os_posix.cpp
++++ b/src/hotspot/os/posix/os_posix.cpp
+@@ -87,6 +87,10 @@
+   #include <crt_externs.h>
+ #endif
+ 
++#ifdef __IOS__
++extern "C" void* tachiyomiaz_lookup_static_symbol(const char* name);
++#endif
++
+ #define ROOT_UID 0
+ 
+ #ifndef MAP_ANONYMOUS
+@@ -816,6 +820,13 @@ void* os::get_default_process_handle() {
+ }
+ 
+ void* os::dll_lookup(void* handle, const char* name) {
++#ifdef __IOS__
++  void* static_symbol = tachiyomiaz_lookup_static_symbol(name);
++  if (static_symbol != nullptr) {
++    return static_symbol;
++  }
++#endif
++
+   ::dlerror(); // Clear any previous error
+   void* ret = ::dlsym(handle, name);
+   if (ret == nullptr) {
+@@ -866,6 +877,12 @@ void os::dll_unload(void *lib) {
+ }
+ 
+ void* os::lookup_function(const char* name) {
++#ifdef __IOS__
++  void* static_symbol = tachiyomiaz_lookup_static_symbol(name);
++  if (static_symbol != nullptr) {
++    return static_symbol;
++  }
++#endif
+   // This returns the global symbol in the main executable and its dependencies,
+   // as well as shared objects dynamically loaded with RTLD_GLOBAL flag.
+   return dlsym(RTLD_DEFAULT, name);

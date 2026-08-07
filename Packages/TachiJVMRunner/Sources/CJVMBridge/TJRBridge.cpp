@@ -38,6 +38,7 @@ extern "C" void JNI_OnLoad_jimage();
 extern "C" void JNI_OnLoad_zip();
 extern "C" void JNI_OnLoad_net();
 extern "C" void JNI_OnLoad_nio();
+extern "C" void* tachiyomiaz_lookup_static_symbol(const char* name);
 
 // Referencing the symbol-keeper entry point makes the static linker include
 // symbol_keeper.o and, through its relocations, all class-library JNI natives.
@@ -71,6 +72,43 @@ static void retain_ios_jvm_symbols() {
     for (StaticSymbol anchor : anchors) {
         (void)anchor;
     }
+}
+
+static bool validate_ios_static_symbol_lookup(std::string &error) {
+    const char *required_symbols[] = {
+        "JNI_CreateJavaVM",
+        "JDK_Canonicalize",
+        "JIMAGE_Open",
+        "JIMAGE_Close",
+        "JIMAGE_FindResource",
+        "JIMAGE_GetResource",
+        "ZIP_Open",
+        "ZIP_Close",
+        "ZIP_FindEntry",
+        "ZIP_ReadEntry",
+        "ZIP_FreeEntry",
+        "ZIP_CRC32",
+        "JNU_NewStringPlatform",
+        "GetStringPlatformChars",
+        "Java_java_lang_System_registerNatives",
+        "Java_jdk_internal_loader_NativeLibraries_findBuiltinLib",
+    };
+    std::vector<std::string> missing_symbols;
+    for (const char *symbol : required_symbols) {
+        if (tachiyomiaz_lookup_static_symbol(symbol) == nullptr) {
+            missing_symbols.emplace_back(symbol);
+        }
+    }
+    if (missing_symbols.empty()) {
+        return true;
+    }
+
+    error = "Static JVM lookup is missing:";
+    for (const std::string &symbol : missing_symbols) {
+        error += " ";
+        error += symbol;
+    }
+    return false;
 }
 #endif
 
@@ -368,6 +406,23 @@ TJRRuntime *tjr_runtime_create(
         OS_LOG_DEFAULT,
         OS_LOG_TYPE_ERROR,
         "[TachiJVMRunner] static JNI symbols retained"
+    );
+    std::string static_lookup_error;
+    if (!validate_ios_static_symbol_lookup(static_lookup_error)) {
+        os_log_with_type(
+            OS_LOG_DEFAULT,
+            OS_LOG_TYPE_FAULT,
+            "[TachiJVMRunner] %{public}s",
+            static_lookup_error.c_str()
+        );
+        set_error(error_message, static_lookup_error);
+        delete runtime;
+        return nullptr;
+    }
+    os_log_with_type(
+        OS_LOG_DEFAULT,
+        OS_LOG_TYPE_ERROR,
+        "[TachiJVMRunner] direct static JVM lookup validated"
     );
     CreateJavaVM create_vm = &JNI_CreateJavaVM;
 #else
