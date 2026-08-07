@@ -19,7 +19,7 @@ public struct TachiyomiXMangaPage: Codable, Sendable, Equatable {
 public struct TachiyomiXChapter: Codable, Sendable, Equatable {
     public let url: String
     public let name: String
-    public let chapterNumber: Float
+    public let chapterNumber: Float?
     public let scanlator: String?
     public let dateUpload: Int64
 }

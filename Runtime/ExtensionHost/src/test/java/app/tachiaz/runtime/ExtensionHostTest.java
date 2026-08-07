@@ -46,6 +46,34 @@ public final class ExtensionHostTest {
         assertTrue(!TachiyomiXJarMetadata.supportsExtensionLibrary("1.3"));
         assertTrue(!TachiyomiXJarMetadata.supportsExtensionLibrary("1.7"));
         assertTrue(!TachiyomiXJarMetadata.supportsExtensionLibrary(null));
+        assertFloatEquals(
+            7,
+            ChapterNumberParser.parse(
+                "Fixture Manga",
+                "Fixture Manga Vol. 2 Ch. 7",
+                -1
+            )
+        );
+        assertFloatEquals(
+            12.5f,
+            ChapterNumberParser.parse(
+                "Fixture Manga",
+                "Fixture Manga Chapter 12.5",
+                -1
+            )
+        );
+        assertFloatEquals(
+            12.2f,
+            ChapterNumberParser.parse(
+                "Fixture Manga",
+                "Fixture Manga Chapter 12b",
+                -1
+            )
+        );
+        assertFloatEquals(
+            4,
+            ChapterNumberParser.parse("Fixture", "Chapter 99", 4)
+        );
 
         String escapedPath = arguments[0]
             .replace("\\", "\\\\")
@@ -220,6 +248,14 @@ public final class ExtensionHostTest {
     private static void assertNull(Object value) {
         if (value != null) {
             throw new AssertionError("Expected null, got " + value);
+        }
+    }
+
+    private static void assertFloatEquals(float expected, float actual) {
+        if (Math.abs(expected - actual) > 0.0001f) {
+            throw new AssertionError(
+                "Expected " + expected + ", got " + actual
+            );
         }
     }
 }

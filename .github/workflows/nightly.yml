@@ -148,11 +148,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: Runtime/ExtensionHost/compat
-          key: tachiyomiaz-suwayomi-${{ runner.os }}-${{ hashFiles('Scripts/bootstrap-suwayomi-compat.sh', 'Scripts/gradle/copy-suwayomi-runtime.init.gradle') }}
+          key: tachiyomiaz-suwayomi-${{ runner.os }}-${{ hashFiles('Scripts/bootstrap-suwayomi-compat.sh', 'Scripts/build-mobile-shims.sh', 'Scripts/gradle/copy-suwayomi-runtime.init.gradle') }}
+          restore-keys: |
+            tachiyomiaz-suwayomi-${{ runner.os }}-
 
       - name: Bootstrap JVM compatibility layer
         run: |
-          if [[ "${{ steps.compatibility-cache.outputs.cache-hit }}" != "true" ]]; then
+          if [[ ! -f Runtime/ExtensionHost/compat/server-1.0.jar ]]; then
             for attempt in 1 2 3; do
               if bash Scripts/bootstrap-suwayomi-compat.sh; then
                 break

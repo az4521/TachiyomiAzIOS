@@ -886,6 +886,7 @@ actor JVMSourceRuntime {
             let sourceIdValue = request.sourceId,
             let sourceId = Int64(sourceIdValue)
         else {
+            logFailure(response, request: request)
             return response
         }
 
@@ -893,7 +894,23 @@ actor JVMSourceRuntime {
             extensionId: extensionId,
             sourceId: sourceId
         )
-        return try await rawDispatch(request)
+        let retriedResponse = try await rawDispatch(request)
+        logFailure(retriedResponse, request: request)
+        return retriedResponse
+    }
+
+    private func logFailure(
+        _ response: ExtensionHostResponse,
+        request: ExtensionHostRequest
+    ) {
+        guard !response.success else { return }
+        let extensionId = request.extensionId ?? "host"
+        let sourceId = request.sourceId ?? "default"
+        let message = response.error ?? "Unknown Java error"
+        LogManager.logger.error(
+            "JVM extension failure [\(request.operation)] " +
+                "extension=\(extensionId) source=\(sourceId): \(message)"
+        )
     }
 
     private func rawDispatch(
@@ -1152,6 +1169,24 @@ actor TachiyomiXSourceRunner: AidokuRunner.Runner {
         "mihon.\(sourceId)"
     }
 
+    private func performSourceOperation<T>(
+        _ operation: String,
+        action: () async throws -> T
+    ) async throws -> T {
+        do {
+            return try await action()
+        } catch let error as AidokuRunner.SourceError {
+            throw error
+        } catch {
+            let message = error.localizedDescription
+            LogManager.logger.error(
+                "JVM source \(descriptor.id) failed during " +
+                    "\(operation): \(message)"
+            )
+            throw AidokuRunner.SourceError.message(message)
+        }
+    }
+
     func uninstall() async throws {
         try await JVMSourceRuntime.shared.uninstall(
             extensionId: extensionId
@@ -1163,38 +1198,42 @@ actor TachiyomiXSourceRunner: AidokuRunner.Runner {
         page: Int,
         filters: [AidokuRunner.FilterValue]
     ) async throws -> AidokuRunner.MangaPageResult {
-        let result: TachiyomiXMangaPage
-        if let query, !query.isEmpty {
-            result = try await JVMSourceRuntime.shared.searchManga(
-                extensionId: extensionId,
-                sourceId: descriptor.id,
-                query: query,
-                page: page,
-                filters: filters
-            )
-        } else if !filters.isEmpty {
-            result = try await JVMSourceRuntime.shared.searchManga(
-                extensionId: extensionId,
-                sourceId: descriptor.id,
-                query: "",
-                page: page,
-                filters: filters
-            )
-        } else {
-            result = try await JVMSourceRuntime.shared.popularManga(
-                extensionId: extensionId,
-                sourceId: descriptor.id,
-                page: page
-            )
+        try await performSourceOperation("browse") {
+            let result: TachiyomiXMangaPage
+            if let query, !query.isEmpty {
+                result = try await JVMSourceRuntime.shared.searchManga(
+                    extensionId: extensionId,
+                    sourceId: descriptor.id,
+                    query: query,
+                    page: page,
+                    filters: filters
+                )
+            } else if !filters.isEmpty {
+                result = try await JVMSourceRuntime.shared.searchManga(
+                    extensionId: extensionId,
+                    sourceId: descriptor.id,
+                    query: "",
+                    page: page,
+                    filters: filters
+                )
+            } else {
+                result = try await JVMSourceRuntime.shared.popularManga(
+                    extensionId: extensionId,
+                    sourceId: descriptor.id,
+                    page: page
+                )
+            }
+            return result.intoAidoku(sourceKey: sourceKey)
         }
-        return result.intoAidoku(sourceKey: sourceKey)
     }
 
     func getSearchFilters() async throws -> [AidokuRunner.Filter] {
-        try await JVMSourceRuntime.shared.searchFilters(
-            extensionId: extensionId,
-            sourceId: descriptor.id
-        ).map(\.intoAidoku)
+        try await performSourceOperation("search filters") {
+            try await JVMSourceRuntime.shared.searchFilters(
+                extensionId: extensionId,
+                sourceId: descriptor.id
+            ).map(\.intoAidoku)
+        }
     }
 
     func getSettings() async throws -> [AidokuRunner.Setting] {
@@ -1330,20 +1369,22 @@ actor TachiyomiXSourceRunner: AidokuRunner.Runner {
         listing: AidokuRunner.Listing,
         page: Int
     ) async throws -> AidokuRunner.MangaPageResult {
-        let result = if listing.id == "latest" {
-            try await JVMSourceRuntime.shared.latestManga(
-                extensionId: extensionId,
-                sourceId: descriptor.id,
-                page: page
-            )
-        } else {
-            try await JVMSourceRuntime.shared.popularManga(
-                extensionId: extensionId,
-                sourceId: descriptor.id,
-                page: page
-            )
+        try await performSourceOperation("listing \(listing.id)") {
+            let result = if listing.id == "latest" {
+                try await JVMSourceRuntime.shared.latestManga(
+                    extensionId: extensionId,
+                    sourceId: descriptor.id,
+                    page: page
+                )
+            } else {
+                try await JVMSourceRuntime.shared.popularManga(
+                    extensionId: extensionId,
+                    sourceId: descriptor.id,
+                    page: page
+                )
+            }
+            return result.intoAidoku(sourceKey: sourceKey)
         }
-        return result.intoAidoku(sourceKey: sourceKey)
     }
 
     func getMangaUpdate(
@@ -1604,7 +1645,7 @@ private extension TachiyomiXChapter {
         .init(
             key: url,
             title: name.isEmpty ? nil : name,
-            chapterNumber: chapterNumber,
+            chapterNumber: chapterNumber.flatMap { $0 >= 0 ? $0 : nil },
             dateUploaded: dateUpload > 0
                 ? Date(timeIntervalSince1970: Double(dateUpload) / 1_000)
                 : nil,

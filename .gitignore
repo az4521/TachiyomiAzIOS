@@ -30,5 +30,8 @@ buildServer.json
 /Runtime/MobileShims/dist/*
 !/Runtime/MobileShims/dist/tachiaz-mobile-shims.jar
 !/Runtime/MobileShims/dist/cacerts
+/Runtime/MobileCompatShims/build/
+/Runtime/MobileCompatShims/test-build/
+/Runtime/MobileCompatShims/minimal-jre-test/
 /Vendor/OpenJDK/*
 !/Vendor/OpenJDK/README.md

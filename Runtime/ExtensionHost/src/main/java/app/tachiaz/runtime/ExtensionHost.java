@@ -1606,6 +1606,7 @@ public final class ExtensionHost {
         @SuppressWarnings("unchecked")
         List<Object> chapters =
             (List<Object>) getter(update, "getChapters");
+        String mangaTitle = String.valueOf(getter(manga, "getTitle"));
         StringBuilder output = new StringBuilder("{\"manga\":");
         appendManga(output, manga);
         output.append(",\"chapters\":[");
@@ -1614,6 +1615,15 @@ public final class ExtensionHost {
                 output.append(',');
             }
             Object chapter = chapters.get(index);
+            Object chapterName = getter(chapter, "getName");
+            Object suppliedNumber = getter(chapter, "getChapter_number");
+            float chapterNumber = ChapterNumberParser.parse(
+                mangaTitle,
+                String.valueOf(chapterName),
+                suppliedNumber instanceof Number
+                    ? (Number) suppliedNumber
+                    : null
+            );
             output.append('{');
             appendJsonField(
                 output,
@@ -1624,13 +1634,13 @@ public final class ExtensionHost {
             appendJsonField(
                 output,
                 "name",
-                getter(chapter, "getName"),
+                chapterName,
                 true
             );
             appendJsonField(
                 output,
                 "chapterNumber",
-                getter(chapter, "getChapter_number"),
+                chapterNumber,
                 true
             );
             appendJsonField(
