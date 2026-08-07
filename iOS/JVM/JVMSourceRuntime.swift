@@ -1042,7 +1042,12 @@ actor JVMSourceRuntime {
         imageURL: String,
         pageURL: String?
     ) async throws -> TachiyomiXMaterializedImage {
-        let directory = fileManager.temporaryDirectory.appendingPathComponent(
+        guard let temporaryDirectory = fileManager.temporaryDirectory else {
+            throw RuntimeError.hostRejected(
+                "Unable to create a temporary directory for the extension image."
+            )
+        }
+        let directory = temporaryDirectory.appendingPathComponent(
             "TachiyomiAZ-JVM-Images",
             isDirectory: true
         )
@@ -1071,9 +1076,11 @@ actor JVMSourceRuntime {
                     ),
                     as: TachiyomiXMaterializedImageDescriptor.self
                 )
-            let values = try destination.resourceValues(
-                forKeys: [.fileSizeKey, .isRegularFileKey]
-            )
+            let resourceKeys: Set<URLResourceKey> = [
+                .fileSizeKey,
+                .isRegularFileKey
+            ]
+            let values = try destination.resourceValues(forKeys: resourceKeys)
             guard
                 values.isRegularFile == true,
                 let size = values.fileSize,
