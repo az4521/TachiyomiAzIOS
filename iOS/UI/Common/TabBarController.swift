@@ -367,11 +367,11 @@ class TabBarController: UITabBarController {
     }
 
     @objc private func selectDrawerDestination(_ sender: UIButton) {
-        selectDrawerDestination(at: sender.tag)
+        activateDrawerDestination(at: sender.tag)
         closeDrawer()
     }
 
-    private func selectDrawerDestination(at index: Int) {
+    private func activateDrawerDestination(at index: Int) {
         guard drawerControllers.indices.contains(index) else { return }
         selectedDrawerIndex = index
         let controller = drawerControllers[index]
@@ -523,7 +523,7 @@ extension TabBarController {
             let newIndex = Int(input),
             newIndex >= 1 && newIndex <= drawerControllers.count
         else { return }
-        selectDrawerDestination(at: newIndex - 1)
+        activateDrawerDestination(at: newIndex - 1)
     }
 
     override var canBecomeFirstResponder: Bool { true }
