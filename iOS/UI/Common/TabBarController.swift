@@ -53,6 +53,8 @@ class TabBarController: UITabBarController {
     private var cancellables: [AnyCancellable] = []
 
     private var settingsPath: NavigationCoordinator?
+    private var drawerControllers: [UIViewController] = []
+    private var selectedDrawerIndex = 0
     private var previousSelectedIndex: Int?
     private var drawerLeadingConstraint: NSLayoutConstraint?
     private var drawerButtons: [UIButton] = []
@@ -128,8 +130,6 @@ class TabBarController: UITabBarController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-
-        delegate = self
 
         let libraryViewController = NavigationController(rootViewController: LibraryViewController())
         let browseViewController = NavigationController(rootViewController: BrowseViewController())
@@ -210,7 +210,11 @@ class TabBarController: UITabBarController {
             controller.viewControllers.first?.navigationItem.leftBarButtonItem =
                 makeDrawerBarButtonItem()
         }
-        viewControllers = controllers
+        drawerControllers = controllers
+        // UITabBarController automatically replaces destinations after the
+        // fifth with a "More" navigation controller. The tab bar is only a
+        // container here, so attach one drawer destination at a time.
+        setViewControllers([controllers[0]], animated: false)
         tabBar.isHidden = true
         configureDrawer()
 
@@ -363,10 +367,21 @@ class TabBarController: UITabBarController {
     }
 
     @objc private func selectDrawerDestination(_ sender: UIButton) {
-        selectedIndex = sender.tag
+        selectDrawerDestination(at: sender.tag)
+        closeDrawer()
+    }
+
+    private func selectDrawerDestination(at index: Int) {
+        guard drawerControllers.indices.contains(index) else { return }
+        selectedDrawerIndex = index
+        let controller = drawerControllers[index]
+        if selectedViewController !== controller {
+            setViewControllers([controller], animated: false)
+            view.bringSubviewToFront(drawerBackdrop)
+            view.bringSubviewToFront(drawerView)
+        }
         checkForSettingsPop()
         updateDrawerSelection()
-        closeDrawer()
     }
 
     @objc private func handleEdgePan(_ gesture: UIScreenEdgePanGestureRecognizer) {
@@ -378,7 +393,7 @@ class TabBarController: UITabBarController {
     private func updateDrawerSelection() {
         for (index, button) in drawerButtons.enumerated() {
             guard var configuration = button.configuration else { continue }
-            let isSelected = index == selectedIndex
+            let isSelected = index == selectedDrawerIndex
             configuration.baseForegroundColor = isSelected
                 ? UIColor(red: 103 / 255, green: 58 / 255, blue: 183 / 255, alpha: 1)
                 : .label
@@ -473,35 +488,25 @@ extension TabBarController {
     }
 }
 
-extension TabBarController: UITabBarControllerDelegate {
-    @available(iOS 18.0, *)
-    func tabBarController(_ tabBarController: UITabBarController, didSelectTab selectedTab: UITab, previousTab: UITab?) {
-        checkForSettingsPop()
-        updateDrawerSelection()
-    }
-
-    func tabBarController(_ tabBarController: UITabBarController, didSelect viewController: UIViewController) {
-        if #unavailable(iOS 18.0) {
-            checkForSettingsPop()
-        }
-        updateDrawerSelection()
-    }
-
+extension TabBarController {
     private func checkForSettingsPop() {
         let settingsIndex = 6
-        if selectedIndex == previousSelectedIndex && previousSelectedIndex == settingsIndex {
+        if
+            selectedDrawerIndex == previousSelectedIndex,
+            previousSelectedIndex == settingsIndex
+        {
             settingsPath?.navigationController?.popToRootViewController(animated: true)
         }
-        previousSelectedIndex = selectedIndex
+        previousSelectedIndex = selectedDrawerIndex
     }
 }
 
 // MARK: - Keyboard Shortcuts
 extension TabBarController {
     override var keyCommands: [UIKeyCommand]? {
-        tabBar.items?.enumerated().map { index, item in
+        drawerDestinations.enumerated().map { index, destination in
             UIKeyCommand(
-                title: item.title ?? "Tab \(index + 1)",
+                title: destination.title,
                 action: #selector(selectTab),
                 input: "\(index + 1)",
                 modifierFlags: .shiftOrCommand,
@@ -516,11 +521,9 @@ extension TabBarController {
         guard
             let input = sender.input,
             let newIndex = Int(input),
-            newIndex >= 1 && newIndex <= (tabBar.items?.count ?? 0)
+            newIndex >= 1 && newIndex <= drawerControllers.count
         else { return }
-        selectedIndex = newIndex - 1
-        checkForSettingsPop()
-        updateDrawerSelection()
+        selectDrawerDestination(at: newIndex - 1)
     }
 
     override var canBecomeFirstResponder: Bool { true }
