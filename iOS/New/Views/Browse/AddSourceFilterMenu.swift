@@ -22,31 +22,19 @@ struct AddSourceFilterMenu: View {
     @Environment(\.dismiss) private var dismiss
 
     init() {
-        var languageCodes = Array(SourceManager.shared.sourceListLanguages)
-
-        // sort alphabetically
-        languageCodes.sort(by: {
-            let lhs = Locale.current.localizedString(forIdentifier: $0)
-            let rhs = Locale.current.localizedString(forIdentifier: $1)
-            return lhs ?? $0 < rhs ?? $1
-        })
-
-        // bring local language to top
-        languageCodes.removeAll { $0 == Locale.current.languageCode || $0 == "multi" || $0 == "All" }
-        if let code = Locale.current.languageCode {
-            languageCodes.insert(code, at: 0)
-        }
-
-        self.languages = [
-            .init(id: "multi", title: NSLocalizedString("MULTI_LANGUAGE"))
-        ] + languageCodes.map { code in
+        let languageCodes = SourceLanguageFilter.availableLanguages(
+            from: SourceManager.shared.sourceListLanguages
+        )
+        self.languages = languageCodes.map { code in
             .init(
                 id: code,
-                title: Locale.current.localizedString(forIdentifier: code) ?? code
+                title: SourceLanguageFilter.displayName(for: code)
             )
         }
         self._contentRatings = State(initialValue: SettingsStore.shared.get(key: "Browse.contentRatings"))
-        self._selectedLanguages = State(initialValue: SettingsStore.shared.get(key: "Browse.languages"))
+        self._selectedLanguages = State(
+            initialValue: Array(SourceLanguageFilter.selectedLanguages)
+        )
     }
 
     var body: some View {
@@ -113,8 +101,39 @@ struct AddSourceFilterMenu: View {
             NotificationCenter.default.post(name: .filterExternalSources, object: nil)
         }
         .onChange(of: selectedLanguages) { _ in
-            SettingsStore.shared.set(key: "Browse.languages", value: selectedLanguages)
-            NotificationCenter.default.post(name: .filterExternalSources, object: nil)
+            SourceLanguageFilter.save(Set(selectedLanguages))
+        }
+    }
+}
+
+struct SourceLanguageFilterMenu: View {
+    let availableLanguages: [String]
+
+    @Binding var selectedLanguages: Set<String>
+
+    var body: some View {
+        Menu {
+            ForEach(availableLanguages, id: \.self) { language in
+                Button {
+                    if selectedLanguages.contains(language) {
+                        selectedLanguages.remove(language)
+                    } else {
+                        selectedLanguages.insert(language)
+                    }
+                    SourceLanguageFilter.save(selectedLanguages)
+                } label: {
+                    HStack {
+                        Text(SourceLanguageFilter.displayName(for: language))
+                        Spacer()
+                        if selectedLanguages.contains(language) {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+                .menuActionDismissDisabled()
+            }
+        } label: {
+            Label(NSLocalizedString("LANGUAGES"), systemImage: "globe")
         }
     }
 }

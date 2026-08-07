@@ -137,7 +137,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 "Library.refreshMetadata": false,
                 "Library.notifyNewChapters": false,
 
-                "Browse.languages": ["multi"] + Locale.preferredLanguages.map { Locale(identifier: $0).languageCode },
+                "Browse.languages": [
+                    "multi",
+                    Locale.current.languageCode?.lowercased() ?? "en"
+                ],
                 "Browse.contentRatings": ["safe", "containsNsfw"],
                 "Browse.updateCount": 0,
 

@@ -86,6 +86,7 @@ class BrowseViewController: BaseTableViewController {
         Task {
             await viewModel.loadInstalledSources()
             await viewModel.loadPinnedSources()
+            updateNavbar()
             updateDataSource()
         }
     }
@@ -110,8 +111,14 @@ class BrowseViewController: BaseTableViewController {
                 if let query = self.navigationItem.searchController?.searchBar.text, !query.isEmpty {
                     self.viewModel.search(query: query)
                 }
+                self.updateNavbar()
                 self.updateDataSource()
             }
+        }
+        addObserver(forName: .filterExternalSources) { [weak self] _ in
+            guard let self else { return }
+            self.updateNavbar()
+            self.updateDataSource()
         }
     }
 
@@ -119,7 +126,24 @@ class BrowseViewController: BaseTableViewController {
         super.viewDidLoad()
         dataSource.onReorder = { [weak self] snapshot in
             guard let self = self else { return }
-            let sourceList = snapshot.itemIdentifiers(inSection: .pinned).map { $0.sourceId }
+            let visibleSourceList = snapshot
+                .itemIdentifiers(inSection: .pinned)
+                .map(\.sourceId)
+            let previousSourceList = UserDefaults.standard.stringArray(
+                forKey: "Browse.pinnedList"
+            ) ?? []
+            let visibleSourceIds = Set(visibleSourceList)
+            var visibleIterator = visibleSourceList.makeIterator()
+            var sourceList = previousSourceList.map { sourceId in
+                visibleSourceIds.contains(sourceId)
+                    ? visibleIterator.next() ?? sourceId
+                    : sourceId
+            }
+            sourceList.append(
+                contentsOf: visibleSourceList.filter {
+                    !previousSourceList.contains($0)
+                }
+            )
             UserDefaults.standard.set(sourceList, forKey: "Browse.pinnedList")
 
             if sourceList.isEmpty { self.stopEditing() }
@@ -491,17 +515,21 @@ extension BrowseViewController {
     func updateDataSource() {
         var snapshot = NSDiffableDataSourceSnapshot<Section, SourceInfo2>()
 
-        if !viewModel.updatesSources.isEmpty {
+        let updatesSources = languageFiltered(viewModel.updatesSources)
+        let pinnedSources = languageFiltered(viewModel.pinnedSources)
+        let installedSources = languageFiltered(viewModel.installedSources)
+
+        if !updatesSources.isEmpty {
             snapshot.appendSections([.updates])
-            snapshot.appendItems(viewModel.updatesSources, toSection: .updates)
+            snapshot.appendItems(updatesSources, toSection: .updates)
         }
-        if !viewModel.pinnedSources.isEmpty {
+        if !pinnedSources.isEmpty {
             snapshot.appendSections([.pinned])
-            snapshot.appendItems(viewModel.pinnedSources, toSection: .pinned)
+            snapshot.appendItems(pinnedSources, toSection: .pinned)
         }
-        if !viewModel.installedSources.isEmpty {
+        if !installedSources.isEmpty {
             snapshot.appendSections([.installed])
-            snapshot.appendItems(viewModel.installedSources, toSection: .installed)
+            snapshot.appendItems(installedSources, toSection: .installed)
         }
 //        if !viewModel.externalSources.isEmpty {
 //            snapshot.appendSections([.external])
@@ -518,17 +546,26 @@ extension BrowseViewController {
         }
     }
 
+    private func languageFiltered(
+        _ sources: [SourceInfo2]
+    ) -> [SourceInfo2] {
+        sources.filter {
+            SourceLanguageFilter.matches($0.languages)
+        }
+    }
+
     func updateExternalSources() {
         var snapshot = dataSource.snapshot()
 
         snapshot.deleteSections([.updates, .external])
-        if !viewModel.updatesSources.isEmpty {
+        let updatesSources = languageFiltered(viewModel.updatesSources)
+        if !updatesSources.isEmpty {
             if snapshot.indexOfSection(.installed) != nil {
                 snapshot.insertSections([.updates], beforeSection: .installed)
             } else {
                 snapshot.appendSections([.updates])
             }
-            snapshot.appendItems(viewModel.updatesSources, toSection: .updates)
+            snapshot.appendItems(updatesSources, toSection: .updates)
         }
 //        if !viewModel.externalSources.isEmpty {
 //            snapshot.appendSections([.external])
@@ -589,11 +626,51 @@ extension BrowseViewController {
                 migrateSourcesBarButton.sharesBackground = false
             }
 
+            let languageBarButton = UIBarButtonItem(
+                image: UIImage(systemName: "globe"),
+                style: .plain,
+                target: nil,
+                action: nil
+            )
+            languageBarButton.title = NSLocalizedString("LANGUAGES")
+            languageBarButton.menu = languageMenu()
+            if #available(iOS 26.0, *) {
+                languageBarButton.sharesBackground = false
+            }
+
             navigationItem.rightBarButtonItems = [
+                languageBarButton,
                 addSourceBarButton,
                 migrateSourcesBarButton
             ]
         }
+    }
+
+    private func languageMenu() -> UIMenu {
+        let availableLanguages = SourceLanguageFilter.availableLanguages(
+            from: SourceManager.shared.sources.flatMap(\.languages)
+        )
+        let selectedLanguages = SourceLanguageFilter.selectedLanguages
+        let actions = availableLanguages.map { language in
+            UIAction(
+                title: SourceLanguageFilter.displayName(for: language),
+                state: selectedLanguages.contains(language) ? .on : .off
+            ) { [weak self] _ in
+                var updatedLanguages = SourceLanguageFilter.selectedLanguages
+                if updatedLanguages.contains(language) {
+                    updatedLanguages.remove(language)
+                } else {
+                    updatedLanguages.insert(language)
+                }
+                SourceLanguageFilter.save(updatedLanguages)
+                self?.updateNavbar()
+                self?.updateDataSource()
+            }
+        }
+        return UIMenu(
+            title: NSLocalizedString("LANGUAGES"),
+            children: actions
+        )
     }
 
     func updateToolbar(isEditing: Bool? = nil) {

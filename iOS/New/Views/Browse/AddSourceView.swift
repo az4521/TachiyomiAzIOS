@@ -93,18 +93,41 @@ struct AddSourceView: View {
 struct ExtensionManagementView: View {
     @State private var manifests: [JVMExtensionManifest] = []
     @State private var repositories = TachiyomiXJarRepository.repositories()
+    @State private var selectedLanguages = SourceLanguageFilter.selectedLanguages
     @State private var errorMessage: String?
 
     @EnvironmentObject private var path: NavigationCoordinator
 
+    private var availableLanguages: [String] {
+        SourceLanguageFilter.availableLanguages(
+            from: SourceManager.shared.sources.flatMap(\.languages)
+        )
+    }
+
+    private var filteredManifests: [JVMExtensionManifest] {
+        manifests.filter { manifest in
+            let sources = extensionSources(for: manifest.id)
+            return sources.isEmpty || sources.contains {
+                SourceLanguageFilter.matches(
+                    $0.languages,
+                    selected: selectedLanguages
+                )
+            }
+        }
+    }
+
     var body: some View {
         List {
             Section {
-                if manifests.isEmpty {
-                    Text("No extensions are installed.")
+                if filteredManifests.isEmpty {
+                    Text(
+                        manifests.isEmpty
+                            ? "No extensions are installed."
+                            : "No extensions match the selected languages."
+                    )
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(manifests, id: \.id) { manifest in
+                    ForEach(filteredManifests, id: \.id) { manifest in
                         Button {
                             path.push(ExtensionDetailView(manifest: manifest))
                         } label: {
@@ -165,6 +188,14 @@ struct ExtensionManagementView: View {
             )
         )
         .navigationBarTitleDisplayMode(.automatic)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                SourceLanguageFilterMenu(
+                    availableLanguages: availableLanguages,
+                    selectedLanguages: $selectedLanguages
+                )
+            }
+        }
         .task {
             await reload()
         }
@@ -177,6 +208,11 @@ struct ExtensionManagementView: View {
             Task {
                 await reload()
             }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .filterExternalSources)
+        ) { _ in
+            selectedLanguages = SourceLanguageFilter.selectedLanguages
         }
         .refreshable {
             await reload()
@@ -301,6 +337,14 @@ private struct ExtensionDetailView: View {
                                 Text(source.name)
                                     .foregroundStyle(.primary)
                                 Spacer()
+                                Text(
+                                    SourceLanguageFilter.displayName(
+                                        for: source.languages
+                                    )
+                                )
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
                                 Image(systemName: "chevron.right")
                                     .font(.caption.bold())
                                     .foregroundStyle(.tertiary)
@@ -382,7 +426,16 @@ private func extensionSources(
         .filter {
             ($0.runner as? TachiyomiXSourceRunner)?.extensionId == extensionId
         }
-        .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        .sorted {
+            let nameOrder = $0.name.localizedStandardCompare($1.name)
+            if nameOrder == .orderedSame {
+                return SourceLanguageFilter.displayName(for: $0.languages)
+                    .localizedStandardCompare(
+                        SourceLanguageFilter.displayName(for: $1.languages)
+                    ) == .orderedAscending
+            }
+            return nameOrder == .orderedAscending
+        }
 }
 
 private struct ExtensionRepositoryListView: View {
@@ -513,16 +566,31 @@ private struct ExtensionCatalogView: View {
     @State private var unhealthyExtensions: Set<String> = []
     @State private var installing: Set<String> = []
     @State private var searchText = ""
+    @State private var selectedLanguages = SourceLanguageFilter.selectedLanguages
     @State private var errorMessage: String?
+
+    private var availableLanguages: [String] {
+        SourceLanguageFilter.availableLanguages(
+            from: catalog?.extensionList.extensions.flatMap {
+                $0.sources.map(\.language)
+            } ?? []
+        )
+    }
 
     private var extensions: [TachiyomiXJarRepository.Catalog.Extension] {
         guard let catalog else { return [] }
         let supported = catalog.extensionList.extensions.filter(
             \.usesSupportedExtensionLibrary
         )
-        guard !searchText.isEmpty else { return supported }
+        let languageFiltered = supported.filter { entry in
+            SourceLanguageFilter.matches(
+                entry.sources.map(\.language),
+                selected: selectedLanguages
+            )
+        }
+        guard !searchText.isEmpty else { return languageFiltered }
         let query = searchText.localizedLowercase
-        return supported.filter {
+        return languageFiltered.filter {
             $0.name.localizedLowercase.contains(query) ||
                 $0.sources.contains {
                     $0.name.localizedLowercase.contains(query)
@@ -598,6 +666,14 @@ private struct ExtensionCatalogView: View {
         }
         .navigationTitle(repository.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                SourceLanguageFilterMenu(
+                    availableLanguages: availableLanguages,
+                    selectedLanguages: $selectedLanguages
+                )
+            }
+        }
         .searchable(
             text: $searchText,
             prompt: NSLocalizedString("SEARCH")
@@ -607,6 +683,11 @@ private struct ExtensionCatalogView: View {
         }
         .refreshable {
             await reload()
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .filterExternalSources)
+        ) { _ in
+            selectedLanguages = SourceLanguageFilter.selectedLanguages
         }
         .alert(
             "Extension Error",
