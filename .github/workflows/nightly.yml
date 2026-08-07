@@ -54,7 +54,7 @@ jobs:
             Vendor/OpenJDK/java_bundle-device
             Vendor/OpenJDK/java_bundle-simulator
             Vendor/OpenJDK/.ios-runtime
-          key: openjdk-mobile-jdk26-ios15-ad8bb1b065bf-v2
+          key: openjdk-mobile-jdk26-ios15-ad8bb1b065bf-v3
 
       - name: Build runtime
         run: |

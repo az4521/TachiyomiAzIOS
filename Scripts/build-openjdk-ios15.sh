@@ -10,7 +10,7 @@ builder_revision="0a753240e2b143137e73593c48d646a4956c2351"
 symbol_keeper_sha256="ec02a950b2c630b234aa393abdf48efe7ce95c3a637c189e0a2e492e8ec316db"
 device_libffi_sha256="4f39fd1d53fbd69d1bdbd915413077d130daa3f6792d1b3a03a690a9cbd4dea3"
 simulator_libffi_sha256="701b522e3eff0263f18d4a9e487f0a7ac30050fb2af20e86b6849daa14f5781f"
-stamp_value="openjdk-mobile-$mobile_revision-ios-$deployment_target"
+stamp_value="openjdk-mobile-$mobile_revision-ios-$deployment_target-v2"
 stamp_file="$vendor_root/.ios-runtime"
 
 if [[ -f "$stamp_file" ]] && [[ "$(<"$stamp_file")" == "$stamp_value" ]]; then
@@ -111,6 +111,16 @@ verify "$simulator_libffi" "$simulator_libffi_sha256"
 mkdir -p "$mobile_root" "$device_support" "$simulator_support"
 unzip -q "$device_libffi" -d "$device_support"
 unzip -q "$simulator_libffi" -d "$simulator_support"
+
+# The published simulator libffi is universal (x86_64 + arm64), while this
+# OpenJDK configuration builds arm64 only. Passing the universal archive to
+# libtool would make the combined runtime universal too, with an x86_64 slice
+# containing libffi but none of the JVM. Keep only the complete arm64 slice.
+simulator_libffi_arm64="$build_root/libffi-ios-simulator-arm64.a"
+xcrun lipo -thin arm64 \
+    "$simulator_support/libffi.a" \
+    -output "$simulator_libffi_arm64"
+
 git -C "$mobile_root" init
 git -C "$mobile_root" remote add origin https://github.com/openjdk/mobile.git
 git -C "$mobile_root" fetch --depth=1 origin "$mobile_revision"
@@ -173,29 +183,44 @@ combine_runtime \
     "$device_library"
 combine_runtime \
     iossim-aarch64-zero-release \
-    "$simulator_support/libffi.a" \
+    "$simulator_libffi_arm64" \
     "$simulator_library"
 
-minimum_version() {
+verify_archive_target() {
     local library="$1"
+    local expected_platform="$2"
     local probe_root
+    local build_info
+    local actual_platform
+    local actual_target
     probe_root="$(mktemp -d "$build_root/version-probe.XXXXXX")"
     (
         cd "$probe_root"
         ar -x "$library" abstractCompiler.o
-        xcrun vtool -show-build abstractCompiler.o 2>/dev/null |
-            awk '/minos/ { print $2; exit }'
-    )
+        xcrun vtool -show-build abstractCompiler.o 2>/dev/null
+    ) > "$probe_root/build-info"
+    build_info="$(<"$probe_root/build-info")"
+    actual_platform="$(
+        awk '$1 == "platform" { print $2; exit }' <<< "$build_info"
+    )"
+    actual_target="$(
+        awk '$1 == "minos" { print $2; exit }' <<< "$build_info"
+    )"
+    if [[ "$actual_platform" != "$expected_platform" ]]; then
+        echo "$library targets $actual_platform, expected $expected_platform." >&2
+        rm -rf "$probe_root"
+        exit 1
+    fi
+    if [[ "$actual_target" != "$deployment_target" ]]; then
+        echo "$library targets iOS $actual_target, expected $deployment_target." >&2
+        rm -rf "$probe_root"
+        exit 1
+    fi
     rm -rf "$probe_root"
 }
 
-for library in "$device_library" "$simulator_library"; do
-    actual_target="$(minimum_version "$library")"
-    if [[ "$actual_target" != "$deployment_target" ]]; then
-        echo "$library targets iOS $actual_target, expected $deployment_target." >&2
-        exit 1
-    fi
-done
+verify_archive_target "$device_library" IOS
+verify_archive_target "$simulator_library" IOSSIMULATOR
 
 prepare_headers() {
     local configuration="$1"
