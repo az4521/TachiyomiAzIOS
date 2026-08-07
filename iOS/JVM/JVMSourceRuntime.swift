@@ -2,6 +2,7 @@ import CryptoKit
 import AidokuRunner
 import Foundation
 import TachiJVMRunner
+import UIKit
 
 actor JVMSourceRuntime {
     static let shared = JVMSourceRuntime()
@@ -1422,7 +1423,30 @@ actor TachiyomiXSourceRunner: AidokuRunner.Runner {
             chapterURL: chapter.key,
             chapterName: chapter.title ?? ""
         )
-        return try pages.map { try $0.intoAidoku }
+        var convertedPages: [AidokuRunner.Page] = []
+        convertedPages.reserveCapacity(pages.count)
+        for page in pages {
+            let convertedPage = try page.intoAidoku
+            if
+                case let .url(url, _) = convertedPage.content,
+                TachiyomiTextPageRenderer.handles(url)
+            {
+                guard
+                    let renderedPage = await TachiyomiTextPageRenderer.render(
+                        convertedPage,
+                        url: url
+                    )
+                else {
+                    throw AidokuRunner.SourceError.message(
+                        "Unable to decode the generated text page"
+                    )
+                }
+                convertedPages.append(renderedPage)
+            } else {
+                convertedPages.append(convertedPage)
+            }
+        }
+        return convertedPages
     }
 
     func getImageRequest(
@@ -1677,5 +1701,160 @@ private extension TachiyomiXPage {
                 content: .url(url: resolvedURL, context: context)
             )
         }
+    }
+}
+
+private enum TachiyomiTextPageRenderer {
+    private static let host = "tachiyomi-lib-textinterceptor"
+    private static let width: CGFloat = 1_000
+    private static let horizontalPadding: CGFloat = 50
+    private static let verticalPadding: CGFloat = 25
+
+    static func handles(_ url: URL) -> Bool {
+        url.host?.lowercased() == host
+    }
+
+    @MainActor
+    static func render(
+        _ page: AidokuRunner.Page,
+        url: URL
+    ) -> AidokuRunner.Page? {
+        guard
+            handles(url),
+            let path = URLComponents(
+                url: url,
+                resolvingAgainstBaseURL: false
+            )?.percentEncodedPath
+        else {
+            return nil
+        }
+
+        let encodedParts = path.split(
+            separator: "/",
+            omittingEmptySubsequences: false
+        )
+        guard encodedParts.count >= 3 else {
+            return nil
+        }
+
+        let heading = decode(String(encodedParts[1]))
+        let body = decode(String(encodedParts[2]))
+        let textWidth = width - (horizontalPadding * 2)
+        let headingAttributes = attributes(
+            font: .boldSystemFont(ofSize: 36)
+        )
+        let bodyAttributes = attributes(
+            font: .systemFont(ofSize: 30)
+        )
+        let headingHeight = textHeight(
+            heading,
+            width: textWidth,
+            attributes: headingAttributes
+        )
+        let bodyHeight = textHeight(
+            body,
+            width: textWidth,
+            attributes: bodyAttributes
+        )
+        let imageHeight = max(
+            1,
+            ceil(headingHeight + bodyHeight + (verticalPadding * 2))
+        )
+
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = true
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(
+            size: CGSize(width: width, height: imageHeight),
+            format: format
+        ).image { context in
+            context.cgContext.setFillColor(UIColor.white.cgColor)
+            context.cgContext.fill(
+                CGRect(x: 0, y: 0, width: width, height: imageHeight)
+            )
+            if !heading.isEmpty {
+                (heading as NSString).draw(
+                    in: CGRect(
+                        x: horizontalPadding,
+                        y: verticalPadding,
+                        width: textWidth,
+                        height: headingHeight
+                    ),
+                    withAttributes: headingAttributes
+                )
+            }
+            if !body.isEmpty {
+                (body as NSString).draw(
+                    in: CGRect(
+                        x: horizontalPadding,
+                        y: verticalPadding + headingHeight,
+                        width: textWidth,
+                        height: bodyHeight
+                    ),
+                    withAttributes: bodyAttributes
+                )
+            }
+        }
+        return .init(
+            content: .image(image),
+            thumbnail: page.thumbnail,
+            hasDescription: page.hasDescription,
+            description: page.description
+        )
+    }
+
+    @MainActor
+    private static func decode(_ encodedHTML: String) -> String {
+        let html = encodedHTML.removingPercentEncoding ?? encodedHTML
+        guard
+            let data = html.data(using: .utf8),
+            let attributed = try? NSAttributedString(
+                data: data,
+                options: [
+                    .documentType: NSAttributedString.DocumentType.html,
+                    .characterEncoding: String.Encoding.utf8.rawValue
+                ],
+                documentAttributes: nil
+            )
+        else {
+            return html
+        }
+        return attributed.string
+    }
+
+    @MainActor
+    private static func attributes(
+        font: UIFont
+    ) -> [NSAttributedString.Key: Any] {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineHeightMultiple = 1.1
+        paragraph.lineSpacing = 2
+        return [
+            .font: font,
+            .foregroundColor: UIColor.black,
+            .paragraphStyle: paragraph
+        ]
+    }
+
+    @MainActor
+    private static func textHeight(
+        _ text: String,
+        width: CGFloat,
+        attributes: [NSAttributedString.Key: Any]
+    ) -> CGFloat {
+        guard !text.isEmpty else {
+            return 0
+        }
+        return ceil(
+            (text as NSString).boundingRect(
+                with: CGSize(
+                    width: width,
+                    height: .greatestFiniteMagnitude
+                ),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: attributes,
+                context: nil
+            ).height
+        )
     }
 }
