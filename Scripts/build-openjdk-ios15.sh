@@ -11,7 +11,7 @@ ios_runtime_patch="$repository_root/Scripts/patches/openjdk-mobile-ios-runtime.p
 symbol_keeper_sha256="ec02a950b2c630b234aa393abdf48efe7ce95c3a637c189e0a2e492e8ec316db"
 device_libffi_sha256="4f39fd1d53fbd69d1bdbd915413077d130daa3f6792d1b3a03a690a9cbd4dea3"
 simulator_libffi_sha256="701b522e3eff0263f18d4a9e487f0a7ac30050fb2af20e86b6849daa14f5781f"
-stamp_value="openjdk-mobile-$mobile_revision-ios-$deployment_target-v10"
+stamp_value="openjdk-mobile-$mobile_revision-ios-$deployment_target-v11"
 stamp_file="$vendor_root/.ios-runtime"
 runtime_data_files=(
     conf/net.properties
@@ -237,6 +237,31 @@ combine_runtime \
     iossim-aarch64-zero-release \
     "$simulator_libffi_arm64" \
     "$simulator_library"
+
+verify_registry_archive() {
+    local library="$1"
+    local defined_symbols
+    local missing_symbols=()
+    defined_symbols="$(xcrun nm -gjU "$library" | LC_ALL=C sort -u)"
+
+    while IFS= read -r symbol; do
+        if [[ -n "$symbol" ]] && ! grep -Fx "$symbol" <<< "$defined_symbols" >/dev/null; then
+            missing_symbols+=("$symbol")
+        fi
+    done < "$repository_root/iOS/JVM/OpenJDK.exports"
+
+    if ! grep -Fx _tachiyomiaz_lookup_static_symbol <<< "$defined_symbols" >/dev/null; then
+        missing_symbols+=("_tachiyomiaz_lookup_static_symbol")
+    fi
+    if (( ${#missing_symbols[@]} > 0 )); then
+        echo "OpenJDK registry symbols missing from $library:" >&2
+        printf '  %s\n' "${missing_symbols[@]}" >&2
+        exit 1
+    fi
+}
+
+verify_registry_archive "$device_library"
+verify_registry_archive "$simulator_library"
 
 verify_archive_target() {
     local library="$1"

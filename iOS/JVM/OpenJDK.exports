@@ -44,7 +44,6 @@ _JNU_ThrowInternalError
 _JNU_ThrowNullPointerException
 _JNU_ThrowOutOfMemoryError
 _JNU_ToString
-_JVM_AOTEndRecording
 _JVM_ActiveProcessorCount
 _JVM_AddModuleExports
 _JVM_AddModuleExportsToAll
@@ -91,7 +90,6 @@ _JVM_ExpandStackFrameInfo
 _JVM_FillInStackTrace
 _JVM_FindClassFromBootLoader
 _JVM_FindClassFromClass
-_JVM_FindClassFromLoader
 _JVM_FindLibraryEntry
 _JVM_FindLoadedClass
 _JVM_FindPrimitiveClass
@@ -247,15 +245,10 @@ _JVM_TakeVirtualThreadListToUnblock
 _JVM_TotalMemory
 _JVM_UnloadLibrary
 _JVM_VirtualThreadDisableSuspend
-_JVM_VirtualThreadEndFirstTransition
-_JVM_VirtualThreadEndTransition
 _JVM_VirtualThreadPinnedEvent
-_JVM_VirtualThreadStartFinalTransition
-_JVM_VirtualThreadStartTransition
 _JVM_WaitForReferencePendingList
 _JVM_Yield
 _JVM_handle_bsd_signal
-_Java_java_io_Console_ttyStatus
 _Java_java_io_FileCleanable_cleanupClose0
 _Java_java_io_FileDescriptor_close0
 _Java_java_io_FileDescriptor_getAppend

@@ -68,8 +68,19 @@ jobs:
             exit 1
           fi
           for archive in "${archives[@]}"; do
-            if ! xcrun nm -gjU "$archive" | grep -Fx _tachiyomiaz_lookup_static_symbol >/dev/null; then
-              echo "Direct static JVM lookup is missing from $archive" >&2
+            defined_symbols="$(xcrun nm -gjU "$archive" | LC_ALL=C sort -u)"
+            missing_symbols=()
+            while IFS= read -r symbol; do
+              if [[ -n "$symbol" ]] && ! grep -Fx "$symbol" <<< "$defined_symbols" >/dev/null; then
+                missing_symbols+=("$symbol")
+              fi
+            done < iOS/JVM/OpenJDK.exports
+            if ! grep -Fx _tachiyomiaz_lookup_static_symbol <<< "$defined_symbols" >/dev/null; then
+              missing_symbols+=("_tachiyomiaz_lookup_static_symbol")
+            fi
+            if (( ${#missing_symbols[@]} > 0 )); then
+              echo "OpenJDK registry symbols missing from $archive:" >&2
+              printf '  %s\n' "${missing_symbols[@]}" >&2
               exit 1
             fi
           done
