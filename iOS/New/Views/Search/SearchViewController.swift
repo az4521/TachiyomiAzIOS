@@ -17,6 +17,7 @@ class SearchViewController: UIViewController {
     private var cancellables = Set<AnyCancellable>()
     private let filterDrawerTransitioningDelegate =
         FilterDrawerTransitioningDelegate()
+    private weak var presentedFilterDrawer: UIViewController?
 
     private var sources: [AidokuRunner.Source] = [] {
         didSet {
@@ -179,6 +180,13 @@ class SearchViewController: UIViewController {
         filterEdgePan.edges = .right
         view.addGestureRecognizer(filterEdgePan)
 
+        let activeSearchFilterEdgePan = UIScreenEdgePanGestureRecognizer(
+            target: self,
+            action: #selector(handleFilterEdgePan)
+        )
+        activeSearchFilterEdgePan.edges = .right
+        searchController.view.addGestureRecognizer(activeSearchFilterEdgePan)
+
         if #available(iOS 16, *) {
             navigationItem.preferredSearchBarPlacement = .stacked
         }
@@ -228,7 +236,10 @@ class SearchViewController: UIViewController {
     }
 
     private func presentFilterDrawer() {
-        guard presentedViewController == nil, !availableFilters.isEmpty else {
+        guard
+            presentedFilterDrawer == nil,
+            !availableFilters.isEmpty
+        else {
             return
         }
         let view = FilterListSheetView(
@@ -239,7 +250,10 @@ class SearchViewController: UIViewController {
         let controller = UIHostingController(rootView: view)
         controller.modalPresentationStyle = .custom
         controller.transitioningDelegate = filterDrawerTransitioningDelegate
-        present(controller, animated: true)
+        let presenter = searchController.isActive ? searchController : self
+        guard presenter.presentedViewController == nil else { return }
+        presentedFilterDrawer = controller
+        presenter.present(controller, animated: true)
     }
 
     func constrain() {

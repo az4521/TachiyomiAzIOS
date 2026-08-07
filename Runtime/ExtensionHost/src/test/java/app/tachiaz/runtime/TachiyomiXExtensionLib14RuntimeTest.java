@@ -86,6 +86,7 @@ public final class TachiyomiXExtensionLib14RuntimeTest {
         assertContains(filters, "\\\"type\\\":\\\"sort\\\"");
         assertContains(filters, "\\\"type\\\":\\\"select\\\"");
         assertContains(filters, "\\\"type\\\":\\\"check\\\"");
+        assertContains(filters, "\\\"group\\\":\\\"");
         assertStringScalar(filters, "defaultValue");
         assertStringScalar(filters, "auxiliary");
         String filterResult = MiniJson.parseObject(filters).get("result");

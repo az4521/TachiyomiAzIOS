@@ -455,8 +455,9 @@ private struct FilterListView: View {
     }
 
     var body: some View {
-        VStack(spacing: 22) {
+        VStack(spacing: 0) {
             savedSearchesView
+                .padding(.bottom, savedSearches.isEmpty ? 0 : 22)
 
             ForEach(filters.indices, id: \.self) { index in
                 let filter = filters[index]
@@ -496,14 +497,16 @@ private struct FilterListView: View {
                             .padding(.horizontal)
 
                         case let .check(_, _, defaultValue):
-                            if showTitles {
-                                titleView(filter.title)
+                            if showTitles, shouldShowCheckTitle(at: index) {
+                                if let title = filter.title, !title.isEmpty {
+                                    titleView(title)
+                                }
                             }
                             CheckFilterGroupView(
                                 filter: filter,
                                 state: selectedIndexBinding(
                                     for: filter.id,
-                                    default: defaultValue.map({ $0 ? 1 : 2 }) ?? 0
+                                    default: defaultValue == true ? 1 : 0
                                 )
                             )
 
@@ -554,6 +557,7 @@ private struct FilterListView: View {
                             rangeFilterView(filter: filter, min: min, max: max, decimal: decimal)
                     }
                 }
+                .padding(.bottom, spacingAfterFilter(at: index))
             }
         }
         .onChange(of: includedOptions) { _ in
@@ -813,7 +817,7 @@ extension FilterListView {
                 case let .check(_, _, defaultValue) = filter.value
             else { continue }
 
-            let defaultIndex = defaultValue.map({ $0 ? 1 : 2 }) ?? 0
+            let defaultIndex = defaultValue == true ? 1 : 0
             let value = selectedIndexes[id, default: defaultIndex]
             let isDefault = value == defaultIndex
             let filterValue = FilterValue.check(id: id, value: value)
@@ -828,6 +832,32 @@ extension FilterListView {
                 enabledFilters.append(filterValue)
             }
         }
+    }
+
+    private func shouldShowCheckTitle(at index: Int) -> Bool {
+        guard
+            filters.indices.contains(index),
+            case .check = filters[index].value
+        else {
+            return false
+        }
+        guard index > filters.startIndex else { return true }
+        let previous = filters[index - 1]
+        guard case .check = previous.value else { return true }
+        return previous.title != filters[index].title
+    }
+
+    private func spacingAfterFilter(at index: Int) -> CGFloat {
+        guard
+            filters.indices.contains(index),
+            index + 1 < filters.endIndex,
+            case .check = filters[index].value,
+            case .check = filters[index + 1].value,
+            filters[index].title == filters[index + 1].title
+        else {
+            return 22
+        }
+        return 0
     }
 
     private func updateSelectFilters() {

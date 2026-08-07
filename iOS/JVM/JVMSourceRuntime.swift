@@ -1457,6 +1457,7 @@ struct TachiyomiXFilterDescriptor: Decodable, Sendable {
     let options: [String]?
     let defaultValue: String?
     let auxiliary: String?
+    let group: String?
 
     var intoAidoku: AidokuRunner.Filter {
         let value = switch type {
@@ -1469,9 +1470,9 @@ struct TachiyomiXFilterDescriptor: Decodable, Sendable {
             case "check":
                 AidokuRunner.Filter(
                     id: id,
-                    title: name,
+                    title: group,
                     value: .check(
-                        name: nil,
+                        name: name,
                         canExclude: auxiliary == "true",
                         defaultValue: defaultState
                     )

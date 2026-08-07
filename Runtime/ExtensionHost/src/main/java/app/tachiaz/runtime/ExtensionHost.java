@@ -518,10 +518,11 @@ public final class ExtensionHost {
             output.add(filterJson(
                 path,
                 "check",
-                title,
+                name,
                 null,
                 getter(filter, "getState"),
-                "false"
+                "false",
+                parentName
             ));
             return;
         }
@@ -529,10 +530,11 @@ public final class ExtensionHost {
             output.add(filterJson(
                 path,
                 "check",
-                title,
+                name,
                 null,
                 getter(filter, "getState"),
-                "true"
+                "true",
+                parentName
             ));
             return;
         }
@@ -588,6 +590,26 @@ public final class ExtensionHost {
         Object defaultValue,
         Object auxiliary
     ) {
+        return filterJson(
+            id,
+            type,
+            name,
+            options,
+            defaultValue,
+            auxiliary,
+            null
+        );
+    }
+
+    private static String filterJson(
+        String id,
+        String type,
+        String name,
+        Object[] options,
+        Object defaultValue,
+        Object auxiliary,
+        String group
+    ) {
         StringBuilder output = new StringBuilder("{");
         appendJsonField(output, "id", id, false);
         appendJsonField(output, "type", type, true);
@@ -619,6 +641,9 @@ public final class ExtensionHost {
                 String.valueOf(auxiliary),
                 true
             );
+        }
+        if (group != null && !group.isEmpty()) {
+            appendJsonField(output, "group", group, true);
         }
         return output.append('}').toString();
     }

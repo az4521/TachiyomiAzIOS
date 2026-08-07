@@ -24,6 +24,7 @@ class NewSourceViewController: UIViewController {
     private var cancellable: AnyCancellable?
     private let filterDrawerTransitioningDelegate =
         FilterDrawerTransitioningDelegate()
+    private weak var presentedFilterDrawer: UIViewController?
 
     private lazy var searchOverlayView = {
         let scrollView = UIView()
@@ -238,6 +239,13 @@ class NewSourceViewController: UIViewController {
         )
         filterEdgePan.edges = .right
         view.addGestureRecognizer(filterEdgePan)
+
+        let activeSearchFilterEdgePan = UIScreenEdgePanGestureRecognizer(
+            target: self,
+            action: #selector(handleFilterEdgePan)
+        )
+        activeSearchFilterEdgePan.edges = .right
+        searchController.view.addGestureRecognizer(activeSearchFilterEdgePan)
 
         loadNavbarButtons()
 
@@ -692,7 +700,7 @@ extension NewSourceViewController {
 
     private func presentFilterDrawer() {
         guard
-            presentedViewController == nil,
+            presentedFilterDrawer == nil,
             let filters,
             !filters.isEmpty
         else {
@@ -701,7 +709,10 @@ extension NewSourceViewController {
         let controller = UIHostingController(rootView: filterSheetView)
         controller.modalPresentationStyle = .custom
         controller.transitioningDelegate = filterDrawerTransitioningDelegate
-        present(controller, animated: true)
+        let presenter = searchController.isActive ? searchController : self
+        guard presenter.presentedViewController == nil else { return }
+        presentedFilterDrawer = controller
+        presenter.present(controller, animated: true)
     }
 
     // find a uiscrollview in a view hierarchy
