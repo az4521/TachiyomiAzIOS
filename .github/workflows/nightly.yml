@@ -148,9 +148,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: Runtime/ExtensionHost/compat
-          key: tachiyomiaz-suwayomi-${{ runner.os }}-${{ hashFiles('Scripts/bootstrap-suwayomi-compat.sh', 'Scripts/build-mobile-shims.sh', 'Scripts/gradle/copy-suwayomi-runtime.init.gradle') }}
-          restore-keys: |
-            tachiyomiaz-suwayomi-${{ runner.os }}-
+          key: tachiyomiaz-suwayomi-${{ runner.os }}-${{ hashFiles('Scripts/bootstrap-suwayomi-compat.sh', 'Scripts/build-mobile-shims.sh', 'Scripts/gradle/copy-suwayomi-runtime.init.gradle', 'Scripts/patches/suwayomi-ios-runtime.patch') }}
 
       - name: Bootstrap JVM compatibility layer
         run: |

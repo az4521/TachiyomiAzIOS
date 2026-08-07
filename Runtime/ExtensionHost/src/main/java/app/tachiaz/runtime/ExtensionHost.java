@@ -26,6 +26,7 @@ public final class ExtensionHost {
         new ConcurrentHashMap<>();
     private static boolean compatibilityInitialized;
     private static Object compatibilityApplication;
+    private static Thread compatibilityLooperThread;
 
     private ExtensionHost() {
     }
@@ -268,6 +269,8 @@ public final class ExtensionHost {
             return false;
         }
 
+        startAndroidMainLooper(loader);
+
         Object app = appType.getDeclaredConstructor().newInstance();
         Class<?> applicationType =
             Class.forName("android.app.Application", true, loader);
@@ -343,6 +346,51 @@ public final class ExtensionHost {
         compatibilityInitialized = true;
         compatibilityApplication = app;
         return true;
+    }
+
+    private static void startAndroidMainLooper(ClassLoader loader)
+        throws Exception {
+        Class<?> looperType = Class.forName(
+            "android.os.Looper",
+            true,
+            loader
+        );
+        Method getMainLooper = looperType.getMethod("getMainLooper");
+        if (getMainLooper.invoke(null) != null) {
+            return;
+        }
+
+        CountDownLatch ready = new CountDownLatch(1);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Thread looperThread = new Thread(() -> {
+            Thread.currentThread().setContextClassLoader(loader);
+            try {
+                looperType.getMethod("prepareMainLooper").invoke(null);
+                ready.countDown();
+                looperType.getMethod("loop").invoke(null);
+            } catch (Throwable error) {
+                failure.compareAndSet(null, error);
+                ready.countDown();
+            }
+        }, "TachiyomiAZ Android Main Looper");
+        looperThread.setDaemon(true);
+        looperThread.start();
+
+        if (!ready.await(10, TimeUnit.SECONDS)) {
+            throw new IllegalStateException(
+                "Timed out starting the Android main looper"
+            );
+        }
+        Throwable startupFailure = failure.get();
+        if (startupFailure != null) {
+            throw rethrow(startupFailure);
+        }
+        if (getMainLooper.invoke(null) == null) {
+            throw new IllegalStateException(
+                "Android main looper did not initialize"
+            );
+        }
+        compatibilityLooperThread = looperThread;
     }
 
     private static Object invokeStatic(

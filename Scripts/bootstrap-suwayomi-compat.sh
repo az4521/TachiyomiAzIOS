@@ -8,6 +8,7 @@ checkout_root="${TACHIAZ_SUWAYOMI_SOURCE:-$build_root/source}"
 runtime_root="$build_root/runtime"
 output_root="$repository_root/Runtime/ExtensionHost/compat"
 copy_init="$repository_root/Scripts/gradle/copy-suwayomi-runtime.init.gradle"
+ios_runtime_patch="$repository_root/Scripts/patches/suwayomi-ios-runtime.patch"
 
 suwayomi_repository="https://github.com/Suwayomi/Suwayomi-Server.git"
 suwayomi_commit="eb2dc0b19a9571b27c02bebc5c883e404b7bd7fb"
@@ -50,6 +51,15 @@ else
         echo "Current commit: $actual_commit" >&2
         exit 1
     fi
+fi
+
+if git -C "$checkout_root" apply --check "$ios_runtime_patch" 2>/dev/null; then
+    git -C "$checkout_root" apply "$ios_runtime_patch"
+elif ! git -C "$checkout_root" apply --reverse --check \
+    "$ios_runtime_patch" 2>/dev/null
+then
+    echo "The iOS compatibility patch does not apply cleanly." >&2
+    exit 1
 fi
 
 rm -rf "$runtime_root"

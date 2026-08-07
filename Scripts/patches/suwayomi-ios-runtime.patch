@@ -1,0 +1,13 @@
+diff --git a/AndroidCompat/src/main/java/xyz/nulldev/androidcompat/androidimpl/CustomContext.java b/AndroidCompat/src/main/java/xyz/nulldev/androidcompat/androidimpl/CustomContext.java
+index bc5d4eb60..e93499af9 100644
+--- a/AndroidCompat/src/main/java/xyz/nulldev/androidcompat/androidimpl/CustomContext.java
++++ b/AndroidCompat/src/main/java/xyz/nulldev/androidcompat/androidimpl/CustomContext.java
+@@ -106,7 +106,7 @@ public class CustomContext extends Context {
+ 
+     @Override
+     public Looper getMainLooper() {
+-        return null;
++        return Looper.getMainLooper();
+     }
+ 
+     @Override
