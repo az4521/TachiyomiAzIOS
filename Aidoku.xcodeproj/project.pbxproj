@@ -3459,6 +3459,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
+				EXPORTED_SYMBOLS_FILE = "$(SRCROOT)/iOS/JVM/OpenJDK.exports";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = iOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TachiyomiAZ;
@@ -3479,7 +3480,6 @@
 				);
 				OTHER_LDFLAGS = (
 					"$(inherited)",
-					"-Wl,-export_dynamic",
 					"-lz",
 					"-lc++",
 				);
@@ -3508,6 +3508,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
+				EXPORTED_SYMBOLS_FILE = "$(SRCROOT)/iOS/JVM/OpenJDK.exports";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = iOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TachiyomiAZ;
@@ -3528,7 +3529,6 @@
 				);
 				OTHER_LDFLAGS = (
 					"$(inherited)",
-					"-Wl,-export_dynamic",
 					"-lz",
 					"-lc++",
 				);
