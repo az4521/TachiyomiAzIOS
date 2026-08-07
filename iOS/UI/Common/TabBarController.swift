@@ -134,21 +134,7 @@ class TabBarController: UITabBarController {
         let libraryViewController = NavigationController(rootViewController: LibraryViewController())
         let browseViewController = NavigationController(rootViewController: BrowseViewController())
 
-        let updatesPath = NavigationCoordinator(rootViewController: nil)
-        let updatesHostingController = UIHostingController(
-            rootView: MangaUpdatesView(
-                title: NSLocalizedString(
-                    "RECENT_UPDATES",
-                    value: "Recent Updates",
-                    comment: "Recent updates screen title"
-                )
-            )
-            .environmentObject(updatesPath)
-        )
-        updatesPath.rootViewController = updatesHostingController
-        let updatesViewController = NavigationController(
-            rootViewController: updatesHostingController
-        )
+        let updatesViewController = makeMangaUpdatesViewController()
 
         let historyPath = NavigationCoordinator(rootViewController: nil)
         let historyHostingController = UIHostingController(rootView: HistoryView()
@@ -374,6 +360,13 @@ class TabBarController: UITabBarController {
     private func activateDrawerDestination(at index: Int) {
         guard drawerControllers.indices.contains(index) else { return }
         selectedDrawerIndex = index
+        // Manga updates used to be pushed from the Library bell. Recreate that
+        // screen when it is selected from the drawer so its SwiftUI loading
+        // state and navigation coordinator always start in the same known-good
+        // state as the former Library entry point.
+        if index == 1 {
+            drawerControllers[index] = makeMangaUpdatesViewController()
+        }
         let controller = drawerControllers[index]
         if selectedViewController !== controller {
             setViewControllers([controller], animated: false)
@@ -382,6 +375,27 @@ class TabBarController: UITabBarController {
         }
         checkForSettingsPop()
         updateDrawerSelection()
+    }
+
+    private func makeMangaUpdatesViewController() -> NavigationController {
+        let path = NavigationCoordinator(rootViewController: nil)
+        let hostingController = UIHostingController(
+            rootView: MangaUpdatesView().environmentObject(path)
+        )
+        path.rootViewController = hostingController
+
+        let navigationController = NavigationController(
+            rootViewController: hostingController
+        )
+        navigationController.navigationBar.prefersLargeTitles = true
+        navigationController.tabBarItem = UITabBarItem(
+            title: drawerDestinations[1].title,
+            image: UIImage(systemName: drawerDestinations[1].symbol),
+            tag: 1
+        )
+        hostingController.navigationItem.leftBarButtonItem =
+            makeDrawerBarButtonItem()
+        return navigationController
     }
 
     @objc private func handleEdgePan(_ gesture: UIScreenEdgePanGestureRecognizer) {

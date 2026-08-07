@@ -30,13 +30,6 @@ class LibraryViewController: OldMangaCollectionViewController {
         action: nil,
         titleKey: "MORE_BARBUTTON"
     )
-    private lazy var mangaUpdatesButton = makeBarButton(
-        systemName: "bell",
-        action: #selector(openMangaUpdates),
-        titleKey: "MANGA_UPDATES",
-        sharesBackground: false
-    )
-
     private func makeBarButton(systemName: String? = nil, action: Selector?, titleKey: String, sharesBackground: Bool = true) -> UIBarButtonItem {
         let item = UIBarButtonItem(
             image: systemName.flatMap { UIImage(systemName: $0) },
@@ -531,7 +524,6 @@ extension LibraryViewController {
             if viewModel.isCategoryLocked() {
                 items.append(lockBarButton)
             }
-            items.append(mangaUpdatesButton)
             navigationItem.rightBarButtonItems = items
             navigationItem.leftBarButtonItem =
                 (tabBarController as? TabBarController)?
@@ -686,14 +678,6 @@ extension LibraryViewController {
         }
         viewController.modalPresentationStyle = .pageSheet
         present(viewController, animated: true)
-    }
-
-    @objc func openMangaUpdates() {
-        let path = NavigationCoordinator(rootViewController: self)
-        let viewController = UIHostingController(rootView: MangaUpdatesView().environmentObject(path))
-        viewController.navigationItem.largeTitleDisplayMode = .never
-        viewController.navigationItem.title = NSLocalizedString("MANGA_UPDATES")
-        navigationController?.pushViewController(viewController, animated: true)
     }
 
     @objc func removeSelectedFromLibrary() {
