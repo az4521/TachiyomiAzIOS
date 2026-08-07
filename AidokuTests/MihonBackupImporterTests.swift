@@ -1,4 +1,5 @@
 @testable import Aidoku
+import Foundation
 import Testing
 
 struct MihonBackupImporterTests {
@@ -86,5 +87,62 @@ struct MihonBackupImporterTests {
         let backup = MihonBackupImporter.convert(payload)
         let categories = try #require(backup.library?.first?.categories)
         #expect(Set(categories) == Set(["Reading", "Archive"]))
+    }
+
+    @Test func mergingMihonHistoryNeverRevertsReadState() {
+        let existing = BackupHistory(
+            dateRead: Date(timeIntervalSince1970: 20),
+            sourceId: "mihon.1",
+            chapterId: "/chapter-1",
+            mangaId: "/title",
+            progress: 15,
+            total: 30,
+            completed: true
+        )
+        let importedUnread = BackupHistory(
+            dateRead: Date(timeIntervalSince1970: 10),
+            sourceId: "mihon.1",
+            chapterId: "/chapter-1",
+            mangaId: "/title",
+            progress: 3,
+            total: 20,
+            completed: false
+        )
+        let merged = BackupManager.mergeMihonHistory(
+            existing: existing,
+            imported: importedUnread
+        )
+
+        #expect(merged.completed)
+        #expect(merged.progress == 15)
+        #expect(merged.total == 30)
+        #expect(merged.dateRead == existing.dateRead)
+    }
+
+    @Test func mergingMihonHistoryPromotesImportedReadState() {
+        let existing = BackupHistory(
+            dateRead: .distantPast,
+            sourceId: "mihon.1",
+            chapterId: "/chapter-1",
+            mangaId: "/title",
+            progress: 0,
+            completed: false
+        )
+        let importedRead = BackupHistory(
+            dateRead: Date(timeIntervalSince1970: 20),
+            sourceId: "mihon.1",
+            chapterId: "/chapter-1",
+            mangaId: "/title",
+            progress: 12,
+            completed: true
+        )
+        let merged = BackupManager.mergeMihonHistory(
+            existing: existing,
+            imported: importedRead
+        )
+
+        #expect(merged.completed)
+        #expect(merged.progress == 12)
+        #expect(merged.dateRead == importedRead.dateRead)
     }
 }

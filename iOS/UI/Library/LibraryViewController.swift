@@ -533,7 +533,9 @@ extension LibraryViewController {
             }
             items.append(mangaUpdatesButton)
             navigationItem.rightBarButtonItems = items
-            navigationItem.leftBarButtonItem = nil
+            navigationItem.leftBarButtonItem =
+                (tabBarController as? TabBarController)?
+                .makeDrawerBarButtonItem()
             Task { @MainActor in
                 if await DownloadManager.shared.hasQueuedDownloads() {
                     let index = (navigationItem.rightBarButtonItems?.count ?? 1) - 1

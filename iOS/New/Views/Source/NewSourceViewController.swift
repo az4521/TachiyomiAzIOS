@@ -22,6 +22,8 @@ class NewSourceViewController: UIViewController {
     private var originalNavbarEdgeAppearance: UINavigationBarAppearance?
 
     private var cancellable: AnyCancellable?
+    private let filterDrawerTransitioningDelegate =
+        FilterDrawerTransitioningDelegate()
 
     private lazy var searchOverlayView = {
         let scrollView = UIView()
@@ -130,11 +132,7 @@ class NewSourceViewController: UIViewController {
             enabledFilters: enabledFiltersBinding,
             filtersEmpty: filtersEmptyBinding
         ) { [weak self] in
-            guard let self else { return }
-            self.present(
-                UIHostingController(rootView: self.filterSheetView),
-                animated: true
-            )
+            self?.presentFilterDrawer()
         }
     }
 
@@ -233,6 +231,13 @@ class NewSourceViewController: UIViewController {
     func configure() {
         title = source.name
         view.backgroundColor = .systemBackground
+
+        let filterEdgePan = UIScreenEdgePanGestureRecognizer(
+            target: self,
+            action: #selector(handleFilterEdgePan)
+        )
+        filterEdgePan.edges = .right
+        view.addGestureRecognizer(filterEdgePan)
 
         loadNavbarButtons()
 
@@ -675,6 +680,28 @@ extension NewSourceViewController {
         }
 
         navigationItem.rightBarButtonItems = rightBarButtonItems
+    }
+
+    @objc private func handleFilterEdgePan(
+        _ gesture: UIScreenEdgePanGestureRecognizer
+    ) {
+        if gesture.state == .recognized {
+            presentFilterDrawer()
+        }
+    }
+
+    private func presentFilterDrawer() {
+        guard
+            presentedViewController == nil,
+            let filters,
+            !filters.isEmpty
+        else {
+            return
+        }
+        let controller = UIHostingController(rootView: filterSheetView)
+        controller.modalPresentationStyle = .custom
+        controller.transitioningDelegate = filterDrawerTransitioningDelegate
+        present(controller, animated: true)
     }
 
     // find a uiscrollview in a view hierarchy

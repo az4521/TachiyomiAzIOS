@@ -35,29 +35,6 @@ struct JVMExtensionManifest: Codable, Hashable, Sendable {
         self.isNsfw = isNsfw
     }
 
-    /// Exact repository metadata is persisted for new installs. This fallback
-    /// also restores icons for manifests written before iconURL was added.
-    var resolvedIconURL: URL? {
-        if let iconURL {
-            return iconURL
-        }
-        guard
-            let sourceURL,
-            sourceURL.deletingLastPathComponent().lastPathComponent == "jar",
-            id.hasPrefix("eu.kanade.tachiyomi.extension.")
-        else {
-            return nil
-        }
-        let artifactName = "tachiyomi-" + String(id.dropFirst(
-            "eu.kanade.tachiyomi.extension.".count
-        ))
-        return sourceURL
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("icon", isDirectory: true)
-            .appendingPathComponent("\(artifactName).png")
-    }
-
     var directoryName: String {
         id
             .unicodeScalars

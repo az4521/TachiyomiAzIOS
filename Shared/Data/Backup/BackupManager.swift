@@ -12,6 +12,11 @@ import Foundation
 import UIKit
 #endif
 
+private struct MihonMangaMergeKey: Hashable {
+    let sourceId: String
+    let url: String
+}
+
 actor BackupManager {
     static let shared = BackupManager()
 
@@ -282,7 +287,281 @@ extension BackupManager {
     }
 
     func restore(from backup: Backup) async {
-        await doRestore(from: backup)
+        if backup.version == "Mihon/TachiyomiAZ" {
+            await mergeMihonBackup(backup)
+        } else {
+            await doRestore(from: backup)
+        }
+    }
+
+    @discardableResult
+    // swiftlint:disable:next function_body_length
+    private func mergeMihonBackup(_ backup: Backup) async -> Bool {
+#if !os(macOS)
+        await MainActor.run {
+            (UIApplication.shared.delegate as? AppDelegate)?
+                .showLoadingIndicator()
+            UIApplication.shared.isIdleTimerDisabled = true
+        }
+#endif
+
+        let errorMessage = await CoreDataManager.shared.container
+            .performBackgroundTask { context -> String? in
+                let manager = CoreDataManager.shared
+
+                do {
+                    var categoriesByTitle = Dictionary(
+                        manager.getCategories(context: context).compactMap {
+                            category in category.title.map {
+                                ($0, category)
+                            }
+                        },
+                        uniquingKeysWith: { first, _ in first }
+                    )
+                    for item in backup.categories ?? [] {
+                        guard
+                            let title = item.title,
+                            categoriesByTitle[title] == nil
+                        else {
+                            continue
+                        }
+                        categoriesByTitle[title] = manager.createCategory(
+                            title: title,
+                            context: context
+                        )
+                    }
+
+                    var mangaByURL = Dictionary(
+                        manager.getManga(context: context).map {
+                            (MihonMangaMergeKey(
+                                sourceId: $0.sourceId,
+                                url: $0.url ?? $0.id
+                            ), $0)
+                        },
+                        uniquingKeysWith: { first, _ in first }
+                    )
+                    var mangaByIdentifier = Dictionary(
+                        manager.getManga(context: context).map {
+                            ($0.identifier, $0)
+                        },
+                        uniquingKeysWith: { first, _ in first }
+                    )
+                    var targetIdentifiers: [
+                        MangaIdentifier: MangaIdentifier
+                    ] = [:]
+
+                    for item in backup.manga ?? [] {
+                        let backupIdentifier = MangaIdentifier(
+                            sourceKey: item.sourceId,
+                            mangaKey: item.id
+                        )
+                        let urlKey = MihonMangaMergeKey(
+                            sourceId: item.sourceId,
+                            url: item.url ?? item.id
+                        )
+                        let manga: MangaObject
+                        if let existing = mangaByURL[urlKey] {
+                            manga = existing
+                        } else {
+                            manga = item.toObject(context: context)
+                            mangaByURL[urlKey] = manga
+                            mangaByIdentifier[manga.identifier] = manga
+                        }
+                        targetIdentifiers[backupIdentifier] = manga.identifier
+                    }
+
+                    var libraryByIdentifier = Dictionary(
+                        manager.getLibraryManga(context: context).compactMap {
+                            object in object.manga.map {
+                                ($0.identifier, object)
+                            }
+                        },
+                        uniquingKeysWith: { first, _ in first }
+                    )
+                    for item in backup.library ?? [] {
+                        let target = targetIdentifiers[item.identifier] ??
+                            item.identifier
+                        guard let manga = mangaByIdentifier[target] else {
+                            continue
+                        }
+                        let library: LibraryMangaObject
+                        if let existing = libraryByIdentifier[target] {
+                            library = existing
+                            if
+                                let importedLastRead = item.lastRead,
+                                importedLastRead >
+                                    (existing.lastRead ?? .distantPast)
+                            {
+                                existing.lastRead = importedLastRead
+                            }
+                        } else {
+                            library = item.toObject(context: context)
+                            library.manga = manga
+                            libraryByIdentifier[target] = library
+                        }
+                        for title in item.categories ?? [] {
+                            if let category = categoriesByTitle[title] {
+                                library.addToCategories(category)
+                            }
+                        }
+                    }
+
+                    var historyByIdentifier = Dictionary(
+                        manager.getHistory(context: context).map {
+                            ($0.identifier, $0)
+                        },
+                        uniquingKeysWith: { first, _ in first }
+                    )
+                    for item in backup.history ?? [] {
+                        let backupManga = MangaIdentifier(
+                            sourceKey: item.sourceId,
+                            mangaKey: item.mangaId
+                        )
+                        let targetManga = targetIdentifiers[backupManga] ??
+                            backupManga
+                        var imported = item
+                        imported.mangaId = targetManga.mangaKey
+                        let target = ChapterIdentifier(
+                            sourceKey: imported.sourceId,
+                            mangaKey: imported.mangaId,
+                            chapterKey: imported.chapterId
+                        )
+                        if let existing = historyByIdentifier[target] {
+                            let merged = Self.mergeMihonHistory(
+                                existing: BackupHistory(
+                                    historyObject: existing
+                                ),
+                                imported: imported
+                            )
+                            existing.dateRead = merged.dateRead
+                            existing.progress = Int16(
+                                clamping: merged.progress ?? -1
+                            )
+                            existing.total = Int16(
+                                clamping: merged.total ?? 0
+                            )
+                            existing.completed = merged.completed
+                        } else {
+                            let history = imported.toObject(context: context)
+                            historyByIdentifier[target] = history
+                        }
+                    }
+
+                    var chaptersByIdentifier = Dictionary(
+                        manager.getChapters(context: context).map {
+                            ($0.identifier, $0)
+                        },
+                        uniquingKeysWith: { first, _ in first }
+                    )
+                    for item in backup.chapters ?? [] {
+                        let backupManga = MangaIdentifier(
+                            sourceKey: item.sourceId,
+                            mangaKey: item.mangaId
+                        )
+                        let targetManga = targetIdentifiers[backupManga] ??
+                            backupManga
+                        var imported = item
+                        imported.mangaId = targetManga.mangaKey
+                        let target = ChapterIdentifier(
+                            sourceKey: imported.sourceId,
+                            mangaKey: imported.mangaId,
+                            chapterKey: imported.id
+                        )
+                        let chapter: ChapterObject
+                        if let existing = chaptersByIdentifier[target] {
+                            chapter = existing
+                            existing.bookmarked = existing.bookmarked ||
+                                (imported.bookmarked ?? false)
+                        } else {
+                            chapter = imported.toObject(context: context)
+                            chaptersByIdentifier[target] = chapter
+                        }
+                        chapter.manga = mangaByIdentifier[targetManga]
+                        if let history = historyByIdentifier[target] {
+                            chapter.history = history
+                            history.chapter = chapter
+                        }
+                    }
+
+                    for item in backup.trackItems ?? [] {
+                        let backupManga = MangaIdentifier(
+                            sourceKey: item.sourceId,
+                            mangaKey: item.mangaId
+                        )
+                        let targetManga = targetIdentifiers[backupManga] ??
+                            backupManga
+                        guard !manager.hasTrack(
+                            trackerId: item.trackerId,
+                            sourceId: targetManga.sourceKey,
+                            mangaId: targetManga.mangaKey,
+                            context: context
+                        ) else {
+                            continue
+                        }
+                        var imported = item
+                        imported.sourceId = targetManga.sourceKey
+                        imported.mangaId = targetManga.mangaKey
+                        _ = imported.toObject(context: context)
+                    }
+
+                    try context.save()
+                    return nil
+                } catch {
+                    context.rollback()
+                    return error.localizedDescription
+                }
+            }
+
+        NotificationCenter.default.post(name: .updateHistory, object: nil)
+        NotificationCenter.default.post(name: .updateTrackers, object: nil)
+        NotificationCenter.default.post(name: .updateCategories, object: nil)
+        NotificationCenter.default.post(name: .updateLibrary, object: nil)
+
+#if !os(macOS)
+        await Task { @MainActor in
+            let delegate = UIApplication.shared.delegate as? AppDelegate
+            await delegate?.hideLoadingIndicator()
+            UIApplication.shared.isIdleTimerDisabled = false
+            if let errorMessage {
+                delegate?.presentAlert(
+                    title: NSLocalizedString("BACKUP_ERROR"),
+                    message: String(
+                        format: NSLocalizedString("BACKUP_ERROR_TEXT"),
+                        errorMessage
+                    )
+                )
+            } else {
+                let missingSources = (backup.sources ?? []).filter {
+                    SourceManager.shared.source(for: $0.id) == nil &&
+                        !CoreDataManager.shared.hasSource(id: $0.id)
+                }
+                if !missingSources.isEmpty {
+                    delegate?.presentAlert(
+                        title: NSLocalizedString("MISSING_SOURCES"),
+                        message: NSLocalizedString("MISSING_SOURCES_TEXT") +
+                            missingSources.map { "\n- \($0.id)" }.joined()
+                    )
+                }
+            }
+        }.value
+#endif
+
+        return errorMessage == nil
+    }
+
+    nonisolated static func mergeMihonHistory(
+        existing: BackupHistory,
+        imported: BackupHistory
+    ) -> BackupHistory {
+        BackupHistory(
+            dateRead: max(existing.dateRead, imported.dateRead),
+            sourceId: existing.sourceId,
+            chapterId: existing.chapterId,
+            mangaId: existing.mangaId,
+            progress: max(existing.progress ?? -1, imported.progress ?? -1),
+            total: max(existing.total ?? 0, imported.total ?? 0),
+            completed: existing.completed || imported.completed
+        )
     }
 
     @discardableResult

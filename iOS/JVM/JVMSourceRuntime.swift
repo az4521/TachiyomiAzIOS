@@ -1127,7 +1127,7 @@ private extension AidokuRunner.Source {
             } ?? [],
             contentRating:
                 manifest.isNsfw == true ? .primarilyNsfw : .safe,
-            imageUrl: manifest.resolvedIconURL,
+            imageUrl: manifest.iconURL,
             config: .init(
                 languageSelectType: .single,
                 supportsTagSearch: true

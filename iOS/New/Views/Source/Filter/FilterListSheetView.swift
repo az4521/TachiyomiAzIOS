@@ -7,6 +7,9 @@
 
 import AidokuRunner
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 struct FilterListSheetView: View {
     let sourceKey: String?
@@ -214,6 +217,168 @@ struct FilterListSheetView: View {
         }
     }
 }
+
+#if os(iOS)
+final class FilterDrawerTransitioningDelegate: NSObject,
+    UIViewControllerTransitioningDelegate
+{
+    func presentationController(
+        forPresented presented: UIViewController,
+        presenting: UIViewController?,
+        source: UIViewController
+    ) -> UIPresentationController? {
+        FilterDrawerPresentationController(
+            presentedViewController: presented,
+            presenting: presenting
+        )
+    }
+
+    func animationController(
+        forPresented presented: UIViewController,
+        presenting: UIViewController,
+        source: UIViewController
+    ) -> (any UIViewControllerAnimatedTransitioning)? {
+        FilterDrawerAnimator(presenting: true)
+    }
+
+    func animationController(
+        forDismissed dismissed: UIViewController
+    ) -> (any UIViewControllerAnimatedTransitioning)? {
+        FilterDrawerAnimator(presenting: false)
+    }
+}
+
+private final class FilterDrawerPresentationController:
+    UIPresentationController
+{
+    private lazy var dimmingView: UIControl = {
+        let view = UIControl()
+        view.backgroundColor = UIColor.black.withAlphaComponent(0.32)
+        view.alpha = 0
+        view.addTarget(
+            self,
+            action: #selector(dismissDrawer),
+            for: .touchUpInside
+        )
+        return view
+    }()
+
+    override var frameOfPresentedViewInContainerView: CGRect {
+        guard let containerView else { return .zero }
+        let width = min(
+            CGFloat(440),
+            max(CGFloat(320), containerView.bounds.width * 0.86)
+        )
+        return CGRect(
+            x: containerView.bounds.maxX - width,
+            y: containerView.bounds.minY,
+            width: width,
+            height: containerView.bounds.height
+        )
+    }
+
+    override func presentationTransitionWillBegin() {
+        guard let containerView else { return }
+        dimmingView.frame = containerView.bounds
+        dimmingView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        containerView.insertSubview(dimmingView, at: 0)
+        presentedViewController.transitionCoordinator?.animate {
+            _ in self.dimmingView.alpha = 1
+        }
+    }
+
+    override func presentationTransitionDidEnd(_ completed: Bool) {
+        if !completed {
+            dimmingView.removeFromSuperview()
+        }
+    }
+
+    override func dismissalTransitionWillBegin() {
+        presentedViewController.transitionCoordinator?.animate {
+            _ in self.dimmingView.alpha = 0
+        }
+    }
+
+    override func dismissalTransitionDidEnd(_ completed: Bool) {
+        if completed {
+            dimmingView.removeFromSuperview()
+        }
+    }
+
+    override func containerViewWillLayoutSubviews() {
+        super.containerViewWillLayoutSubviews()
+        dimmingView.frame = containerView?.bounds ?? .zero
+        presentedView?.frame = frameOfPresentedViewInContainerView
+        presentedView?.layer.cornerRadius = 16
+        presentedView?.layer.maskedCorners = [
+            .layerMinXMinYCorner,
+            .layerMinXMaxYCorner
+        ]
+        presentedView?.clipsToBounds = true
+    }
+
+    @objc private func dismissDrawer() {
+        presentedViewController.dismiss(animated: true)
+    }
+}
+
+private final class FilterDrawerAnimator: NSObject,
+    UIViewControllerAnimatedTransitioning
+{
+    private let presenting: Bool
+
+    init(presenting: Bool) {
+        self.presenting = presenting
+    }
+
+    func transitionDuration(
+        using transitionContext: (any UIViewControllerContextTransitioning)?
+    ) -> TimeInterval {
+        presenting ? 0.28 : 0.22
+    }
+
+    func animateTransition(
+        using transitionContext: any UIViewControllerContextTransitioning
+    ) {
+        let key: UITransitionContextViewControllerKey = presenting
+            ? .to
+            : .from
+        guard let controller = transitionContext.viewController(forKey: key)
+        else {
+            transitionContext.completeTransition(false)
+            return
+        }
+        let restingFrame = presenting
+            ? transitionContext.finalFrame(for: controller)
+            : transitionContext.initialFrame(for: controller)
+        if presenting {
+            transitionContext.containerView.addSubview(controller.view)
+            controller.view.frame = restingFrame.offsetBy(
+                dx: restingFrame.width,
+                dy: 0
+            )
+        }
+        UIView.animate(
+            withDuration: transitionDuration(using: transitionContext),
+            delay: 0,
+            options: [
+                presenting ? .curveEaseOut : .curveEaseIn,
+                .beginFromCurrentState
+            ]
+        ) {
+            controller.view.frame = self.presenting
+                ? restingFrame
+                : restingFrame.offsetBy(dx: restingFrame.width, dy: 0)
+        } completion: { finished in
+            let completed = finished && !transitionContext.transitionWasCancelled
+            if !self.presenting && completed {
+                controller.view.removeFromSuperview()
+            }
+            transitionContext.completeTransition(completed)
+        }
+    }
+}
+#endif
 
 private struct FilterListView: View {
     let filters: [AidokuRunner.Filter]

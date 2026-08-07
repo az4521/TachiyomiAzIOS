@@ -55,8 +55,8 @@ struct BackupHistory: Codable, Hashable {
         obj.sourceId = sourceId
         obj.chapterId = chapterId
         obj.mangaId = mangaId
-        obj.progress = Int16(progress ?? -1)
-        obj.total = Int16(total ?? 0)
+        obj.progress = Int16(clamping: progress ?? -1)
+        obj.total = Int16(clamping: total ?? 0)
         obj.completed = completed
         return obj
     }

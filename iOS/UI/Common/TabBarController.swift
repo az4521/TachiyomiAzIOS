@@ -146,12 +146,7 @@ class TabBarController: UITabBarController {
                 tag: index
             )
             controller.viewControllers.first?.navigationItem.leftBarButtonItem =
-                UIBarButtonItem(
-                    image: UIImage(systemName: "line.3.horizontal"),
-                    style: .plain,
-                    target: self,
-                    action: #selector(openDrawer)
-                )
+                makeDrawerBarButtonItem()
         }
         viewControllers = controllers
         tabBar.isHidden = true
@@ -263,6 +258,15 @@ class TabBarController: UITabBarController {
         edgePan.edges = .left
         view.addGestureRecognizer(edgePan)
         updateDrawerSelection()
+    }
+
+    func makeDrawerBarButtonItem() -> UIBarButtonItem {
+        UIBarButtonItem(
+            image: UIImage(systemName: "line.3.horizontal"),
+            style: .plain,
+            target: self,
+            action: #selector(openDrawer)
+        )
     }
 
     @objc private func openDrawer() {

@@ -65,7 +65,11 @@ struct FilterHeaderView: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                filterSheetButton
+                // UIKit hosts provide a right-edge filter drawer. Keep the
+                // sheet button only for standalone SwiftUI hosts.
+                if onFilterButtonClick == nil {
+                    filterSheetButton
+                }
 
                 ForEach(sortedFilters, id: \.self) { filter in
                     if !(filter.hideFromHeader ?? false) {

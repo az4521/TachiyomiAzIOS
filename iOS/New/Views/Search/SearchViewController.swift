@@ -15,6 +15,8 @@ class SearchViewController: UIViewController {
 
     private var isSearchBarActive = false
     private var cancellables = Set<AnyCancellable>()
+    private let filterDrawerTransitioningDelegate =
+        FilterDrawerTransitioningDelegate()
 
     private var sources: [AidokuRunner.Source] = [] {
         didSet {
@@ -80,7 +82,7 @@ class SearchViewController: UIViewController {
             path: NavigationCoordinator(rootViewController: self)
         )
     }
-    private var headerView: FilterHeaderView {
+    private var availableFilters: [AidokuRunner.Filter] {
         var filters: [AidokuRunner.Filter] = [
             .init(
                 id: "contentRating",
@@ -119,9 +121,16 @@ class SearchViewController: UIViewController {
                 )
             )
         }
-        return FilterHeaderView(
-            filters: filters,
+        return filters
+    }
+
+    private var headerView: FilterHeaderView {
+        FilterHeaderView(
+            filters: availableFilters,
             enabledFilters: filtersBinding,
+            onFilterButtonClick: { [weak self] in
+                self?.presentFilterDrawer()
+            },
             onFilterSheetDismiss: {
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 100_000_000)
@@ -163,6 +172,13 @@ class SearchViewController: UIViewController {
         title = NSLocalizedString("SEARCH")
         view.backgroundColor = .systemBackground
 
+        let filterEdgePan = UIScreenEdgePanGestureRecognizer(
+            target: self,
+            action: #selector(handleFilterEdgePan)
+        )
+        filterEdgePan.edges = .right
+        view.addGestureRecognizer(filterEdgePan)
+
         if #available(iOS 16, *) {
             navigationItem.preferredSearchBarPlacement = .stacked
         }
@@ -201,6 +217,29 @@ class SearchViewController: UIViewController {
         }
 
         loadSources()
+    }
+
+    @objc private func handleFilterEdgePan(
+        _ gesture: UIScreenEdgePanGestureRecognizer
+    ) {
+        if gesture.state == .recognized {
+            presentFilterDrawer()
+        }
+    }
+
+    private func presentFilterDrawer() {
+        guard presentedViewController == nil, !availableFilters.isEmpty else {
+            return
+        }
+        let view = FilterListSheetView(
+            filters: availableFilters,
+            search: .constant(""),
+            enabledFilters: filtersBinding
+        )
+        let controller = UIHostingController(rootView: view)
+        controller.modalPresentationStyle = .custom
+        controller.transitioningDelegate = filterDrawerTransitioningDelegate
+        present(controller, animated: true)
     }
 
     func constrain() {
