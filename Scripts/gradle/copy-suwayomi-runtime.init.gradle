@@ -1,3 +1,15 @@
+gradle.beforeProject { project ->
+    project.repositories.maven {
+        name = "tachiyomiazJetBrainsCacheRedirector"
+        url = project.uri(
+            "https://cache-redirector.jetbrains.com/intellij-dependencies"
+        )
+        content {
+            includeGroup("org.jetbrains.intellij.deps.jcef")
+        }
+    }
+}
+
 gradle.afterProject { project ->
     if (project.path == ":server") {
         def outputDirectory =
