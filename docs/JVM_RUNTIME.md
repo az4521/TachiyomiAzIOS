@@ -60,9 +60,11 @@ sandbox on both simulator and device.
 
 ## Build prerequisites
 
-1. Install OpenJDK 26 on macOS and run `Scripts/build-openjdk-ios15.sh`. It
-   builds matching device and arm64 simulator VMs and Java bundles.
-2. Set `TACHIYOMIAZ_BUILD_JAVA_HOME` to that JDK 26 installation.
+1. Install OpenJDK 24 and 26 on macOS. With JDK 24 active, run
+   `TACHIAZ_JDK26_HOME=/path/to/jdk26 Scripts/build-openjdk-ios15.sh`. JDK 24
+   is the boot JDK used by the known-good source revision; JDK 26 supplies the
+   matching `jmod` and `jlink` image tools.
+2. Set `TACHIYOMIAZ_BUILD_JAVA_HOME` to either modern JDK installation.
 3. Run `Scripts/bootstrap-suwayomi-compat.sh`.
 4. Run `Scripts/build-mobile-shims.sh`.
 5. Run `Scripts/build-extension-host.sh --test`.

@@ -31,7 +31,7 @@ fi
 
 for executable in \
     git curl unzip make libtool ar xcrun xcodebuild \
-    java jmod jlink shasum ditto
+    java shasum ditto
 do
     command -v "$executable" >/dev/null || {
         echo "$executable is required." >&2
@@ -40,8 +40,28 @@ do
 done
 
 java_feature="$(java -version 2>&1 | awk -F '[\".]' '/version/ { print $2; exit }')"
-if [[ "$java_feature" != "26" ]]; then
-    echo "OpenJDK 26 is required to create the matching Java module images." >&2
+if [[ "$java_feature" != "24" ]]; then
+    # This source revision predates JDK 26's LAZY_CONSTANTS preview metadata.
+    # Using JDK 26 as the boot JDK breaks the interim langtools -Werror build.
+    echo "OpenJDK 24 is required as the OpenJDK Mobile 26 boot JDK." >&2
+    exit 1
+fi
+
+image_java_home="${TACHIAZ_JDK26_HOME:-}"
+if [[
+    ! -x "$image_java_home/bin/java" ||
+    ! -x "$image_java_home/bin/jmod" ||
+    ! -x "$image_java_home/bin/jlink"
+]]; then
+    echo "Set TACHIAZ_JDK26_HOME to OpenJDK 26 for jmod and jlink." >&2
+    exit 1
+fi
+image_java_feature="$(
+    "$image_java_home/bin/java" -version 2>&1 |
+        awk -F '[\".]' '/version/ { print $2; exit }'
+)"
+if [[ "$image_java_feature" != "26" ]]; then
+    echo "TACHIAZ_JDK26_HOME must contain OpenJDK 26." >&2
     exit 1
 fi
 
@@ -207,11 +227,11 @@ create_java_bundle() {
     local module_classes="$mobile_root/build/$configuration/jdk/modules/java.base"
     local jmods="$build_root/jmods-$configuration"
     mkdir -p "$jmods"
-    jmod create \
+    "$image_java_home/bin/jmod" create \
         --class-path "$module_classes" \
         --target-platform "$platform" \
         "$jmods/java.base.jmod"
-    jlink \
+    "$image_java_home/bin/jlink" \
         --module-path "$jmods" \
         --add-modules java.base \
         --output "$destination"

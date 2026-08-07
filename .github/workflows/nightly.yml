@@ -28,11 +28,23 @@ jobs:
         with:
           xcode-version: "15.4"
 
-      - name: Set up Java
+      - name: Set up Java 26 image tools
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "26"
+
+      - name: Save Java 26 image tool path
+        run: echo "TACHIAZ_JDK26_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
+
+      # The pinned OpenJDK Mobile revision was built upstream with JDK 24.
+      # A JDK 26 boot compiler exposes newer PreviewFeature metadata and makes
+      # the interim langtools build fail under its mandatory -Werror.
+      - name: Set up Java 24 boot JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "24"
 
       - name: Cache runtime
         uses: actions/cache@v4
@@ -42,7 +54,7 @@ jobs:
             Vendor/OpenJDK/java_bundle-device
             Vendor/OpenJDK/java_bundle-simulator
             Vendor/OpenJDK/.ios-runtime
-          key: openjdk-mobile-jdk26-ios15-ad8bb1b065bf-v1
+          key: openjdk-mobile-jdk26-ios15-ad8bb1b065bf-v2
 
       - name: Build runtime
         run: |

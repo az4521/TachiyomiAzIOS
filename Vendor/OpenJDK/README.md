@@ -5,10 +5,11 @@ TachiAZ uses the official
 device and simulator snapshot. The binaries are intentionally not checked into
 this repository.
 
-For the iOS 15-compatible runtime, use macOS with OpenJDK 26 and run:
+For the iOS 15-compatible runtime, use macOS with OpenJDK 24 as the active
+boot JDK and OpenJDK 26 for the matching module-image tools, then run:
 
 ```sh
-Scripts/build-openjdk-ios15.sh
+TACHIAZ_JDK26_HOME=/path/to/jdk26 Scripts/build-openjdk-ios15.sh
 ```
 
 The script builds a checksum- and revision-pinned OpenJDK Mobile 26 Zero VM,
