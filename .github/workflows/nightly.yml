@@ -32,7 +32,9 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          # OpenJDK Mobile 27 requires the same JDK 25 boot toolchain used by
+          # the pinned upstream snapshot build.
+          java-version: "25"
 
       - name: Verify external AidokuRunner is absent
         run: bash Scripts/check-no-external-aidokurunner.sh
@@ -40,6 +42,21 @@ jobs:
       - name: Bootstrap JVM runtime
         run: |
           bash Scripts/bootstrap-openjdk-ios.sh
+
+      - name: Cache iOS 15 OpenJDK device runtime
+        uses: actions/cache@v4
+        with:
+          path: Vendor/OpenJDK/OpenJDK.xcframework/ios-arm64
+          key: openjdk-mobile-device-ios15-1606564eddfd17f-v1
+
+      - name: Build iOS 15 OpenJDK device runtime
+        run: |
+          brew install autoconf make
+          export PATH="$(brew --prefix make)/libexec/gnubin:$PATH"
+          bash Scripts/rebuild-openjdk-device-ios.sh
+
+      - name: Bootstrap JVM compatibility layer
+        run: |
           bash Scripts/bootstrap-suwayomi-compat.sh
           bash Scripts/build-mobile-shims.sh
           bash Scripts/build-extension-host.sh --test

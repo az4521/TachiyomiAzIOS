@@ -903,7 +903,7 @@ actor JVMSourceRuntime {
         if let runtime {
             activeRuntime = runtime
         } else {
-            activeRuntime = try makeRuntime()
+            activeRuntime = try await makeRuntime()
             self.runtime = activeRuntime
         }
         return try await activeRuntime.dispatch(
@@ -1017,10 +1017,16 @@ actor JVMSourceRuntime {
         )
     }
 
-    private func makeRuntime() throws -> JVMRuntime {
-        return try JVMRuntime(
-            configuration: .bundled(in: .main)
-        )
+    private func makeRuntime() async throws -> JVMRuntime {
+        let configuration = try JVMRuntimeConfiguration.bundled(in: .main)
+        // openjdk-mobile's iOS launcher creates the VM on the process main
+        // thread before entering UIApplicationMain. Keep that thread affinity
+        // even though the extension runtime itself is actor-isolated: VM
+        // creation performs process-wide native initialization, while later
+        // JNI calls attach whichever worker thread is executing them.
+        return try await MainActor.run {
+            try JVMRuntime(configuration: configuration)
+        }
     }
 
     private func extensionDirectory(
