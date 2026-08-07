@@ -148,9 +148,19 @@ jobs:
               -destination "generic/platform=iOS" \
               -showBuildSettings
           )"
-          if ! grep -F -- "-Wl,-exported_symbols_list,$GITHUB_WORKSPACE/iOS/JVM/OpenJDK.exports" <<<"$build_settings" >/dev/null; then
-            echo "The iPhone target is not passing the JVM export list to the linker." >&2
-            grep -E '^[[:space:]]*(OTHER_LDFLAGS|SRCROOT)[[:space:]]*=' <<<"$build_settings" >&2 || true
+          configuration_errors=()
+          grep -F -- "-Wl,-exported_symbols_list,$GITHUB_WORKSPACE/iOS/JVM/OpenJDK.exports" <<<"$build_settings" >/dev/null ||
+            configuration_errors+=("The JVM export list is not passed to the linker.")
+          grep -E '^[[:space:]]*STRIP_INSTALLED_PRODUCT[[:space:]]*=[[:space:]]*NO$' <<<"$build_settings" >/dev/null ||
+            configuration_errors+=("Installed-product stripping is enabled.")
+          grep -E '^[[:space:]]*STRIP_STYLE[[:space:]]*=[[:space:]]*non-global$' <<<"$build_settings" >/dev/null ||
+            configuration_errors+=("The fallback strip style would remove global JVM exports.")
+          grep -E '^[[:space:]]*DEPLOYMENT_POSTPROCESSING[[:space:]]*=[[:space:]]*NO$' <<<"$build_settings" >/dev/null ||
+            configuration_errors+=("Deployment postprocessing is enabled.")
+
+          if (( ${#configuration_errors[@]} > 0 )); then
+            printf '%s\n' "${configuration_errors[@]}" >&2
+            grep -E '^[[:space:]]*(DEPLOYMENT_POSTPROCESSING|OTHER_LDFLAGS|SRCROOT|STRIP_INSTALLED_PRODUCT|STRIP_STYLE)[[:space:]]*=' <<<"$build_settings" >&2 || true
             exit 1
           fi
 
