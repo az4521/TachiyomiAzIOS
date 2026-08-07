@@ -34,6 +34,7 @@ actor JVMSourceRuntime {
 
     private let fileManager: FileManager
     private var runtime: JVMRuntime?
+    private var runtimeStartupTask: Task<JVMRuntime, Error>?
     private var cloudflareBypassTasks: [String: Task<Void, Error>] = [:]
     private var preparedImageDirectory = false
 
@@ -918,17 +919,35 @@ actor JVMSourceRuntime {
     private func rawDispatch(
         _ request: ExtensionHostRequest
     ) async throws -> ExtensionHostResponse {
-        let activeRuntime: JVMRuntime
-        if let runtime {
-            activeRuntime = runtime
-        } else {
-            activeRuntime = try await makeRuntime()
-            self.runtime = activeRuntime
+        let activeRuntime = try await runtimeInstance()
+        // JNI attaches each caller to the process-wide VM. Run blocking Java
+        // extension calls outside this actor so one slow HTTP request does not
+        // serialize every library update, download, and browse request.
+        return try await Task.detached(priority: .utility) {
+            try activeRuntime.dispatch(
+                request,
+                as: ExtensionHostResponse.self
+            )
+        }.value
+    }
+
+    private func runtimeInstance() async throws -> JVMRuntime {
+        if let runtime { return runtime }
+        if let runtimeStartupTask {
+            return try await runtimeStartupTask.value
         }
-        return try await activeRuntime.dispatch(
-            request,
-            as: ExtensionHostResponse.self
-        )
+
+        let startupTask = Task { try await makeRuntime() }
+        runtimeStartupTask = startupTask
+        do {
+            let runtime = try await startupTask.value
+            self.runtime = runtime
+            runtimeStartupTask = nil
+            return runtime
+        } catch {
+            runtimeStartupTask = nil
+            throw error
+        }
     }
 
     private func shouldAttemptCloudflareBypass(

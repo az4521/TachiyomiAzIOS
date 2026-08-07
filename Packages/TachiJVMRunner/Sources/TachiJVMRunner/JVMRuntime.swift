@@ -1,8 +1,8 @@
 import CJVMBridge
 import Foundation
 
-public actor JVMRuntime {
-    private var handle: OpaquePointer?
+public final class JVMRuntime: @unchecked Sendable {
+    private let handle: OpaquePointer
 
     public init(configuration: JVMRuntimeConfiguration) throws {
         guard configuration.javaHomeURL.isFileURL else {
@@ -63,16 +63,10 @@ public actor JVMRuntime {
     }
 
     deinit {
-        if let handle {
-            tjr_runtime_release(handle)
-        }
+        tjr_runtime_release(handle)
     }
 
     public func dispatch(_ requestJSON: String) throws -> String {
-        guard let handle else {
-            throw JVMRuntimeError.startupFailed("The Java VM is unavailable")
-        }
-
         var responsePointer: UnsafeMutablePointer<CChar>?
         var errorPointer: UnsafeMutablePointer<CChar>?
         let status = requestJSON.withCString { request in
@@ -131,7 +125,7 @@ public actor JVMRuntime {
         }
     }
 
-    private nonisolated static func takeString(
+    private static func takeString(
         _ pointer: UnsafeMutablePointer<CChar>?
     ) -> String? {
         guard let pointer else { return nil }

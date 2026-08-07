@@ -290,12 +290,21 @@ extension Settings {
                         key: "Library.notifyNewChapters",
                         title: NSLocalizedString("NEW_CHAPTER_NOTIFICATIONS"),
                         value: .toggle(.init())
+                    ),
+                    .init(
+                        key: NotificationManager.libraryProgressSettingKey,
+                        title: NSLocalizedString(
+                            "LIBRARY_PROGRESS_NOTIFICATIONS",
+                            value: "Library update progress notifications",
+                            comment: "Setting for library update progress notifications"
+                        ),
+                        value: .toggle(.init())
                     )
                 ]
             ))
         )
 
-        if #available(iOS 26.0, *), !ProcessInfo.processInfo.isMacCatalystApp {
+        if !ProcessInfo.processInfo.isMacCatalystApp {
             return [
                 baseGroup,
                 .init(
@@ -685,9 +694,18 @@ extension Settings {
                 key: "Downloads.parallel",
                 title: NSLocalizedString("PARALLEL_DOWNLOADS"),
                 value: .toggle(.init())
+            ),
+            .init(
+                key: NotificationManager.downloadProgressSettingKey,
+                title: NSLocalizedString(
+                    "DOWNLOAD_PROGRESS_NOTIFICATIONS",
+                    value: "Download progress notifications",
+                    comment: "Setting for download progress notifications"
+                ),
+                value: .toggle(.init())
             )
         ]
-        if #available(iOS 26.0, *), !ProcessInfo.processInfo.isMacCatalystApp {
+        if !ProcessInfo.processInfo.isMacCatalystApp {
             baseItems.append(
                 .init(
                     key: "Downloads.background",

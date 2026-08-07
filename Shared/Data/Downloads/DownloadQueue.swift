@@ -9,6 +9,10 @@ import AidokuRunner
 @preconcurrency import BackgroundTasks
 import Foundation
 
+#if os(iOS)
+import UIKit
+#endif
+
 // stores queued and active downloads
 // creates a downloadtask for every source
 // only one chapter per source is downloaded at a time
@@ -21,13 +25,19 @@ actor DownloadQueue {
     private var progressBlocks: [ChapterIdentifier: (Int, Int) -> Void] = [:]
 
     private var paused = false
-    private var registeredTask = false
     private var totalDownloads: Int = 0
     private var completedDownloads: Int = 0
+    private var successfulDownloads: Int = 0
     private var bgTask: ProgressReporting?
     private var sendCancelNotification = true
+    private var progressNotificationActive = false
+    private var backgroundExecutionExpired = false
 
-    private static let taskIdentifier = (Bundle.main.bundleIdentifier ?? "") + ".download"
+#if os(iOS)
+    private var foregroundBackgroundTask: UIBackgroundTaskIdentifier = .invalid
+#endif
+
+    static let taskIdentifier = (Bundle.main.bundleIdentifier ?? "") + ".download"
 
     init(cache: DownloadCache, onCompletion: (() -> Void)? = nil) {
         self.cache = cache
@@ -43,26 +53,34 @@ actor DownloadQueue {
 
         guard !queue.isEmpty else { return }
 
+        if totalDownloads == 0 {
+            totalDownloads = queue.values.reduce(0) { $0 + $1.count }
+            completedDownloads = 0
+            successfulDownloads = 0
+        }
+        await beginProgressNotification()
+
 #if !os(macOS) && !targetEnvironment(simulator)
         if
             bgTask == nil,
-            #available(iOS 26.0, *),
             UserDefaults.standard.bool(forKey: "Downloads.background"),
             !ProcessInfo.processInfo.isMacCatalystApp
         {
-            await register()
-
-            let request = BGContinuedProcessingTaskRequest(
-                identifier: Self.taskIdentifier,
-                title: NSLocalizedString("DOWNLOADING"),
-                subtitle: NSLocalizedString("PROCESSING_QUEUE")
-            )
-            do {
-                try BGTaskScheduler.shared.submit(request)
-                return
-            } catch {
-                LogManager.logger.error("Failed to start background downloading: \(error)")
+            if #available(iOS 26.0, *) {
+                let request = BGContinuedProcessingTaskRequest(
+                    identifier: Self.taskIdentifier,
+                    title: NSLocalizedString("DOWNLOADING"),
+                    subtitle: NSLocalizedString("PROCESSING_QUEUE")
+                )
+                do {
+                    try BGTaskScheduler.shared.submit(request)
+                    return
+                } catch {
+                    LogManager.logger.error("Failed to start continued background downloading: \(error)")
+                }
             }
+            scheduleBackgroundProcessing()
+            await beginForegroundBackgroundExecution()
         }
 #endif
 
@@ -83,10 +101,8 @@ actor DownloadQueue {
     func resume() async {
         paused = false
 
-        if #available(iOS 26.0, *), UserDefaults.standard.bool(forKey: "Downloads.background") {
-            if bgTask == nil {
-                await start()
-            }
+        if UserDefaults.standard.bool(forKey: "Downloads.background"), bgTask == nil {
+            await start()
         }
 
         await withTaskGroup(of: Void.self) { group in
@@ -115,6 +131,7 @@ actor DownloadQueue {
                 group.addTask { await task.pause() }
             }
         }
+        await publishDownloadProgress(force: true)
     }
 
     @discardableResult
@@ -145,6 +162,7 @@ actor DownloadQueue {
         if autoStart {
             await start()
         }
+        await publishDownloadProgress(force: true)
         saveQueueState()
         return downloads
     }
@@ -173,10 +191,16 @@ actor DownloadQueue {
                 $0.chapterIdentifier == chapter
             }) {
                 queue[chapter.sourceKey]?.remove(at: queueItem)
+                if queue[chapter.sourceKey]?.isEmpty == true {
+                    queue.removeValue(forKey: chapter.sourceKey)
+                }
             }
         }
         NotificationCenter.default.post(name: .downloadsCancelled, object: chapters)
         saveQueueState()
+        if queue.isEmpty, totalDownloads > 0 {
+            await finishQueue(cancelled: true)
+        }
     }
 
     func cancelDownloads(for manga: MangaIdentifier) async {
@@ -200,6 +224,9 @@ actor DownloadQueue {
         queue = [:]
         NotificationCenter.default.post(name: .downloadsCancelled, object: nil)
         saveQueueState()
+        if totalDownloads > 0 {
+            await finishQueue(cancelled: true)
+        }
     }
 
     // register callback for download progress change
@@ -244,43 +271,199 @@ actor DownloadQueue {
 extension DownloadQueue {
     private func setBackgroundTask(_ task: ProgressReporting?) {
         bgTask = task
-        totalDownloads = queue.values.reduce(0) { $0 + $1.count }
-        completedDownloads = 0
+        if totalDownloads == 0 {
+            totalDownloads = queue.values.reduce(0) { $0 + $1.count }
+            completedDownloads = 0
+            successfulDownloads = 0
+        }
         bgTask?.progress.totalUnitCount = Int64(totalDownloads)
+        bgTask?.progress.completedUnitCount = Int64(completedDownloads)
     }
 
+    func runAsBackgroundTask(_ task: ProgressReporting?) async -> Bool {
+        if queue.isEmpty,
+           let queueData = UserDefaults.standard.data(forKey: "Data.downloadQueueState"),
+           let restoredQueue = try? JSONDecoder().decode(
+               [String: [Download]].self,
+               from: queueData
+           )
+        {
+            queue = restoredQueue
+        }
+        guard !queue.isEmpty else { return true }
+
+        backgroundExecutionExpired = false
+        setBackgroundTask(task)
+        await beginProgressNotification()
+        await initAndResumeTasks()
+
+        // Do not busy-spin here. The previous loop repeatedly entered this
+        // actor without suspension and could consume an entire CPU core while
+        // starving the download tasks it was waiting on.
+        while !queue.isEmpty && !backgroundExecutionExpired && !Task.isCancelled {
+            do {
+                try await Task.sleep(nanoseconds: 500_000_000)
+            } catch {
+                break
+            }
+        }
+
+        let success = queue.isEmpty
+        setBackgroundTask(nil)
+        if !success {
+            scheduleBackgroundProcessing()
+        }
+        return success
+    }
+
+    func expireBackgroundExecution() async {
+        backgroundExecutionExpired = true
+        await pause()
+        setBackgroundTask(nil)
+        scheduleBackgroundProcessing()
+        await NotificationManager.shared.finishProgress(
+            .downloads,
+            success: false,
+            summary: NSLocalizedString(
+                "DOWNLOADS_PAUSED_RESUME",
+                value: "Downloads were paused and will resume when iOS allows background processing.",
+                comment: "Download background task expiration notification"
+            )
+        )
+    }
+
+    private func beginProgressNotification() async {
+        guard !progressNotificationActive, totalDownloads > 0 else { return }
+        progressNotificationActive = true
+        await NotificationManager.shared.beginProgress(
+            .downloads,
+            total: totalDownloads,
+            detail: downloadProgressDetail()
+        )
+    }
+
+    private func publishDownloadProgress(force: Bool = false) async {
+        guard totalDownloads > 0 else { return }
+        let partialDownloads = queue.values
+            .flatMap { $0 }
+            .reduce(0.0) { result, download in
+                guard download.total > 0 else { return result }
+                return result + min(
+                    1,
+                    max(0, Double(download.progress) / Double(download.total))
+                )
+            }
+        await NotificationManager.shared.updateProgress(
+            .downloads,
+            completed: Double(completedDownloads) + partialDownloads,
+            total: totalDownloads,
+            detail: downloadProgressDetail(),
+            force: force
+        )
+    }
+
+    private func downloadProgressDetail() -> String {
+        let progressText = String(
+            format: NSLocalizedString("%i_OF_%i"),
+            min(completedDownloads, totalDownloads),
+            totalDownloads
+        )
+        if paused {
+            return "\(NSLocalizedString("PAUSED")) · \(progressText)"
+        }
+        return progressText
+    }
+
+    private func finishQueue(cancelled: Bool) async {
+        guard totalDownloads > 0 else { return }
 #if !os(macOS) && !targetEnvironment(simulator)
-    @available(iOS 26.0, *)
-    private func register() async {
-        guard !registeredTask else { return }
-        registeredTask = true
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.taskIdentifier)
+#endif
+        let total = totalDownloads
+        let successful = successfulDownloads
+        totalDownloads = 0
+        completedDownloads = 0
+        successfulDownloads = 0
+        progressNotificationActive = false
 
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.taskIdentifier, using: nil) { @Sendable [weak self] task in
-            guard let self, let task = task as? BGContinuedProcessingTask else { return }
+#if os(iOS)
+        await endForegroundBackgroundExecution()
+#endif
 
-            task.expirationHandler = {
+        let summary: String
+        if cancelled {
+            summary = String(
+                format: NSLocalizedString(
+                    "DOWNLOADS_PARTIAL_FORMAT",
+                    value: "%d of %d downloads completed. The remaining downloads can be resumed in the app.",
+                    comment: "Incomplete download queue notification"
+                ),
+                successful,
+                total
+            )
+        } else {
+            summary = String(
+                format: NSLocalizedString(
+                    "DOWNLOADS_COMPLETE_FORMAT",
+                    value: "%d downloads completed.",
+                    comment: "Completed download queue notification"
+                ),
+                successful
+            )
+        }
+        await NotificationManager.shared.finishProgress(
+            .downloads,
+            success: !cancelled,
+            summary: summary
+        )
+    }
+
+    private func scheduleBackgroundProcessing() {
+#if !os(macOS) && !targetEnvironment(simulator)
+        guard
+            !queue.isEmpty,
+            UserDefaults.standard.bool(forKey: "Downloads.background")
+        else { return }
+
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.taskIdentifier)
+        let request = BGProcessingTaskRequest(identifier: Self.taskIdentifier)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 1)
+        request.requiresExternalPower = false
+        request.requiresNetworkConnectivity = true
+        do {
+            try BGTaskScheduler.shared.submit(request)
+        } catch {
+            LogManager.logger.error("Could not schedule background downloads: \(error)")
+        }
+#endif
+    }
+
+#if os(iOS)
+    private func beginForegroundBackgroundExecution() async {
+        guard foregroundBackgroundTask == .invalid else { return }
+        foregroundBackgroundTask = await MainActor.run {
+            UIApplication.shared.beginBackgroundTask(
+                withName: "TachiyomiAZ Downloads"
+            ) { [weak self] in
                 Task {
-                    await DownloadManager.shared.pauseDownloads()
-                    await self.setBackgroundTask(nil)
+                    await self?.expireForegroundBackgroundExecution()
                 }
-                task.setTaskCompleted(success: false)
             }
+        }
+    }
 
-            Task { @Sendable in
-                await self.setBackgroundTask(task)
-                await self.initAndResumeTasks()
+    private func expireForegroundBackgroundExecution() async {
+        await pause()
+        scheduleBackgroundProcessing()
+        await endForegroundBackgroundExecution()
+    }
 
-                // wait until downloads complete
-                while true {
-                    if await self.queue.isEmpty {
-                        break
-                    }
-                }
-
-                await self.setBackgroundTask(nil)
-
-                task.setTaskCompleted(success: true)
-            }
+    private func endForegroundBackgroundExecution() async {
+        guard foregroundBackgroundTask != .invalid else { return }
+        let identifier = foregroundBackgroundTask
+        foregroundBackgroundTask = .invalid
+        await MainActor.run {
+            UIApplication.shared.endBackgroundTask(identifier)
         }
     }
 #endif
@@ -298,16 +481,22 @@ extension DownloadQueue: DownloadTaskDelegate {
         tasks.removeValue(forKey: task.id)
         queue.removeValue(forKey: task.id)
         saveQueueState()
+        if queue.isEmpty, totalDownloads > 0 {
+            await finishQueue(cancelled: successfulDownloads < totalDownloads)
+        }
     }
 
     func downloadFinished(download: Download) async {
-        await downloadCancelled(download: download)
-        progressBlocks.removeValue(forKey: download.chapterIdentifier)
+        await remove(download: download, cancelled: false)
         onCompletion?()
         NotificationCenter.default.post(name: .downloadFinished, object: download)
     }
 
     func downloadCancelled(download: Download) async {
+        await remove(download: download, cancelled: true)
+    }
+
+    private func remove(download: Download, cancelled: Bool) async {
         var sourceDownloads = queue[download.chapterIdentifier.sourceKey] ?? []
         sourceDownloads.removeAll { $0 == download }
         if sourceDownloads.isEmpty {
@@ -317,11 +506,14 @@ extension DownloadQueue: DownloadTaskDelegate {
         }
         saveQueueState()
         progressBlocks.removeValue(forKey: download.chapterIdentifier)
-        if sendCancelNotification {
+        if cancelled, sendCancelNotification {
             NotificationCenter.default.post(name: .downloadCancelled, object: download)
         }
 
         completedDownloads += 1
+        if !cancelled {
+            successfulDownloads += 1
+        }
         bgTask?.progress.completedUnitCount = Int64(completedDownloads)
 
 #if !os(macOS)
@@ -334,6 +526,10 @@ extension DownloadQueue: DownloadTaskDelegate {
             }
         }
 #endif
+        await publishDownloadProgress(force: true)
+        if queue.isEmpty, totalDownloads > 0 {
+            await finishQueue(cancelled: successfulDownloads < totalDownloads)
+        }
     }
 
     func downloadProgressChanged(download: Download) async {
@@ -344,5 +540,6 @@ extension DownloadQueue: DownloadTaskDelegate {
             block(download.progress, download.total)
         }
         NotificationCenter.default.post(name: .downloadProgressed, object: download)
+        await publishDownloadProgress()
     }
 }

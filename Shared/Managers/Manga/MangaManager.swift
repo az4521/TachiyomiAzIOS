@@ -26,6 +26,10 @@ actor MangaManager {
     private var targetCategory: String?
     private var skipReachabilityCheck: Bool = false
 
+#if !os(macOS)
+    private var foregroundLibraryBackgroundTask: UIBackgroundTaskIdentifier = .invalid
+#endif
+
     private static let maxConcurrentLibraryUpdateTasks = 10
 
     nonisolated func getNextChapter(
@@ -351,9 +355,60 @@ extension MangaManager {
         }
 #endif
 
+#if !os(macOS)
+        if UserDefaults.standard.bool(forKey: "Library.backgroundRefresh") {
+            // A processing request lets iOS resume the refresh later if the
+            // foreground execution allowance expires. beginBackgroundTask
+            // keeps the user-started refresh moving during the usual app
+            // switch/lock-screen grace period on iOS 15 and later.
+            submitLibraryRefresh(at: .now)
+            await beginLibraryBackgroundExecution()
+        }
+#endif
+
         await refreshLibrary(category: category)
         scheduleNextLibraryRefresh(after: .now)
+
+#if !os(macOS)
+        await endLibraryBackgroundExecution()
+#endif
     }
+
+#if !os(macOS)
+    private func beginLibraryBackgroundExecution() async {
+        guard foregroundLibraryBackgroundTask == .invalid else { return }
+        foregroundLibraryBackgroundTask = await MainActor.run {
+            UIApplication.shared.beginBackgroundTask(
+                withName: "TachiyomiAZ Library Update"
+            ) { [weak self] in
+                Task {
+                    await self?.handleLibraryForegroundExpiration()
+                }
+            }
+        }
+    }
+
+    private func endLibraryBackgroundExecution() async {
+        guard foregroundLibraryBackgroundTask != .invalid else { return }
+        let identifier = foregroundLibraryBackgroundTask
+        foregroundLibraryBackgroundTask = .invalid
+        await MainActor.run {
+            UIApplication.shared.endBackgroundTask(identifier)
+        }
+    }
+
+    private func handleLibraryForegroundExpiration() async {
+        // Ending the short foreground allowance lets iOS suspend this work.
+        // Keep the refresh task and its pending BGProcessing request intact so
+        // the system can resume it instead of treating a screen lock/app switch
+        // as a user cancellation.
+        await endLibraryBackgroundExecution()
+        await NotificationManager.shared.finishProgress(
+            .libraryUpdate,
+            success: false
+        )
+    }
+#endif
 
     private func scheduleNextLibraryRefresh(after date: Date) {
         let intervalValue = UserDefaults.standard.string(forKey: "Library.updateInterval")
@@ -419,7 +474,11 @@ extension MangaManager {
                             if #available(iOS 26.0, *), let task = task as? BGContinuedProcessingTask {
                                 task.updateTitle(
                                     NSLocalizedString("REFRESHING_LIBRARY"),
-                                    subtitle: String(format: NSLocalizedString("%i_OF_%i"), progress.completedUnitCount, progress.totalUnitCount)
+                                    subtitle: String(
+                                        format: NSLocalizedString("%i_OF_%i"),
+                                        Int(progress.completedUnitCount),
+                                        Int(progress.totalUnitCount)
+                                    )
                                 )
                             }
                         }
@@ -561,6 +620,7 @@ extension MangaManager {
 
         let total = filteredManga.count
         var completed = 0
+        var failed = 0
 
 #if !os(macOS)
         let isBackground = await UIApplication.shared.applicationState != .active
@@ -569,38 +629,94 @@ extension MangaManager {
 #endif
         let notificationsEnabled = isBackground && NotificationManager.shared.isEnabled()
         var pendingNotifications: [NotificationManager.NewChaptersSummary] = []
+        var discoveredChapterCount = 0
 
-        let newDetails = await {
-            var results: [Int: AidokuRunner.Manga] = [:]
-            let progress = Progress(totalUnitCount: Int64(total))
+        await NotificationManager.shared.beginProgress(
+            .libraryUpdate,
+            total: total,
+            detail: String(
+                format: NSLocalizedString("%i_OF_%i"),
+                0,
+                total
+            )
+        )
 
-            for manga in filteredManga {
-                guard !Task.isCancelled else { return results }
+        var newDetails: [MangaIdentifier: AidokuRunner.Manga] = [:]
+        let progress = Progress(totalUnitCount: Int64(total))
 
-                guard
-                    let newManga = try? await SourceManager.shared.source(for: manga.sourceId)?
-                        .getMangaUpdate(manga: manga.toNew(), needsDetails: updateMetadata, needsChapters: true)
-                else {
+        // Source requests are network-bound. The old updater awaited each title
+        // serially despite already defining a concurrency limit. Fetch bounded
+        // batches in parallel, then persist each batch with one Core Data context
+        // and one save instead of creating/saving a context per title.
+        for batch in filteredManga.chunked(into: Self.maxConcurrentLibraryUpdateTasks) {
+            guard !Task.isCancelled else { break }
+
+            let requests = batch.map { manga in
+                (
+                    identifier: manga.identifier,
+                    manga: manga.toNew(),
+                    source: SourceManager.shared.source(for: manga.sourceId)
+                )
+            }
+            let batchResults = await withTaskGroup(
+                of: (MangaIdentifier, AidokuRunner.Manga?).self,
+                returning: [(MangaIdentifier, AidokuRunner.Manga?)].self
+            ) { group in
+                for request in requests {
+                    group.addTask {
+                        guard let source = request.source else {
+                            return (request.identifier, nil)
+                        }
+                        let updated = try? await source.getMangaUpdate(
+                            manga: request.manga,
+                            needsDetails: updateMetadata,
+                            needsChapters: true
+                        )
+                        return (request.identifier, updated)
+                    }
+                }
+
+                var results: [(MangaIdentifier, AidokuRunner.Manga?)] = []
+                results.reserveCapacity(requests.count)
+                for await result in group {
+                    results.append(result)
                     completed += 1
+                    if result.1 == nil { failed += 1 }
                     progress.completedUnitCount = Int64(completed)
                     updateLibraryRefreshProgress(progress)
-                    continue
                 }
+                return results
+            }
 
-                if updateMetadata {
-                    results[manga.hashValue] = newManga
+            let successfulResults: [(
+                identifier: MangaIdentifier,
+                manga: AidokuRunner.Manga
+            )] = batchResults.compactMap {
+                guard let manga = $0.1 else { return nil }
+                return (identifier: $0.0, manga: manga)
+            }
+            guard !successfulResults.isEmpty else { continue }
+
+            if updateMetadata {
+                for result in successfulResults {
+                    newDetails[result.identifier] = result.manga
                 }
+            }
 
-                let summary = await CoreDataManager.shared.container.performBackgroundTask { context -> NotificationManager.NewChaptersSummary? in
+            let summaries = await CoreDataManager.shared.container.performBackgroundTask { context in
+                var summaries: [NotificationManager.NewChaptersSummary] = []
+                for result in successfulResults {
+                    let identifier = result.identifier
+                    let newManga = result.manga
                     guard
                         let libraryObject = CoreDataManager.shared.getLibraryManga(
-                            sourceId: manga.sourceId,
-                            mangaId: manga.id,
+                            sourceId: identifier.sourceKey,
+                            mangaId: identifier.mangaKey,
                             context: context
                         ),
                         let mangaObject = libraryObject.manga
                     else {
-                        return nil
+                        continue
                     }
 
                     // update details
@@ -609,12 +725,12 @@ extension MangaManager {
                     }
 
                     // update chapters
-                    guard let chapters = newManga.chapters, !chapters.isEmpty else { return nil }
+                    guard let chapters = newManga.chapters, !chapters.isEmpty else { continue }
 
                     let newChapters = CoreDataManager.shared.setChapters(
                         chapters,
-                        sourceId: manga.sourceId,
-                        mangaId: manga.id,
+                        sourceId: identifier.sourceKey,
+                        mangaId: identifier.mangaKey,
                         context: context
                     )
                     var notifiableCount = 0
@@ -623,12 +739,12 @@ extension MangaManager {
                         let scanlatorFilter = mangaObject.scanlatorFilter ?? []
                         for chapter in newChapters
                         where
-                            mangaObject.langFilter != nil ? chapter.lang == mangaObject.langFilter : true
-                            && !scanlatorFilter.isEmpty ? scanlatorFilter.contains(chapter.scanlator ?? "") : true
+                            (mangaObject.langFilter == nil || chapter.lang == mangaObject.langFilter)
+                            && (scanlatorFilter.isEmpty || scanlatorFilter.contains(chapter.scanlator ?? ""))
                         {
                             CoreDataManager.shared.createMangaUpdate(
-                                sourceId: manga.sourceId,
-                                mangaId: manga.id,
+                                sourceId: identifier.sourceKey,
+                                mangaId: identifier.mangaKey,
                                 chapterObject: chapter,
                                 context: context
                             )
@@ -642,30 +758,33 @@ extension MangaManager {
                         libraryObject.lastUpdated = Date.now
                     }
 
-                    if context.hasChanges {
-                        try? context.save()
-                    }
-
-                    guard notifiableCount > 0 else { return nil }
-                    let title = mangaObject.title.isEmpty ? (manga.title ?? "") : mangaObject.title
-                    return NotificationManager.NewChaptersSummary(
-                        mangaIdentifier: MangaIdentifier(sourceKey: manga.sourceId, mangaKey: manga.id),
-                        mangaTitle: title,
-                        chapterCount: notifiableCount
+                    guard notifiableCount > 0 else { continue }
+                    summaries.append(
+                        NotificationManager.NewChaptersSummary(
+                            mangaIdentifier: identifier,
+                            mangaTitle: mangaObject.title,
+                            chapterCount: notifiableCount
+                        )
                     )
                 }
 
-                if notificationsEnabled, let summary {
-                    pendingNotifications.append(summary)
+                if context.hasChanges {
+                    do {
+                        try context.save()
+                    } catch {
+                        LogManager.logger.error(
+                            "Unable to save a library update batch: \(error.localizedDescription)"
+                        )
+                    }
                 }
-
-                completed += 1
-                progress.completedUnitCount = Int64(completed)
-                updateLibraryRefreshProgress(progress)
+                return summaries
             }
 
-            return results
-        }()
+            discoveredChapterCount += summaries.reduce(0) { $0 + $1.chapterCount }
+            if notificationsEnabled {
+                pendingNotifications.append(contentsOf: summaries)
+            }
+        }
 
         if notificationsEnabled, !pendingNotifications.isEmpty {
             await NotificationManager.shared.notifyNewChapters(pendingNotifications)
@@ -673,12 +792,53 @@ extension MangaManager {
 
         if updateMetadata {
             for mangaItem in filteredManga {
-                guard let newInfo = newDetails[mangaItem.hashValue] else { continue }
+                guard let newInfo = newDetails[mangaItem.identifier] else { continue }
                 mangaItem.load(from: newInfo.toOld())
             }
         }
 
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "Library.lastUpdated")
+        let cancelled = Task.isCancelled
+        if !cancelled {
+            UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "Library.lastUpdated")
+        }
+        let completionSummary: String
+        if discoveredChapterCount > 0 {
+            completionSummary = String(
+                format: NSLocalizedString(
+                    "LIBRARY_UPDATE_NEW_CHAPTERS_FORMAT",
+                    value: "%d new chapters found. %d of %d titles updated.",
+                    comment: "Library update completion notification body"
+                ),
+                discoveredChapterCount,
+                completed - failed,
+                total
+            )
+        } else if failed > 0 {
+            completionSummary = String(
+                format: NSLocalizedString(
+                    "LIBRARY_UPDATE_FAILURES_FORMAT",
+                    value: "%d of %d titles updated; %d could not be updated.",
+                    comment: "Library update completion notification body with failures"
+                ),
+                completed - failed,
+                total,
+                failed
+            )
+        } else {
+            completionSummary = String(
+                format: NSLocalizedString(
+                    "LIBRARY_UPDATE_COMPLETE_FORMAT",
+                    value: "%d titles checked. No new chapters found.",
+                    comment: "Library update completion notification body"
+                ),
+                completed
+            )
+        }
+        await NotificationManager.shared.finishProgress(
+            .libraryUpdate,
+            success: !cancelled,
+            summary: completionSummary
+        )
     }
 
     private func updateLibraryRefreshProgress(_ progress: Progress) {
@@ -688,6 +848,16 @@ extension MangaManager {
             try? await Task.sleep(nanoseconds: 100_000_000)
             guard !Task.isCancelled else { return }
             await onLibraryRefreshProgress?(progress)
+            await NotificationManager.shared.updateProgress(
+                .libraryUpdate,
+                completed: Double(progress.completedUnitCount),
+                total: Int(progress.totalUnitCount),
+                detail: String(
+                    format: NSLocalizedString("%i_OF_%i"),
+                    Int(progress.completedUnitCount),
+                    Int(progress.totalUnitCount)
+                )
+            )
         }
     }
 }

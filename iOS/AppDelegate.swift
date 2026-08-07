@@ -136,6 +136,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 "Library.updateOnlyOnWifi": true,
                 "Library.refreshMetadata": false,
                 "Library.notifyNewChapters": false,
+                "Library.progressNotifications": true,
 
                 "Browse.languages": [
                     "multi",
@@ -200,7 +201,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 "Library.deleteDownloadAfterReading": false,
                 "Downloads.compress": true,
                 "Downloads.parallel": true,
-                "Downloads.background": true
+                "Downloads.background": true,
+                "Downloads.progressNotifications": true
             ]
         )
 
@@ -277,6 +279,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         BackupManager.shared.register()
         MangaManager.shared.register()
+        DownloadManager.shared.registerBackgroundTasks()
 
         Task {
             await BackupManager.shared.scheduleAutoBackup()
@@ -288,6 +291,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             self,
             selector: #selector(handleNotifyNewChaptersToggle(_:)),
             name: Notification.Name(NotificationManager.settingKey),
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleNotifyNewChaptersToggle(_:)),
+            name: Notification.Name(NotificationManager.libraryProgressSettingKey),
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleNotifyNewChaptersToggle(_:)),
+            name: Notification.Name(NotificationManager.downloadProgressSettingKey),
             object: nil
         )
         NotificationCenter.default.addObserver(
@@ -307,15 +322,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     @objc private func handleNotifyNewChaptersToggle(_ note: Notification) {
-        let enabled = (note.object as? Bool) ?? UserDefaults.standard.bool(forKey: NotificationManager.settingKey)
+        let settingKey = note.name.rawValue
+        let enabled = (note.object as? Bool)
+            ?? UserDefaults.standard.bool(forKey: settingKey)
         guard enabled else { return }
         Task {
             let granted = await NotificationManager.shared.requestAuthorization()
             if !granted {
                 await MainActor.run {
-                    UserDefaults.standard.set(false, forKey: NotificationManager.settingKey)
+                    UserDefaults.standard.set(false, forKey: settingKey)
                     NotificationCenter.default.post(
-                        name: Notification.Name(NotificationManager.settingKey),
+                        name: Notification.Name(settingKey),
                         object: false
                     )
                 }
@@ -901,7 +918,11 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler([.banner, .sound, .list])
+        if notification.request.content.categoryIdentifier == NotificationManager.progressCategoryIdentifier {
+            completionHandler([.list])
+        } else {
+            completionHandler([.banner, .sound, .list])
+        }
     }
 
     func userNotificationCenter(

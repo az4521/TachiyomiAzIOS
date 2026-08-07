@@ -28,4 +28,22 @@ struct LibraryUpdateSchedulerTests {
                 == nil
         )
     }
+
+    @Test func progressNotificationBodyShowsAndClampsProgress() {
+        #expect(
+            NotificationManager.progressBody(
+                completed: 5,
+                total: 10,
+                detail: "5 of 10"
+            ) == "█████░░░░░ 50%\n5 of 10"
+        )
+        #expect(
+            NotificationManager.progressBody(completed: -1, total: 10)
+                == "░░░░░░░░░░ 0%"
+        )
+        #expect(
+            NotificationManager.progressBody(completed: 12, total: 10)
+                == "██████████ 100%"
+        )
+    }
 }

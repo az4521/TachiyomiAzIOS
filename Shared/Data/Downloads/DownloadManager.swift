@@ -6,6 +6,7 @@
 //
 
 import AidokuRunner
+@preconcurrency import BackgroundTasks
 import Foundation
 import ZIPFoundation
 
@@ -48,6 +49,33 @@ actor DownloadManager {
                 }
             }
         }
+    }
+
+    nonisolated func registerBackgroundTasks() {
+#if !os(macOS) && !targetEnvironment(simulator)
+        BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: DownloadQueue.taskIdentifier,
+            using: nil
+        ) { @Sendable [weak self] task in
+            guard let self else { return }
+
+            task.expirationHandler = {
+                Task {
+                    await self.queue.expireBackgroundExecution()
+                }
+                task.setTaskCompleted(success: false)
+            }
+
+            Task { @Sendable in
+                let success = await self.queue.runAsBackgroundTask(
+                    task as? ProgressReporting
+                )
+                if success {
+                    task.setTaskCompleted(success: true)
+                }
+            }
+        }
+#endif
     }
 
     func loadQueueState() async {

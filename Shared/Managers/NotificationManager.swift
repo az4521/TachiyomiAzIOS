@@ -6,8 +6,17 @@
 import Foundation
 import UserNotifications
 
+#if os(iOS)
+import UIKit
+#endif
+
 actor NotificationManager {
     static let shared = NotificationManager()
+
+    enum ProgressOperation: String, Sendable {
+        case libraryUpdate
+        case downloads
+    }
 
     struct NewChaptersSummary {
         let mangaIdentifier: MangaIdentifier
@@ -21,6 +30,18 @@ actor NotificationManager {
     static let sourceIdInfoKey = "sourceId"
     static let mangaIdInfoKey = "mangaId"
     static let batchNotificationThreshold = 3
+    static let libraryProgressSettingKey = "Library.progressNotifications"
+    static let downloadProgressSettingKey = "Downloads.progressNotifications"
+    static let progressCategoryIdentifier = "backgroundTaskProgress"
+    static let progressCompletionCategoryIdentifier = "backgroundTaskCompletion"
+    static let progressThreadIdentifier = "backgroundTasks"
+
+    private struct ProgressState {
+        var percentage: Int
+        var lastUpdate: Date
+    }
+
+    private var progressStates: [ProgressOperation: ProgressState] = [:]
 
     nonisolated func isEnabled() -> Bool {
         UserDefaults.standard.bool(forKey: Self.settingKey)
@@ -71,6 +92,196 @@ actor NotificationManager {
                 ],
                 center: center
             )
+        }
+    }
+
+    func beginProgress(
+        _ operation: ProgressOperation,
+        total: Int,
+        detail: String? = nil
+    ) async {
+        guard progressNotificationsEnabled(for: operation) else { return }
+        progressStates.removeValue(forKey: operation)
+
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        if settings.authorizationStatus == .notDetermined {
+            // Do not hold up a library update or download queue while the
+            // system permission sheet is waiting for user input. Subsequent
+            // progress callbacks will publish after permission is granted.
+            Task { _ = await self.requestAuthorization() }
+            return
+        }
+        guard settings.authorizationStatus == .authorized
+            || settings.authorizationStatus == .provisional
+        else { return }
+        await updateProgress(
+            operation,
+            completed: 0,
+            total: total,
+            detail: detail,
+            force: true
+        )
+    }
+
+    func updateProgress(
+        _ operation: ProgressOperation,
+        completed: Double,
+        total: Int,
+        detail: String? = nil,
+        force: Bool = false
+    ) async {
+        guard progressNotificationsEnabled(for: operation), total > 0 else { return }
+
+        let fraction = min(1, max(0, completed / Double(total)))
+        let percentage = Int((fraction * 100).rounded())
+        let now = Date.now
+        if let state = progressStates[operation], !force {
+            let changedEnough = abs(percentage - state.percentage) >= 2
+            let waitedLongEnough = now.timeIntervalSince(state.lastUpdate) >= 1
+            guard percentage == 100 || changedEnough || waitedLongEnough else { return }
+        }
+        progressStates[operation] = .init(percentage: percentage, lastUpdate: now)
+
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        guard settings.authorizationStatus == .authorized
+            || settings.authorizationStatus == .provisional
+        else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = title(for: operation)
+        content.body = Self.progressBody(
+            completed: completed,
+            total: total,
+            detail: detail
+        )
+        content.threadIdentifier = Self.progressThreadIdentifier
+        content.categoryIdentifier = Self.progressCategoryIdentifier
+        content.userInfo = ["progressOperation": operation.rawValue]
+
+        let request = UNNotificationRequest(
+            identifier: progressIdentifier(for: operation),
+            content: content,
+            trigger: nil
+        )
+        try? await center.add(request)
+    }
+
+    func finishProgress(
+        _ operation: ProgressOperation,
+        success: Bool,
+        summary: String? = nil
+    ) async {
+        progressStates.removeValue(forKey: operation)
+        guard progressNotificationsEnabled(for: operation) else { return }
+
+#if os(iOS)
+        let isActive = await MainActor.run {
+            UIApplication.shared.applicationState == .active
+        }
+        if isActive {
+            await removeProgress(operation)
+            return
+        }
+#endif
+
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        guard settings.authorizationStatus == .authorized
+            || settings.authorizationStatus == .provisional
+        else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = success
+            ? String(
+                format: NSLocalizedString(
+                    "TASK_FINISHED_FORMAT",
+                    value: "%@ finished",
+                    comment: "Background operation completion notification title"
+                ),
+                title(for: operation)
+            )
+            : String(
+                format: NSLocalizedString(
+                    "TASK_STOPPED_FORMAT",
+                    value: "%@ stopped",
+                    comment: "Background operation stopped notification title"
+                ),
+                title(for: operation)
+            )
+        content.body = summary ?? (success
+            ? NSLocalizedString(
+                "BACKGROUND_TASK_COMPLETED",
+                value: "The operation completed successfully.",
+                comment: "Background operation completion notification body"
+            )
+            : NSLocalizedString(
+                "BACKGROUND_TASK_INCOMPLETE",
+                value: "The operation did not finish and can be resumed in the app.",
+                comment: "Background operation stopped notification body"
+            ))
+        content.sound = success ? .default : nil
+        content.threadIdentifier = Self.progressThreadIdentifier
+        content.categoryIdentifier = Self.progressCompletionCategoryIdentifier
+
+        let request = UNNotificationRequest(
+            identifier: progressIdentifier(for: operation),
+            content: content,
+            trigger: nil
+        )
+        try? await center.add(request)
+    }
+
+    func removeProgress(_ operation: ProgressOperation) async {
+        progressStates.removeValue(forKey: operation)
+        let identifiers = [progressIdentifier(for: operation)]
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+        center.removeDeliveredNotifications(withIdentifiers: identifiers)
+    }
+
+    nonisolated static func progressBody(
+        completed: Double,
+        total: Int,
+        detail: String? = nil
+    ) -> String {
+        guard total > 0 else {
+            return detail ?? NSLocalizedString(
+                "PREPARING",
+                value: "Preparing…",
+                comment: "Preparing a background operation"
+            )
+        }
+        let fraction = min(1, max(0, completed / Double(total)))
+        let percentage = Int((fraction * 100).rounded())
+        let barWidth = 10
+        let filled = min(barWidth, max(0, Int((fraction * Double(barWidth)).rounded())))
+        let bar = String(repeating: "█", count: filled)
+            + String(repeating: "░", count: barWidth - filled)
+        let progress = "\(bar) \(percentage)%"
+        guard let detail, !detail.isEmpty else { return progress }
+        return "\(progress)\n\(detail)"
+    }
+
+    private func progressNotificationsEnabled(for operation: ProgressOperation) -> Bool {
+        let key = switch operation {
+            case .libraryUpdate: Self.libraryProgressSettingKey
+            case .downloads: Self.downloadProgressSettingKey
+        }
+        return UserDefaults.standard.bool(forKey: key)
+    }
+
+    private func progressIdentifier(for operation: ProgressOperation) -> String {
+        "backgroundTaskProgress.\(operation.rawValue)"
+    }
+
+    private func title(for operation: ProgressOperation) -> String {
+        switch operation {
+            case .libraryUpdate:
+                NSLocalizedString("REFRESHING_LIBRARY")
+            case .downloads:
+                NSLocalizedString("DOWNLOADING")
         }
     }
 
