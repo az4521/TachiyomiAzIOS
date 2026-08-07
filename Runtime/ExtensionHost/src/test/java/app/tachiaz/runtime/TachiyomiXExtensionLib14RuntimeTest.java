@@ -86,6 +86,8 @@ public final class TachiyomiXExtensionLib14RuntimeTest {
         assertContains(filters, "\\\"type\\\":\\\"sort\\\"");
         assertContains(filters, "\\\"type\\\":\\\"select\\\"");
         assertContains(filters, "\\\"type\\\":\\\"check\\\"");
+        assertStringScalar(filters, "defaultValue");
+        assertStringScalar(filters, "auxiliary");
         String filterResult = MiniJson.parseObject(filters).get("result");
         String sortFilterId = fieldForType(
             filterResult,
@@ -240,6 +242,10 @@ public final class TachiyomiXExtensionLib14RuntimeTest {
                     actual
             );
         }
+    }
+
+    private static void assertStringScalar(String response, String field) {
+        assertContains(response, "\\\"" + field + "\\\":\\\"");
     }
 
     private static String firstStringField(String json, String field) {

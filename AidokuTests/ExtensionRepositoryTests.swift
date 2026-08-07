@@ -166,6 +166,27 @@ struct ExtensionRepositoryTests {
         )
     }
 
+    @Test func restoresIconForPreviouslyInstalledExtension() throws {
+        let oldManifest = """
+        {
+          "id": "eu.kanade.tachiyomi.extension.en.example",
+          "name": "Example",
+          "version": "1.0",
+          "entryClass": "example.Extension",
+          "sourceURL": "https://example.com/jar/tachiyomi-en.example-v1.0.jar",
+          "sha256": "fixture"
+        }
+        """
+        let manifest = try JSONDecoder().decode(
+            JVMExtensionManifest.self,
+            from: Data(oldManifest.utf8)
+        )
+        #expect(
+            manifest.resolvedIconURL?.absoluteString ==
+                "https://example.com/icon/tachiyomi-en.example.png"
+        )
+    }
+
     private func message(_ fields: [Data]) -> Data {
         fields.reduce(into: Data()) { $0.append($1) }
     }

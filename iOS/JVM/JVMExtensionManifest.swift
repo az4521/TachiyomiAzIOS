@@ -7,6 +7,7 @@ struct JVMExtensionManifest: Codable, Hashable, Sendable {
     let version: String
     let entryClass: String
     let sourceURL: URL?
+    let iconURL: URL?
     let sha256: String
     let versionCode: String?
     let extensionLibrary: String?
@@ -15,6 +16,7 @@ struct JVMExtensionManifest: Codable, Hashable, Sendable {
     init(
         inspection: JVMExtensionInspection,
         sourceURL: URL?,
+        iconURL: URL? = nil,
         sha256: String,
         versionCode: String? = nil,
         extensionLibrary: String? = nil,
@@ -25,11 +27,35 @@ struct JVMExtensionManifest: Codable, Hashable, Sendable {
         version = inspection.version
         entryClass = inspection.entryClass
         self.sourceURL = sourceURL
+        self.iconURL = iconURL
         self.sha256 = sha256
         self.versionCode = versionCode ?? inspection.versionCode
         self.extensionLibrary =
             extensionLibrary ?? inspection.extensionLibrary
         self.isNsfw = isNsfw
+    }
+
+    /// Exact repository metadata is persisted for new installs. This fallback
+    /// also restores icons for manifests written before iconURL was added.
+    var resolvedIconURL: URL? {
+        if let iconURL {
+            return iconURL
+        }
+        guard
+            let sourceURL,
+            sourceURL.deletingLastPathComponent().lastPathComponent == "jar",
+            id.hasPrefix("eu.kanade.tachiyomi.extension.")
+        else {
+            return nil
+        }
+        let artifactName = "tachiyomi-" + String(id.dropFirst(
+            "eu.kanade.tachiyomi.extension.".count
+        ))
+        return sourceURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("icon", isDirectory: true)
+            .appendingPathComponent("\(artifactName).png")
     }
 
     var directoryName: String {

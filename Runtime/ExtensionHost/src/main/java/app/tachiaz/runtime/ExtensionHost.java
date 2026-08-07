@@ -608,12 +608,17 @@ public final class ExtensionHost {
             appendJsonField(
                 output,
                 "defaultValue",
-                defaultValue,
+                String.valueOf(defaultValue),
                 true
             );
         }
         if (auxiliary != null) {
-            appendJsonField(output, "auxiliary", auxiliary, true);
+            appendJsonField(
+                output,
+                "auxiliary",
+                String.valueOf(auxiliary),
+                true
+            );
         }
         return output.append('}').toString();
     }

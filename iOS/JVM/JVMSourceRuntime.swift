@@ -251,6 +251,7 @@ actor JVMSourceRuntime {
         let manifest = JVMExtensionManifest(
             inspection: inspection,
             sourceURL: catalogEntry.resources.jarUrl,
+            iconURL: catalogEntry.resources.iconUrl,
             sha256: checksum,
             versionCode: catalogEntry.versionCode,
             extensionLibrary: catalogEntry.extensionLib,
@@ -1126,6 +1127,7 @@ private extension AidokuRunner.Source {
             } ?? [],
             contentRating:
                 manifest.isNsfw == true ? .primarilyNsfw : .safe,
+            imageUrl: manifest.resolvedIconURL,
             config: .init(
                 languageSelectType: .single,
                 supportsTagSearch: true

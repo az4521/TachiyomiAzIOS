@@ -32,6 +32,15 @@ public final class TachiyomiXExtensionLib16RuntimeTest {
         assertContains(response, "\\\"title\\\":");
         assertContains(response, "\\\"thumbnailURL\\\":");
         assertContains(response, "\\\"hasNextPage\\\":");
+
+        String filters = ExtensionHost.dispatch(
+            "{\"operation\":\"getSearchFilters\"," +
+                "\"extensionId\":\"extlib16\"}"
+        );
+        assertSuccess(filters);
+        assertContains(filters, "\\\"type\\\":\\\"sort\\\"");
+        assertStringScalar(filters, "defaultValue");
+        assertStringScalar(filters, "auxiliary");
         System.out.println("TachiyomiX extension-lib 1.6 runtime test passed");
 
         // OkHttp and coroutine pools are deliberately process-wide in the app.
@@ -52,5 +61,9 @@ public final class TachiyomiXExtensionLib16RuntimeTest {
                     actual
             );
         }
+    }
+
+    private static void assertStringScalar(String response, String field) {
+        assertContains(response, "\\\"" + field + "\\\":\\\"");
     }
 }
