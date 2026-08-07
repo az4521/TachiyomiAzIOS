@@ -214,12 +214,18 @@ jobs:
             _Java_jdk_internal_loader_NativeLibraries_findBuiltinLib
           )
 
+          missing_symbols=()
           for symbol in "${required_symbols[@]}"; do
             if ! grep -Fx "$symbol" <<<"$exported_symbols" >/dev/null; then
-              echo "Missing required statically linked JVM export: $symbol" >&2
-              exit 1
+              missing_symbols+=("$symbol")
             fi
           done
+
+          if (( ${#missing_symbols[@]} > 0 )); then
+            echo "Missing required statically linked JVM exports:" >&2
+            printf '  %s\n' "${missing_symbols[@]}" >&2
+            exit 1
+          fi
 
       - name: Package unsigned IPA
         id: package
