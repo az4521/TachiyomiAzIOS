@@ -1,6 +1,7 @@
 #include "TJRBridge.h"
 #include "jni.h"
 
+#include <cstdarg>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -13,7 +14,10 @@
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
 #include <dlfcn.h>
+#include <fcntl.h>
+#include <limits.h>
 #include <os/log.h>
+#include <unistd.h>
 #endif
 
 #if defined(__APPLE__) && TARGET_OS_IPHONE
@@ -118,6 +122,200 @@ struct TJRRuntime {
 };
 
 namespace {
+
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+int ios_jvm_output_fd = -1;
+int ios_jvm_saved_stdout = -1;
+int ios_jvm_saved_stderr = -1;
+
+void log_ios_jvm_output(const char *reason) {
+    if (reason != nullptr) {
+        os_log_with_type(
+            OS_LOG_DEFAULT,
+            OS_LOG_TYPE_FAULT,
+            "[TachiJVMRunner/JVM] %{public}s",
+            reason
+        );
+    }
+    if (ios_jvm_output_fd < 0) {
+        os_log_with_type(
+            OS_LOG_DEFAULT,
+            OS_LOG_TYPE_FAULT,
+            "[TachiJVMRunner/JVM] JVM output capture was unavailable"
+        );
+        return;
+    }
+
+    std::fflush(stdout);
+    std::fflush(stderr);
+    fsync(ios_jvm_output_fd);
+
+    char buffer[768];
+    off_t offset = 0;
+    bool found_output = false;
+    while (true) {
+        const ssize_t count = pread(
+            ios_jvm_output_fd,
+            buffer,
+            sizeof(buffer) - 1,
+            offset
+        );
+        if (count <= 0) {
+            break;
+        }
+        found_output = true;
+        buffer[count] = '\0';
+        os_log_with_type(
+            OS_LOG_DEFAULT,
+            OS_LOG_TYPE_FAULT,
+            "[TachiJVMRunner/JVM] %{public}s",
+            buffer
+        );
+        offset += count;
+    }
+    if (!found_output) {
+        os_log_with_type(
+            OS_LOG_DEFAULT,
+            OS_LOG_TYPE_FAULT,
+            "[TachiJVMRunner/JVM] HotSpot exited without captured output"
+        );
+    }
+}
+
+bool start_ios_jvm_output_capture() {
+    const char *temporary_directory = std::getenv("TMPDIR");
+    if (temporary_directory == nullptr || temporary_directory[0] == '\0') {
+        temporary_directory = "/tmp";
+    }
+
+    char output_path[PATH_MAX];
+    const int path_length = std::snprintf(
+        output_path,
+        sizeof(output_path),
+        "%s/%s",
+        temporary_directory,
+        "tachiyomiaz-jvm-startup.log"
+    );
+    if (path_length <= 0 || static_cast<size_t>(path_length) >= sizeof(output_path)) {
+        return false;
+    }
+
+    ios_jvm_output_fd = open(
+        output_path,
+        O_CREAT | O_TRUNC | O_RDWR,
+        S_IRUSR | S_IWUSR
+    );
+    if (ios_jvm_output_fd < 0) {
+        return false;
+    }
+
+    ios_jvm_saved_stdout = dup(STDOUT_FILENO);
+    ios_jvm_saved_stderr = dup(STDERR_FILENO);
+    if (ios_jvm_saved_stdout < 0 || ios_jvm_saved_stderr < 0) {
+        if (ios_jvm_saved_stdout >= 0) {
+            close(ios_jvm_saved_stdout);
+            ios_jvm_saved_stdout = -1;
+        }
+        if (ios_jvm_saved_stderr >= 0) {
+            close(ios_jvm_saved_stderr);
+            ios_jvm_saved_stderr = -1;
+        }
+        close(ios_jvm_output_fd);
+        ios_jvm_output_fd = -1;
+        return false;
+    }
+    if (dup2(ios_jvm_output_fd, STDOUT_FILENO) < 0) {
+        close(ios_jvm_saved_stdout);
+        close(ios_jvm_saved_stderr);
+        close(ios_jvm_output_fd);
+        ios_jvm_saved_stdout = -1;
+        ios_jvm_saved_stderr = -1;
+        ios_jvm_output_fd = -1;
+        return false;
+    }
+    if (dup2(ios_jvm_output_fd, STDERR_FILENO) < 0) {
+        dup2(ios_jvm_saved_stdout, STDOUT_FILENO);
+        close(ios_jvm_saved_stdout);
+        close(ios_jvm_saved_stderr);
+        close(ios_jvm_output_fd);
+        ios_jvm_saved_stdout = -1;
+        ios_jvm_saved_stderr = -1;
+        ios_jvm_output_fd = -1;
+        return false;
+    }
+
+    setvbuf(stdout, nullptr, _IONBF, 0);
+    setvbuf(stderr, nullptr, _IONBF, 0);
+    return true;
+}
+
+void stop_ios_jvm_output_capture(bool report_output) {
+    std::fflush(stdout);
+    std::fflush(stderr);
+    if (ios_jvm_saved_stdout >= 0) {
+        dup2(ios_jvm_saved_stdout, STDOUT_FILENO);
+        close(ios_jvm_saved_stdout);
+        ios_jvm_saved_stdout = -1;
+    }
+    if (ios_jvm_saved_stderr >= 0) {
+        dup2(ios_jvm_saved_stderr, STDERR_FILENO);
+        close(ios_jvm_saved_stderr);
+        ios_jvm_saved_stderr = -1;
+    }
+    if (report_output) {
+        log_ios_jvm_output("JNI_CreateJavaVM returned after emitting output");
+    }
+    if (ios_jvm_output_fd >= 0) {
+        close(ios_jvm_output_fd);
+        ios_jvm_output_fd = -1;
+    }
+}
+
+jint JNICALL ios_jvm_vfprintf_hook(
+    FILE *stream,
+    const char *format,
+    va_list arguments
+) {
+    char buffer[1024];
+    va_list copy;
+    va_copy(copy, arguments);
+    const int formatted_length = std::vsnprintf(
+        buffer,
+        sizeof(buffer),
+        format,
+        copy
+    );
+    va_end(copy);
+    if (formatted_length > 0) {
+        os_log_with_type(
+            OS_LOG_DEFAULT,
+            OS_LOG_TYPE_FAULT,
+            "[TachiJVMRunner/JVM] %{public}s",
+            buffer
+        );
+    }
+
+    FILE *destination = stream != nullptr ? stream : stderr;
+    const int result = std::vfprintf(destination, format, arguments);
+    std::fflush(destination);
+    return static_cast<jint>(result);
+}
+
+void JNICALL ios_jvm_exit_hook(jint code) {
+    char reason[96];
+    std::snprintf(
+        reason,
+        sizeof(reason),
+        "HotSpot requested process exit with code %d",
+        static_cast<int>(code)
+    );
+    log_ios_jvm_output(reason);
+}
+
+void JNICALL ios_jvm_abort_hook() {
+    log_ios_jvm_output("HotSpot aborted during JVM initialization");
+}
+#endif
 
 char *copy_string(const std::string &value) {
     char *result = static_cast<char *>(std::malloc(value.size() + 1));
@@ -474,6 +672,9 @@ TJRRuntime *tjr_runtime_create(
         "-Djava.awt.headless=true",
         "-Xrs",
         "-Xmx192m",
+#if TARGET_OS_IPHONE
+        "-XX:+DisplayVMOutputToStderr",
+#endif
     };
     for (int index = 0; index < additional_option_count; ++index) {
         if (
@@ -484,11 +685,33 @@ TJRRuntime *tjr_runtime_create(
         }
     }
 
-    std::vector<JavaVMOption> options(option_values.size());
+    size_t special_option_count = 0;
+#if TARGET_OS_IPHONE
+    special_option_count = 3;
+#endif
+    std::vector<JavaVMOption> options(
+        option_values.size() + special_option_count
+    );
+    size_t option_index = 0;
+#if TARGET_OS_IPHONE
+    options[option_index++] = {
+        const_cast<char *>("vfprintf"),
+        reinterpret_cast<void *>(&ios_jvm_vfprintf_hook),
+    };
+    options[option_index++] = {
+        const_cast<char *>("exit"),
+        reinterpret_cast<void *>(&ios_jvm_exit_hook),
+    };
+    options[option_index++] = {
+        const_cast<char *>("abort"),
+        reinterpret_cast<void *>(&ios_jvm_abort_hook),
+    };
+#endif
     for (size_t index = 0; index < option_values.size(); ++index) {
-        options[index].optionString =
+        options[option_index].optionString =
             const_cast<char *>(option_values[index].c_str());
-        options[index].extraInfo = nullptr;
+        options[option_index].extraInfo = nullptr;
+        ++option_index;
     }
 
     JavaVMInitArgs arguments;
@@ -499,6 +722,14 @@ TJRRuntime *tjr_runtime_create(
 
     JNIEnv *environment = nullptr;
 #if TARGET_OS_IPHONE
+    const bool capturing_jvm_output = start_ios_jvm_output_capture();
+    if (!capturing_jvm_output) {
+        os_log_with_type(
+            OS_LOG_DEFAULT,
+            OS_LOG_TYPE_FAULT,
+            "[TachiJVMRunner] could not capture JVM startup output"
+        );
+    }
     os_log_with_type(
         OS_LOG_DEFAULT,
         OS_LOG_TYPE_ERROR,
@@ -514,6 +745,7 @@ TJRRuntime *tjr_runtime_create(
         &arguments
     );
 #if TARGET_OS_IPHONE
+    stop_ios_jvm_output_capture(result != JNI_OK);
     os_log_with_type(
         OS_LOG_DEFAULT,
         OS_LOG_TYPE_ERROR,
