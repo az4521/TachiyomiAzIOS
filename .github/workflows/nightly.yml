@@ -37,21 +37,36 @@ jobs:
           distribution: temurin
           java-version: "24"
 
-      - name: Cache runtime
-        uses: actions/cache@v4
+      - name: Restore runtime cache
+        id: runtime-cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             Vendor/OpenJDK/OpenJDK.xcframework
             Vendor/OpenJDK/java_bundle-device
             Vendor/OpenJDK/java_bundle-simulator
             Vendor/OpenJDK/.ios-runtime
-          key: openjdk-mobile-jdk26-ios15-ad8bb1b065bf-v4
+          key: openjdk-mobile-ios15-${{ runner.arch }}-${{ hashFiles('Scripts/build-openjdk-ios15.sh') }}
+          restore-keys: |
+            openjdk-mobile-jdk26-ios15-ad8bb1b065bf-v4
 
       - name: Build runtime
+        if: steps.runtime-cache.outputs.cache-matched-key == ''
         run: |
           brew install autoconf make
           export PATH="$(brew --prefix make)/libexec/gnubin:$PATH"
           bash Scripts/build-openjdk-ios15.sh
+
+      - name: Save runtime cache
+        if: steps.runtime-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            Vendor/OpenJDK/OpenJDK.xcframework
+            Vendor/OpenJDK/java_bundle-device
+            Vendor/OpenJDK/java_bundle-simulator
+            Vendor/OpenJDK/.ios-runtime
+          key: ${{ steps.runtime-cache.outputs.cache-primary-key }}
 
       - name: Upload runtime
         uses: actions/upload-artifact@v4
