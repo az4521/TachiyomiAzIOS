@@ -71,7 +71,7 @@ public struct JVMRuntimeConfiguration: Sendable {
             "conf/security/java.security",
             "lib/security/blocked.certs",
             "lib/security/public_suffix_list.dat",
-            "lib/security/tzdb.dat",
+            "lib/tzdb.dat",
             "lib/security/cacerts",
         ]
         for relativePath in requiredRuntimeFiles {
