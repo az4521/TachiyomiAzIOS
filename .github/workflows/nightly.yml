@@ -135,6 +135,7 @@ jobs:
             -scheme "Aidoku (iOS)" \
             -configuration Release \
             -destination "generic/platform=iOS Simulator" \
+            -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO \
             build
 
