@@ -5,17 +5,19 @@ TachiAZ uses the official
 device and simulator snapshot. The binaries are intentionally not checked into
 this repository.
 
-Run:
+For the iOS 15-compatible runtime, use macOS with OpenJDK 26 and run:
 
 ```sh
-Scripts/bootstrap-openjdk-ios.sh
+Scripts/build-openjdk-ios15.sh
 ```
 
-The bootstrap script downloads checksum-pinned copies of
-`OpenJDK.xcframework.zip`, `java_bundle-device.zip`, and
-`java_bundle-simulator.zip`. The XCFramework contains `arm64` device plus
-`arm64` and `x86_64` simulator slices. Xcode embeds the matching class-library
-bundle as `java_bundle` for the selected destination.
+The script builds a checksum- and revision-pinned OpenJDK Mobile 26 Zero VM,
+matching `java.base` module images, and an XCFramework with arm64 device and
+arm64 simulator slices. Both native targets are compiled with an explicit iOS
+15 deployment target. CI caches the complete matching runtime.
+
+`Scripts/bootstrap-openjdk-ios.sh` remains available only for inspecting the
+upstream snapshot. Do not mix its Java 27 module images with this Java 26 VM.
 
 The snapshot class-library image contains only `java.base`. The build also
 embeds `Runtime/MobileShims/dist/tachiaz-mobile-shims.jar` on the boot

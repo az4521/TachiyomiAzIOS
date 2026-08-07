@@ -12,8 +12,8 @@ The first implementation slice consists of:
 - `Runtime/ExtensionHost`: Java-side classloader and request dispatcher.
 - `Runtime/ExtensionHost/compat`: generated, pinned Suwayomi source API and
   AndroidCompat runtime.
-- `Vendor/OpenJDK`: checksum-pinned official OpenJDK/mobile Zero runtime for
-  iOS devices and Apple Silicon/Intel iOS simulators.
+- `Vendor/OpenJDK`: revision-pinned OpenJDK/mobile 26 Zero runtime for iOS
+  devices and Apple Silicon iOS simulators, built with an iOS 15 target.
 
 On iOS, the production online-source execution path is now the JVM host. The
 external source-available AidokuRunner package is not linked. A local module
@@ -60,9 +60,9 @@ sandbox on both simulator and device.
 
 ## Build prerequisites
 
-1. Run `Scripts/bootstrap-openjdk-ios.sh` on macOS. It installs both device
-   and simulator Java bundles.
-2. Set `TACHIYOMIAZ_BUILD_JAVA_HOME` to a JDK 21+ installation.
+1. Install OpenJDK 26 on macOS and run `Scripts/build-openjdk-ios15.sh`. It
+   builds matching device and arm64 simulator VMs and Java bundles.
+2. Set `TACHIYOMIAZ_BUILD_JAVA_HOME` to that JDK 26 installation.
 3. Run `Scripts/bootstrap-suwayomi-compat.sh`.
 4. Run `Scripts/build-mobile-shims.sh`.
 5. Run `Scripts/build-extension-host.sh --test`.
@@ -75,8 +75,7 @@ and `TACHIYOMIAZ_EXTLIB_1_6_FIXTURE_URL` before running the final test script.
 The host itself is compiled as Java 8 bytecode for portability. Extension
 validation is based on the embedded VM's actual class-file ceiling. The pinned
 extension-lib 1.6 fixture uses Java 11 bytecode (major version 55), which is
-why the old third-party OpenJDK 8 build was replaced with the current official
-OpenJDK/mobile snapshot.
+why the old third-party OpenJDK 8 build was replaced with OpenJDK/mobile 26.
 
 TachiyomiX JARs contain a textual `AndroidManifest.xml`. The host reads
 `tachiyomi.extension.class`, package name, display name, version, extension-lib

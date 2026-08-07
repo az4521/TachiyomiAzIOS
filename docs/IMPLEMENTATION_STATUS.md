@@ -7,10 +7,10 @@ Last updated: 2026-07-31
 - Local `TachiJVMRunner` Swift package with a C++ JNI boundary.
 - One persistent official OpenJDK/mobile Zero VM, with thread attach/detach and real UTF-8
   request/response conversion.
-- Checksum-pinned OpenJDK/mobile XCFramework plus device and simulator
-  class-library bootstrap.
-- Xcode integration for the static VM on arm64 devices and arm64/x86_64 iOS
-  simulators, embedding the destination-specific Java bundle.
+- Revision-pinned OpenJDK/mobile 26 XCFramework plus matching device and
+  simulator class-library images, compiled with an iOS 15 target.
+- Xcode integration for the static VM on arm64 devices and Apple Silicon arm64
+  iOS simulators, embedding the destination-specific Java bundle.
 - Runtime-aware bytecode validation before an extension JAR is loaded.
 - TachiyomiX textual Android manifest parsing and automatic entry-class
   discovery, without `dex2jar` or APK conversion.
@@ -111,7 +111,7 @@ rejected by the local compatibility layer.
 
 ## External validation
 
-1. Run the configured Xcode build for a generic arm64/x86_64 iOS Simulator on
+1. Run the configured Xcode build for an arm64 iOS Simulator on
    a macOS host. This workspace has no Xcode or iOS SDK.
 2. Continue expanding the extension fixture matrix to catch uncommon Android
    graphics/resource assumptions. JavaScript/login challenges use the native
@@ -158,9 +158,8 @@ they are not blockers for the simulator-first sideloading target.
   typed manga summaries with `hasNextPage = true`.
 - JNI C++ bridge compiles with `-std=c++17 -Wall -Wextra -Werror`.
 - Git whitespace checks pass.
-- The nightly macOS job compiles both the app and its unit-test bundle for a
-  generic arm64/x86_64 iOS Simulator, uploads the unsigned simulator app, and
-  then produces the device archive.
+- The nightly macOS job builds the matching iOS 15 OpenJDK device/simulator
+  runtime and produces the device archive.
 
 Xcode, Swift, and an iOS SDK are not installed in the current Linux/WSL
 workspace, so an honest Xcode compile or device-runtime claim cannot be made

@@ -14,8 +14,58 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  build-openjdk-runtime:
+    name: Build iOS 15 OpenJDK runtime
+    runs-on: macos-14
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "15.4"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "26"
+
+      - name: Cache runtime
+        uses: actions/cache@v4
+        with:
+          path: |
+            Vendor/OpenJDK/OpenJDK.xcframework
+            Vendor/OpenJDK/java_bundle-device
+            Vendor/OpenJDK/java_bundle-simulator
+            Vendor/OpenJDK/.ios-runtime
+          key: openjdk-mobile-jdk26-ios15-ad8bb1b065bf-v1
+
+      - name: Build runtime
+        run: |
+          brew install autoconf make
+          export PATH="$(brew --prefix make)/libexec/gnubin:$PATH"
+          bash Scripts/build-openjdk-ios15.sh
+
+      - name: Upload runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenJDK-iOS15
+          path: |
+            Vendor/OpenJDK/OpenJDK.xcframework
+            Vendor/OpenJDK/java_bundle-device
+            Vendor/OpenJDK/java_bundle-simulator
+            Vendor/OpenJDK/.ios-runtime
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
   build-ipa:
     name: Build unsigned IPA
+    needs: build-openjdk-runtime
     runs-on: macos-26
     timeout-minutes: 90
 
@@ -37,9 +87,14 @@ jobs:
       - name: Verify external AidokuRunner is absent
         run: bash Scripts/check-no-external-aidokurunner.sh
 
-      - name: Bootstrap JVM runtime
+      - name: Download iOS 15 OpenJDK runtime
+        uses: actions/download-artifact@v4
+        with:
+          name: OpenJDK-iOS15
+          path: Vendor/OpenJDK
+
+      - name: Bootstrap JVM compatibility layer
         run: |
-          bash Scripts/bootstrap-openjdk-ios.sh
           bash Scripts/bootstrap-suwayomi-compat.sh
           bash Scripts/build-mobile-shims.sh
           bash Scripts/build-extension-host.sh --test
