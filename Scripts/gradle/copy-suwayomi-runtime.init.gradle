@@ -1,13 +1,12 @@
 gradle.beforeProject { project ->
+    def jcefRepository = project.repositories.maven {
+        name = "tachiyomiazJetBrainsCacheRedirector"
+        url = project.uri(
+            "https://cache-redirector.jetbrains.com/intellij-dependencies"
+        )
+    }
     project.repositories.exclusiveContent {
-        forRepository {
-            maven {
-                name = "tachiyomiazJetBrainsCacheRedirector"
-                url = project.uri(
-                    "https://cache-redirector.jetbrains.com/intellij-dependencies"
-                )
-            }
-        }
+        forRepositories(jcefRepository)
         filter {
             includeGroup("org.jetbrains.intellij.deps.jcef")
         }
