@@ -230,8 +230,8 @@ extension Settings {
                     value: .custom
                 ),
                 .init(
-                    key: "Library.showUncategorizedCategory",
-                    title: NSLocalizedString("SHOW_UNCATEGORIZED_CATEGORY"),
+                    key: "Library.showAllCategory",
+                    title: NSLocalizedString("SHOW_ALL_CATEGORY"),
                     notification: "updateCategories",
                     value: .toggle(.init())
                 )

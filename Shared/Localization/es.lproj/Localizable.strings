@@ -663,7 +663,7 @@
 "SAVED_SEARCHES" = "Búsquedas guardadas";
 "SAVED_SEARCH_NAME" = "Nombre";
 "CLEAR_FILTERS" = "Borrar filtros";
-"SHOW_UNCATEGORIZED_CATEGORY" = "Mostrar Categoría No Categorizada";
+"SHOW_ALL_CATEGORY" = "Mostrar categoría Todas";
 "MISSING_SOURCE_LIST" = "Listado Origen Ausente";
 "MISSING_SOURCE_LIST_INFO" = "Este origen externo no está disponible en cualquier listado de fuente configurada. Esto significa que no recibirá actualizaciones y puede interrumpir en el futuro.";
 "NAME_SAVED_SEARCH" = "Nombre de Búsqueda Guardada";

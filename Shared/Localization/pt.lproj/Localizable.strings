@@ -476,7 +476,7 @@
 "CREATE_FILTER_GROUP" = "Criar um filtro de grupo";
 "EDIT_FILTER_GROUP" = "Editar filtro do grupo";
 "CLEAR_FILTERS" = "Limpar filtros";
-"SHOW_UNCATEGORIZED_CATEGORY" = "Mostrar sem categoria";
+"SHOW_ALL_CATEGORY" = "Mostrar categoria Todos";
 "EDIT_SOURCES" = "Editar fontes";
 "CONTENT_RATING" = "Classificação";
 "SAFE" = "Seguro";

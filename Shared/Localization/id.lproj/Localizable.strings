@@ -658,7 +658,7 @@
 "CREATE_FILTER_GROUP" = "Buat Grup Filter";
 "EDIT_FILTER_GROUP" = "Ubah Grup Filter";
 "CLEAR_FILTERS" = "Hapus Filter";
-"SHOW_UNCATEGORIZED_CATEGORY" = "Tampilkan Kategori Tidak Berkategori";
+"SHOW_ALL_CATEGORY" = "Tampilkan Kategori Semua";
 "MISSING_SOURCE_LIST" = "Daftar Sumber Tidak Ditemukan";
 "MISSING_SOURCE_LIST_INFO" = "Sumber eksternal ini tidak tersedia di daftar sumber yang dikonfigurasi. Ini berarti sumber tersebut tidak akan menerima pembaruan dan mungkin tidak berfungsi di masa mendatang.";
 "SAVE" = "Simpan";

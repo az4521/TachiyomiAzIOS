@@ -662,7 +662,7 @@
 "UNCATEGORIZED" = "Chưa được phân loại";
 "FILTER_GROUPS" = "Lọc nhóm";
 "CLEAR_FILTERS" = "Xóa bộ lọc";
-"SHOW_UNCATEGORIZED_CATEGORY" = "Hiển thị danh mục chưa được phân loại";
+"SHOW_ALL_CATEGORY" = "Hiển thị danh mục Tất cả";
 "MISSING_SOURCE_LIST" = "Danh sách nguồn bị thiếu";
 "MISSING_SOURCE_LIST_INFO" = "Nguồn bên ngoài này không có trong bất kỳ danh sách nguồn nào đã được cấu hình. Điều này có nghĩa là nó sẽ không nhận được bản cập nhật và có thể bị lỗi trong tương lai.";
 "SAVED_SEARCHES" = "Tìm kiếm đã lưu";

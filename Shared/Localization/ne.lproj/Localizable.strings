@@ -411,7 +411,7 @@
 "CREATE_FILTER_GROUP" = "फिल्टर समूह सिर्जना गर्नुहोस्";
 "EDIT_FILTER_GROUP" = "फिल्टर समूह सम्पादन गर्नुहोस्";
 "CLEAR_FILTERS" = "फिल्टरहरू हटाउनुहोस्";
-"SHOW_UNCATEGORIZED_CATEGORY" = "वर्गीकृत नगरिएको वर्ग देखाउनुहोस्";
+"SHOW_ALL_CATEGORY" = "सबै वर्ग देखाउनुहोस्";
 "EDIT_SOURCES" = "स्रोतहरू सम्पादन गर्नुहोस्";
 "REMOVE_LOCAL_SOURCE" = "लोकल स्रोत हटाउने हो?";
 "REMOVE_LOCAL_SOURCE_TEXT" = "यसले सबै आयात गरिएका लोकल फाइलहरू हटाउनेछ।";

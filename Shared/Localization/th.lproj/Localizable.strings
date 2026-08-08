@@ -636,7 +636,7 @@
 "CREATE_FILTER_GROUP" = "สร้างกลุ่มกรอง";
 "EDIT_FILTER_GROUP" = "แก้กลุ่มกรอง";
 "CLEAR_FILTERS" = "ลบการกรอง";
-"SHOW_UNCATEGORIZED_CATEGORY" = "แสดงหมวดหมู่ที่ไร้หมวดหมู่";
+"SHOW_ALL_CATEGORY" = "แสดงหมวดหมู่ทั้งหมด";
 "SAVE" = "บันทึก";
 "SAVED_SEARCHES" = "การค้นหาที่บันทึกไว้";
 "NAME_SAVED_SEARCH" = "ตั้งชื่อการบันทึกของการค้นหา";

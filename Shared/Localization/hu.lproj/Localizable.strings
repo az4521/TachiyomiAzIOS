@@ -305,7 +305,7 @@
 "CREATE_FILTER_GROUP" = "Szűrő csoport létrehozása";
 "EDIT_FILTER_GROUP" = "Szűrő csoport szerkesztése";
 "CLEAR_FILTERS" = "Szűrők törlése";
-"SHOW_UNCATEGORIZED_CATEGORY" = "Nem kategorizált kategória mutatása";
+"SHOW_ALL_CATEGORY" = "Összes kategória megjelenítése";
 "EDIT_SOURCES" = "Források szerkesztése";
 "CONTENT_RATING" = "Tartalom értékelés";
 "SAFE" = "Biztonságos";

@@ -75,7 +75,7 @@ class LibraryCategorySelectionHeader: UICollectionReusableView {
 
         selectionIndicator.backgroundColor = tintColor
         selectionIndicator.layer.cornerRadius = 1.5
-        scrollView.addSubview(selectionIndicator)
+        stackView.addSubview(selectionIndicator)
 
         bottomDivider.backgroundColor = .separator
         addSubview(bottomDivider)
@@ -144,6 +144,7 @@ class LibraryCategorySelectionHeader: UICollectionReusableView {
             }
         }
 
+        stackView.bringSubviewToFront(selectionIndicator)
         updateButtonAppearance()
         setNeedsLayout()
     }
@@ -160,6 +161,8 @@ class LibraryCategorySelectionHeader: UICollectionReusableView {
     }
 
     private func updateSelectionIndicator(animated: Bool) {
+        scrollView.layoutIfNeeded()
+        stackView.layoutIfNeeded()
         guard
             let selectedIndex = tabIndexPaths.firstIndex(of: selectedIndexPath),
             tabButtons.indices.contains(selectedIndex)
@@ -170,13 +173,14 @@ class LibraryCategorySelectionHeader: UICollectionReusableView {
 
         selectionIndicator.isHidden = false
         let button = tabButtons[selectedIndex]
-        let buttonFrame = button.convert(button.bounds, to: scrollView)
+        let buttonFrame = button.frame
+        let scrollFrame = button.convert(button.bounds, to: scrollView)
         let minimumWidth: CGFloat = 24
         let horizontalInset: CGFloat = 14
         let targetWidth = max(minimumWidth, buttonFrame.width - horizontalInset * 2)
         let targetFrame = CGRect(
             x: buttonFrame.midX - targetWidth / 2,
-            y: bounds.height - 3,
+            y: stackView.bounds.height - 3,
             width: targetWidth,
             height: 3
         )
@@ -186,7 +190,7 @@ class LibraryCategorySelectionHeader: UICollectionReusableView {
         } else {
             changes()
         }
-        scrollView.scrollRectToVisible(buttonFrame.insetBy(dx: -12, dy: 0), animated: animated)
+        scrollView.scrollRectToVisible(scrollFrame.insetBy(dx: -12, dy: 0), animated: animated)
     }
 
     @objc private func tabPressed(_ sender: UIButton) {

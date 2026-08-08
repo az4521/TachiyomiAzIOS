@@ -471,7 +471,7 @@
 "CREATE_FILTER_GROUP" = "Crea un gruppo di filtri";
 "CLEAR_FILTERS" = "Pulisci filtri";
 "EDIT_FILTER_GROUP" = "Modifica gruppo di filtri";
-"SHOW_UNCATEGORIZED_CATEGORY" = "Mostra non categorizzati";
+"SHOW_ALL_CATEGORY" = "Mostra categoria Tutti";
 "MARK_DUPLICATE_CHAPTERS" = "Segna i capitoli duplicati come letti";
 "DISABLE_QUICK_ACTIONS" = "Disabilita Quick Actions";
 "ANIMATE_PAGE_TRANSITIONS" = "Transizioni pagine animate";

@@ -658,7 +658,7 @@
 "CREATE_FILTER_GROUP" = "Skapa filtergrupp";
 "EDIT_FILTER_GROUP" = "Redigera filtergrupp";
 "CLEAR_FILTERS" = "Rensa filter";
-"SHOW_UNCATEGORIZED_CATEGORY" = "Visa okategoriserad kategori";
+"SHOW_ALL_CATEGORY" = "Visa kategorin Alla";
 "MISSING_SOURCE_LIST" = "Saknar källista";
 "MISSING_SOURCE_LIST_INFO" = "Denna externa källa är inte tillgänglig på någon utav de konfigurerade källistorna. Detta innebär att den inte kommer få några fler uppdateringar och kan sluta fungera i framtiden.";
 "SAVE" = "Spara";

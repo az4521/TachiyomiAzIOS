@@ -184,16 +184,7 @@ class LibraryViewController: OldMangaCollectionViewController {
 
             // load locked icons
             if UserDefaults.standard.bool(forKey: "Library.lockLibrary") {
-                let lockedCategories = UserDefaults.standard.stringArray(forKey: "Library.lockedCategories") ?? []
-                header.lockedOptions = [IndexPath(row: 0, section: 0)] + lockedCategories.compactMap { category -> IndexPath? in
-                    if let index = self.viewModel.categories.firstIndex(of: category) {
-                        return IndexPath(row: index, section: 1)
-                    }
-                    if let index = self.viewModel.filterGroups.firstIndex(where: { $0.title == category }) {
-                        return IndexPath(row: index, section: self.viewModel.categories.isEmpty ? 1 : 2)
-                    }
-                    return nil
-                }
+                header.lockedOptions = lockedCategoryIndexPaths()
             }
         }
 
@@ -224,12 +215,12 @@ class LibraryViewController: OldMangaCollectionViewController {
         Task {
             // load categories
             await viewModel.refreshCategories(skipDataLoad: true)
-            // refresh header
-            collectionView.collectionViewLayout = self.makeCollectionViewLayout()
             updateNavbarItems()
 
             // load library
             await viewModel.loadLibrary()
+            // refresh header after category availability is known
+            collectionView.collectionViewLayout = self.makeCollectionViewLayout()
             updateEmptyStack()
             updateLockState()
         }
@@ -297,7 +288,11 @@ class LibraryViewController: OldMangaCollectionViewController {
         addObserver(forName: .updateLibrary) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                await self.viewModel.loadLibrary()
+                let categoryAvailabilityChanged = await self.viewModel.loadLibrary()
+                if categoryAvailabilityChanged {
+                    self.collectionView.collectionViewLayout = self.makeCollectionViewLayout()
+                }
+                self.updateHeaderCategories()
                 self.updateEmptyStack()
                 self.updateDataSource()
             }
@@ -326,9 +321,13 @@ class LibraryViewController: OldMangaCollectionViewController {
             }
         }
         addObserver(forName: .updateMangaCategories) { [weak self] _ in
-            guard let self, self.viewModel.currentCategory != nil else { return }
+            guard let self else { return }
             Task { @MainActor in
-                await self.viewModel.loadLibrary()
+                let categoryAvailabilityChanged = await self.viewModel.loadLibrary()
+                if categoryAvailabilityChanged {
+                    self.collectionView.collectionViewLayout = self.makeCollectionViewLayout()
+                }
+                self.updateHeaderCategories()
                 self.updateDataSource()
             }
         }
@@ -444,17 +443,19 @@ class LibraryViewController: OldMangaCollectionViewController {
 
         let config = UICollectionViewCompositionalLayoutConfiguration()
         config.interSectionSpacing = layout.configuration.interSectionSpacing
-        let globalHeader = NSCollectionLayoutBoundarySupplementaryItem(
-            layoutSize: NSCollectionLayoutSize(
-                widthDimension: .fractionalWidth(1),
-                heightDimension: .absolute(48)
-            ),
-            elementKind: UICollectionView.elementKindSectionHeader,
-            alignment: .top
-        )
-        globalHeader.pinToVisibleBounds = true
-        globalHeader.zIndex = 2
-        config.boundarySupplementaryItems = [globalHeader]
+        if !categoryIndexPaths().isEmpty {
+            let globalHeader = NSCollectionLayoutBoundarySupplementaryItem(
+                layoutSize: NSCollectionLayoutSize(
+                    widthDimension: .fractionalWidth(1),
+                    heightDimension: .absolute(48)
+                ),
+                elementKind: UICollectionView.elementKindSectionHeader,
+                alignment: .top
+            )
+            globalHeader.pinToVisibleBounds = true
+            globalHeader.zIndex = 2
+            config.boundarySupplementaryItems = [globalHeader]
+        }
         layout.configuration = config
 
         return layout
@@ -850,11 +851,14 @@ extension LibraryViewController {
 
     private func makeCategoryHeaderOptions() -> [LibraryCategorySelectionHeader.Section] {
         var options: [LibraryCategorySelectionHeader.Section] = []
-        if UserDefaults.standard.bool(forKey: "Library.showUncategorizedCategory") {
-            options.append(.init(options: [NSLocalizedString("ALL"), NSLocalizedString("UNCATEGORIZED")]))
-        } else {
-            options.append(.init(options: [NSLocalizedString("ALL")]))
+        var primaryOptions: [String] = []
+        if UserDefaults.standard.bool(forKey: "Library.showAllCategory") {
+            primaryOptions.append(NSLocalizedString("ALL"))
         }
+        if viewModel.hasUncategorizedManga {
+            primaryOptions.append(NSLocalizedString("UNCATEGORIZED"))
+        }
+        options.append(.init(options: primaryOptions))
         if !viewModel.categories.isEmpty {
             options.append(.init(title: NSLocalizedString("CATEGORIES"), options: viewModel.categories))
         }
@@ -874,9 +878,9 @@ extension LibraryViewController {
         guard let currentCategory = viewModel.currentCategory else {
             return IndexPath(row: 0, section: 0)
         }
-        if currentCategory.isEmpty,
-           UserDefaults.standard.bool(forKey: "Library.showUncategorizedCategory") {
-            return IndexPath(row: 1, section: 0)
+        if currentCategory.isEmpty, viewModel.hasUncategorizedManga {
+            let row = UserDefaults.standard.bool(forKey: "Library.showAllCategory") ? 1 : 0
+            return IndexPath(row: row, section: 0)
         }
         if let index = viewModel.categories.firstIndex(of: currentCategory) {
             return IndexPath(row: index, section: 1)
@@ -885,6 +889,23 @@ extension LibraryViewController {
             return IndexPath(row: index, section: viewModel.categories.isEmpty ? 1 : 2)
         }
         return IndexPath(row: 0, section: 0)
+    }
+
+    private func lockedCategoryIndexPaths() -> [IndexPath] {
+        var indexPaths = UserDefaults.standard.bool(forKey: "Library.showAllCategory")
+            ? [IndexPath(row: 0, section: 0)]
+            : []
+        let lockedCategories = UserDefaults.standard.stringArray(forKey: "Library.lockedCategories") ?? []
+        indexPaths += lockedCategories.compactMap { category -> IndexPath? in
+            if let index = viewModel.categories.firstIndex(of: category) {
+                return IndexPath(row: index, section: 1)
+            }
+            if let index = viewModel.filterGroups.firstIndex(where: { $0.title == category }) {
+                return IndexPath(row: index, section: viewModel.categories.isEmpty ? 1 : 2)
+            }
+            return nil
+        }
+        return indexPaths
     }
 
     @objc private func swipeBetweenCategories(_ gestureRecognizer: UISwipeGestureRecognizer) {
@@ -916,16 +937,7 @@ extension LibraryViewController {
             return
         }
         if UserDefaults.standard.bool(forKey: "Library.lockLibrary") {
-            let lockedCategories = UserDefaults.standard.stringArray(forKey: "Library.lockedCategories") ?? []
-            header.lockedOptions = [IndexPath(row: 0, section: 0)] + lockedCategories.compactMap { category -> IndexPath? in
-                if let index = self.viewModel.categories.firstIndex(of: category) {
-                    return IndexPath(row: index, section: 1)
-                }
-                if let index = self.viewModel.filterGroups.firstIndex(where: { $0.title == category }) {
-                    return IndexPath(row: index, section: self.viewModel.categories.isEmpty ? 1 : 2)
-                }
-                return nil
-            }
+            header.lockedOptions = lockedCategoryIndexPaths()
         } else {
             header.lockedOptions = []
         }
@@ -1257,7 +1269,8 @@ extension LibraryViewController: LibraryCategorySelectionHeaderDelegate {
     nonisolated func optionSelected(_ indexPath: IndexPath) {
         Task { @MainActor in
             if indexPath.section == 0 {
-                if indexPath.row == 0 {
+                let showAllCategory = UserDefaults.standard.bool(forKey: "Library.showAllCategory")
+                if showAllCategory, indexPath.row == 0 {
                     viewModel.currentCategory = nil
                 } else {
                     viewModel.currentCategory = ""

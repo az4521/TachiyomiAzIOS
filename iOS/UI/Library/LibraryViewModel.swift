@@ -149,6 +149,7 @@ class LibraryViewModel {
     var isInUncategorizedCategory: Bool {
         currentCategory?.isEmpty ?? false
     }
+    private(set) var hasUncategorizedManga = false
     private(set) var actuallyEmpty = true
 
     init() {
@@ -184,20 +185,21 @@ extension LibraryViewModel {
             )
         }
         if !skipDataLoad {
-            let isInFilterGroup = filterGroups.contains(where: { $0.title == currentCategory })
-            let showUncategorized = UserDefaults.standard.bool(forKey: "Library.showUncategorizedCategory")
-            if let currentCategory, (!categories.contains(currentCategory) && !isInFilterGroup) || (currentCategory.isEmpty && !showUncategorized) {
-                self.currentCategory = nil
-                await loadLibrary()
-            } else if isInFilterGroup {
-                // refresh filter group in case filters changed
-                await loadLibrary()
-            }
+            await loadLibrary()
         }
     }
 
     // swiftlint:disable:next cyclomatic_complexity
-    func loadLibrary() async {
+    @discardableResult
+    func loadLibrary() async -> Bool {
+        let previouslyHadUncategorizedManga = hasUncategorizedManga
+        hasUncategorizedManga = await CoreDataManager.shared.container.performBackgroundTask { @Sendable context in
+            let request = LibraryMangaObject.fetchRequest()
+            request.predicate = NSPredicate(format: "manga != nil AND categories.@count == 0")
+            return ((try? context.count(for: request)) ?? 0) > 0
+        }
+        normalizeCurrentCategory()
+
         // handle filter groups
         let filters = if let currentCategory, let group = filterGroups.first(where: { $0.title == currentCategory }) {
             group.filters + self.filters
@@ -356,7 +358,9 @@ extension LibraryViewModel {
             return (true, actuallyEmpty, pinnedManga, manga, sourceKeys, unappliedFilters)
         }
 
-        guard success else { return }
+        guard success else {
+            return previouslyHadUncategorizedManga != hasUncategorizedManga
+        }
 
         self.pinnedManga = pinnedManga
         self.manga = manga
@@ -407,6 +411,30 @@ extension LibraryViewModel {
 
         if !searchQuery.isEmpty {
             await search(query: searchQuery)
+        }
+
+        return previouslyHadUncategorizedManga != hasUncategorizedManga
+    }
+
+    private func normalizeCurrentCategory() {
+        let showAllCategory = UserDefaults.standard.bool(forKey: "Library.showAllCategory")
+        let isInFilterGroup = filterGroups.contains(where: { $0.title == currentCategory })
+        let isValidCategory = currentCategory.map { categories.contains($0) } ?? false
+
+        let fallbackCategory: String? = if hasUncategorizedManga {
+            ""
+        } else if let category = categories.first {
+            category
+        } else {
+            filterGroups.first?.title
+        }
+
+        if currentCategory == nil, !showAllCategory {
+            currentCategory = fallbackCategory
+        } else if currentCategory?.isEmpty == true, !hasUncategorizedManga {
+            currentCategory = showAllCategory ? nil : fallbackCategory
+        } else if currentCategory != nil, !isValidCategory, !isInFilterGroup, currentCategory?.isEmpty == false {
+            currentCategory = showAllCategory ? nil : fallbackCategory
         }
     }
 
@@ -475,7 +503,8 @@ extension LibraryViewModel {
     func fetchUnreads(skipSortCheck: Bool = false) async {
         if !skipSortCheck && pinType == .unread {
             // re-load library to ensure pinned manga is correct
-            return await loadLibrary()
+            await loadLibrary()
+            return
         }
 
         let currentManga = self.manga + self.pinnedManga

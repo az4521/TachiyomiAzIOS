@@ -667,7 +667,7 @@
 "CREATE_FILTER_GROUP" = "Créer un groupe de filtre";
 "EDIT_FILTER_GROUP" = "éditer un groupe de filtre";
 "CLEAR_FILTERS" = "Effacer les filtres";
-"SHOW_UNCATEGORIZED_CATEGORY" = "Afficher la catégorie non-classé";
+"SHOW_ALL_CATEGORY" = "Afficher la catégorie Tout";
 "MISSING_SOURCE_LIST" = "Liste de source manquante";
 "MISSING_SOURCE_LIST_INFO" = "Cette source externe n'est pas disponible sur les listes de sources configurées. Cela signifie qu'elle ne recevra pas de mises à jour et peut être supprimée dans l'avenir.";
 "LEGACY_SOURCE_LIST" = "Liste des sources héritées";

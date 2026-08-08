@@ -670,7 +670,7 @@
 "CREATE_FILTER_GROUP" = "建立過濾群組";
 "EDIT_FILTER_GROUP" = "編輯過濾群組";
 "CLEAR_FILTERS" = "清除過濾條件";
-"SHOW_UNCATEGORIZED_CATEGORY" = "顯示未分類的類別";
+"SHOW_ALL_CATEGORY" = "顯示「全部」類別";
 "SAVE" = "儲存";
 "SAVED_SEARCHES" = "已儲存搜尋";
 "NAME_SAVED_SEARCH" = "已儲存名稱搜尋";

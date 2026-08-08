@@ -673,7 +673,7 @@
 "CREATE_FILTER_GROUP" = "创建筛选组";
 "EDIT_FILTER_GROUP" = "编辑筛选组";
 "CLEAR_FILTERS" = "清除筛选";
-"SHOW_UNCATEGORIZED_CATEGORY" = "显示未分类";
+"SHOW_ALL_CATEGORY" = "显示“全部”分类";
 "SAVE" = "保存";
 "SAVED_SEARCHES" = "已保存的搜索";
 "NAME_SAVED_SEARCH" = "保存的搜索名称";

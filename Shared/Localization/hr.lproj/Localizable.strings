@@ -658,7 +658,7 @@
 "UNCATEGORIZED" = "Nekategorizirano";
 "FILTER_GROUPS" = "Filtriraj grupe";
 "CLEAR_FILTERS" = "Izbriši filtre";
-"SHOW_UNCATEGORIZED_CATEGORY" = "Prikaži kategoriju „Nekategorizirano”";
+"SHOW_ALL_CATEGORY" = "Prikaži kategoriju „Sve”";
 "MISSING_SOURCE_LIST" = "Nedostaje popis izvora";
 "MISSING_SOURCE_LIST_INFO" = "Ovaj eksterni izvor nije dostupan na nijednom konfiguriranom popisu izvora. To znači da neće primati aktualiziranja i da bi se u budućnosti mogao pokvariti.";
 "SAVE" = "Spremi";
