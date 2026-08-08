@@ -311,9 +311,9 @@ class LibraryViewController: OldMangaCollectionViewController {
                 if categoryAvailabilityChanged {
                     self.collectionView.collectionViewLayout = self.makeCollectionViewLayout()
                 }
-                self.updateHeaderCategories()
                 self.updateEmptyStack()
                 self.updateDataSource()
+                self.refreshCategoryHeader()
             }
         }
         addObserver(forName: .updateLibraryLock) { [weak self] _ in
@@ -332,7 +332,7 @@ class LibraryViewController: OldMangaCollectionViewController {
                 if !self.isEditing {
                     self.updateToolbar() // show/hide add category button
                 }
-                self.updateHeaderCategories()
+                self.refreshCategoryHeader()
                 // update lock state
                 if UserDefaults.standard.bool(forKey: "Library.lockLibrary") {
                     NotificationCenter.default.post(name: .updateLibraryLock, object: nil)
@@ -346,8 +346,8 @@ class LibraryViewController: OldMangaCollectionViewController {
                 if categoryAvailabilityChanged {
                     self.collectionView.collectionViewLayout = self.makeCollectionViewLayout()
                 }
-                self.updateHeaderCategories()
                 self.updateDataSource()
+                self.refreshCategoryHeader()
             }
         }
         addObserver(forName: .updateManga) { [weak self] notification in
@@ -960,6 +960,14 @@ extension LibraryViewController {
         } else {
             header.lockedOptions = []
         }
+    }
+
+    func refreshCategoryHeader() {
+        // Applying the snapshot can recreate the supplementary header. Resolve
+        // it only after the collection view has materialized the new layout.
+        collectionView.layoutIfNeeded()
+        updateHeaderCategories()
+        updateHeaderLockIcons()
     }
 
     // update category options in header

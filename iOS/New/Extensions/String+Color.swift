@@ -75,6 +75,7 @@ enum AppAccentColor {
                 window.tintColor = color
             }
         }
+        NotificationCenter.default.post(name: .accentColorSetting, object: color)
     }
 }
 

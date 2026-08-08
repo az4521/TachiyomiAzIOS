@@ -41,6 +41,8 @@ class LibraryCategorySelectionHeader: UICollectionReusableView {
 
     private var tabButtons: [UIButton] = []
     private var tabIndexPaths: [IndexPath] = []
+    private var indicatorHorizontalConstraints: [NSLayoutConstraint] = []
+    private weak var indicatorButton: UIButton?
     private var selectedIndexPath = IndexPath(row: 0, section: 0)
     private var animateNextIndicatorUpdate = false
 
@@ -85,6 +87,7 @@ class LibraryCategorySelectionHeader: UICollectionReusableView {
     private func constrain() {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         stackView.translatesAutoresizingMaskIntoConstraints = false
+        selectionIndicator.translatesAutoresizingMaskIntoConstraints = false
         bottomDivider.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
@@ -98,6 +101,9 @@ class LibraryCategorySelectionHeader: UICollectionReusableView {
             stackView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -4),
             stackView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
             stackView.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor),
+
+            selectionIndicator.bottomAnchor.constraint(equalTo: stackView.bottomAnchor),
+            selectionIndicator.heightAnchor.constraint(equalToConstant: 3),
 
             bottomDivider.leadingAnchor.constraint(equalTo: leadingAnchor),
             bottomDivider.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -118,6 +124,9 @@ class LibraryCategorySelectionHeader: UICollectionReusableView {
     }
 
     private func rebuildTabs() {
+        NSLayoutConstraint.deactivate(indicatorHorizontalConstraints)
+        indicatorHorizontalConstraints.removeAll(keepingCapacity: true)
+        indicatorButton = nil
         tabButtons.forEach { $0.removeFromSuperview() }
         tabButtons.removeAll(keepingCapacity: true)
         tabIndexPaths.removeAll(keepingCapacity: true)
@@ -146,6 +155,12 @@ class LibraryCategorySelectionHeader: UICollectionReusableView {
         }
 
         stackView.bringSubviewToFront(selectionIndicator)
+        if
+            let selectedIndex = tabIndexPaths.firstIndex(of: selectedIndexPath),
+            tabButtons.indices.contains(selectedIndex)
+        {
+            constrainIndicator(to: tabButtons[selectedIndex])
+        }
         updateButtonAppearance()
         setNeedsLayout()
     }
@@ -174,24 +189,26 @@ class LibraryCategorySelectionHeader: UICollectionReusableView {
 
         selectionIndicator.isHidden = false
         let button = tabButtons[selectedIndex]
-        let buttonFrame = button.frame
         let scrollFrame = button.convert(button.bounds, to: scrollView)
-        let minimumWidth: CGFloat = 24
-        let horizontalInset: CGFloat = 14
-        let targetWidth = max(minimumWidth, buttonFrame.width - horizontalInset * 2)
-        let targetFrame = CGRect(
-            x: buttonFrame.midX - targetWidth / 2,
-            y: stackView.bounds.height - 3,
-            width: targetWidth,
-            height: 3
-        )
-        let changes = { self.selectionIndicator.frame = targetFrame }
+        constrainIndicator(to: button)
+        let changes = { self.stackView.layoutIfNeeded() }
         if animated, !UIAccessibility.isReduceMotionEnabled {
             UIView.animate(withDuration: 0.2, delay: 0, options: [.beginFromCurrentState, .curveEaseOut], animations: changes)
         } else {
             changes()
         }
         scrollView.scrollRectToVisible(scrollFrame.insetBy(dx: -12, dy: 0), animated: animated)
+    }
+
+    private func constrainIndicator(to button: UIButton) {
+        guard indicatorButton !== button else { return }
+        NSLayoutConstraint.deactivate(indicatorHorizontalConstraints)
+        indicatorHorizontalConstraints = [
+            selectionIndicator.centerXAnchor.constraint(equalTo: button.centerXAnchor),
+            selectionIndicator.widthAnchor.constraint(equalTo: button.widthAnchor, constant: -28)
+        ]
+        NSLayoutConstraint.activate(indicatorHorizontalConstraints)
+        indicatorButton = button
     }
 
     @objc private func tabPressed(_ sender: UIButton) {

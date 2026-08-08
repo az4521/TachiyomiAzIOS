@@ -21,6 +21,7 @@ extension Notification.Name {
 
     // general
     static let incognitoMode = Self("General.incognitoMode")
+    static let accentColorSetting = Self("Appearance.accentColor")
 
     // library
     static let updateLibrary = Self("updateLibrary")

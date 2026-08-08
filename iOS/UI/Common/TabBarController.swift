@@ -58,6 +58,7 @@ class TabBarController: UITabBarController {
     private var previousSelectedIndex: Int?
     private var drawerLeadingConstraint: NSLayoutConstraint?
     private var drawerButtons: [UIButton] = []
+    private weak var drawerHeaderView: UIView?
     private var isDrawerOpen = false
 
     private lazy var drawerBackdrop: UIControl = {
@@ -212,6 +213,14 @@ class TabBarController: UITabBarController {
                 self?.updateFrame(animated: true)
             }
             .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: .accentColorSetting)
+            .sink { [weak self] notification in
+                let color = notification.object as? UIColor ?? AppAccentColor.uiColor
+                self?.drawerHeaderView?.backgroundColor = color
+                self?.updateDrawerSelection()
+            }
+            .store(in: &cancellables)
     }
 
     private func configureDrawer() {
@@ -236,14 +245,10 @@ class TabBarController: UITabBarController {
         ])
 
         let header = UIView()
-        header.backgroundColor = UIColor(
-            red: 103 / 255,
-            green: 58 / 255,
-            blue: 183 / 255,
-            alpha: 1
-        )
+        header.backgroundColor = AppAccentColor.uiColor
         header.translatesAutoresizingMaskIntoConstraints = false
         drawerView.addSubview(header)
+        drawerHeaderView = header
 
         let appName = UILabel()
         appName.text = "TachiyomiAZ"
@@ -409,11 +414,11 @@ class TabBarController: UITabBarController {
             guard var configuration = button.configuration else { continue }
             let isSelected = index == selectedDrawerIndex
             configuration.baseForegroundColor = isSelected
-                ? UIColor(red: 103 / 255, green: 58 / 255, blue: 183 / 255, alpha: 1)
+                ? AppAccentColor.uiColor
                 : .label
             var background = configuration.background
             background.backgroundColor = isSelected
-                ? UIColor(red: 103 / 255, green: 58 / 255, blue: 183 / 255, alpha: 0.12)
+                ? AppAccentColor.uiColor.withAlphaComponent(0.12)
                 : .clear
             configuration.background = background
             button.configuration = configuration
