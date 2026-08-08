@@ -1,194 +1,144 @@
-import json
-import re
-import requests
-import zipfile
-import plistlib
+#!/usr/bin/env python3
+
+import argparse
 import io
-from datetime import datetime
+import json
+import plistlib
+import re
+import urllib.parse
+import urllib.request
+import zipfile
+from datetime import datetime, timezone
+from pathlib import Path
 
-bundle_id = "app.aidoku.Aidoku"
-minimum_ios_version = "15.0"
-json_file_name = ".github/workflows/supporting/altstore/apps.json"
-github_repo = "Aidoku/Aidoku"
 
-def fetch_latest_release(repo):
-    api_url = f"https://api.github.com/repos/{repo}/releases"
-    headers = {
-        "Accept": "application/vnd.github+json",
-    }
-    try:
-        response = requests.get(api_url, headers=headers)
-        response.raise_for_status()
-        releases = response.json()
-        if len(releases) == 0:
-            raise ValueError("No release found.")
+REPOSITORY = "az4521/TachiyomiAZiOS"
+DEFAULT_JSON = Path(".github/workflows/supporting/altstore/apps.json")
 
-        sorted_releases = sorted(releases, key=lambda release: datetime.strptime(release["published_at"], "%Y-%m-%dT%H:%M:%SZ"), reverse=True) # Sort from newest to oldest
-        filtered_sorted_releases = list(filter(lambda release: release["draft"] == False and release["prerelease"] == False, sorted_releases)) # filter out drafts and prereleases
-        if len(filtered_sorted_releases) == 0:
-            raise ValueError("An error occured while sorting and filtering releases.")
 
-        return filtered_sorted_releases[0]
-    except requests.RequestException as e:
-        print(f"Error fetching releases: {e}")
-        raise
+def github_request(url):
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "TachiyomiAZ-AltStore-Source",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+    with urllib.request.urlopen(request) as response:
+        return response.read()
 
-def remove_tags_and_characters(text):
-    text = re.sub('<[^<]+?>', '', text)
-    text = re.sub(r'#{1,6}\s?', '', text)
-    text = re.sub(r'\*{2}', '', text)
-    text = re.sub(r'-', '•', text)
-    text = re.sub(r'`', '"', text)
-    text = re.sub(r'\r\n', '\n', text)
-    return text
 
-def get_ipa_version_and_build(ipa_path):
-    with zipfile.ZipFile(ipa_path, 'r') as ipa:
-        info_plist_path = None
-        # find info.plist in root of .app
-        for name in ipa.namelist():
-            if (
-                name.startswith('Payload/') and
-                name.count('/') == 2 and
-                name.endswith('.app/Info.plist')
-            ):
-                info_plist_path = name
-                break
-        if not info_plist_path:
-            raise FileNotFoundError("Info.plist not found in IPA")
+def fetch_release(tag):
+    encoded_tag = urllib.parse.quote(tag, safe="")
+    payload = github_request(
+        f"https://api.github.com/repos/{REPOSITORY}/releases/tags/{encoded_tag}"
+    )
+    return json.loads(payload)
 
-        with ipa.open(info_plist_path) as plist_file:
-            plist_data = plist_file.read()
-            plist = plistlib.load(io.BytesIO(plist_data))
 
-        version = plist.get('CFBundleShortVersionString')
-        build = plist.get('CFBundleVersion')
-        return version, build
+def select_ipa_asset(release):
+    assets = [
+        asset
+        for asset in release.get("assets", [])
+        if asset["name"].endswith(".ipa")
+    ]
+    if not assets:
+        raise ValueError(f"Release {release.get('tag_name', '')!r} has no IPA asset")
+    return assets[0]
 
-def update_json_file(json_file, repo):
-    latest_release = fetch_latest_release(repo)
-    try:
-        with open(json_file, "r") as file:
-            data = json.load(file)
-    except json.JSONDecodeError as e:
-        print(f"Error reading JSON file: {e}")
-        raise
 
-    if "apps" not in data:
-        print(f"There is no \"apps\" key in {json_file}.")
-        raise
+def read_ipa_metadata(ipa_data):
+    with zipfile.ZipFile(io.BytesIO(ipa_data), "r") as archive:
+        plist_path = next(
+            (
+                name
+                for name in archive.namelist()
+                if name.startswith("Payload/")
+                and name.count("/") == 2
+                and name.endswith(".app/Info.plist")
+            ),
+            None,
+        )
+        if plist_path is None:
+            raise FileNotFoundError("The IPA does not contain an application Info.plist")
+        with archive.open(plist_path) as plist_file:
+            return plistlib.loads(plist_file.read())
 
-    apps_data = data["apps"]
-    if len(apps_data) == 0:
-        print(f"There is no data for \"apps\" key in {json_file}.")
-        raise
 
-    app = apps_data[0]
-    if "versions" not in app:
-        app["versions"] = []
+def release_description(text):
+    text = re.sub(r"<[^>]+>", "", text or "")
+    text = re.sub(r"^#{1,6}\s*", "", text, flags=re.MULTILINE)
+    text = text.replace("**", "").replace("`", '"').strip()
+    return text or "Automated build from the latest TachiyomiAZ iOS source."
 
-    if "assets" not in latest_release:
-        print("There is no \"assets\" key in latest release JSON. It may mean there are no assets other than source code tarball and zipball.")
-        raise
 
-    assets = latest_release["assets"]
-    if len(assets) == 0:
-        print("There are no assets other than source code tarball and zipball in latest release JSON.")
-        raise
+def parse_date(value):
+    if not value:
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).strftime("%Y-%m-%d")
 
-    asset_to_use = None
-    for asset in assets:
-        if asset["name"].endswith(".ipa"):
-            asset_to_use = asset
-            break
- 
-    if asset_to_use is None:
-        print(".ipa file is not found in assets")
-        raise
 
-    data["featuredApps"] = [bundle_id]
-    app["bundleIdentifier"] = bundle_id
-    tag = latest_release["tag_name"]
-    full_version = tag.lstrip('v')
-    version = re.search(r"(\d+\.\d+(\.\d+)?)", full_version).group(1)
-    version_entry_exists = any(item["version"] == version for item in app["versions"])
-    if not version_entry_exists:
-        version_date = latest_release["published_at"]
-        date_obj = datetime.strptime(version_date, "%Y-%m-%dT%H:%M:%SZ")
-        version_date = date_obj.strftime("%Y-%m-%d")
+def update_source(json_path, ipa_data, download_url, date, description):
+    data = json.loads(json_path.read_text(encoding="utf-8"))
+    if not data.get("apps"):
+        raise ValueError("AltStore source has no app entry")
 
-        description = latest_release["body"]
-        keypharse = "Aidoku Release Information"
-        if keypharse in description:
-            description = description.split(keypharse, 1)[1].strip()
+    metadata = read_ipa_metadata(ipa_data)
+    bundle_id = metadata.get("CFBundleIdentifier")
+    expected_bundle_id = data["apps"][0]["bundleIdentifier"]
+    if bundle_id != expected_bundle_id:
+        raise ValueError(
+            f"IPA bundle identifier {bundle_id!r} does not match {expected_bundle_id!r}"
+        )
 
-        description = remove_tags_and_characters(description)
+    version = metadata.get("CFBundleShortVersionString")
+    build = metadata.get("CFBundleVersion")
+    if not version or not build:
+        raise ValueError("IPA is missing version or build metadata")
 
-        download_url = asset_to_use["browser_download_url"]
-        size = asset_to_use["size"]
-
-        # download ipa and read version/build number from it
-        ipa_response = requests.get(download_url)
-        ipa_response.raise_for_status()
-        with open("temp.ipa", "wb") as ipa_file:
-            ipa_file.write(ipa_response.content)
-        version, build = get_ipa_version_and_build("temp.ipa")
-
-        version_entry = {
-            "version": version,
-            "date": version_date,
+    data["apps"][0]["versions"] = [
+        {
+            "version": str(version),
+            "buildVersion": str(build),
+            "date": date,
             "localizedDescription": description,
             "downloadURL": download_url,
-            "size": size,
-            "minOSVersion": minimum_ios_version,
-            "buildVersion": build
+            "size": len(ipa_data),
+            "minOSVersion": str(metadata.get("MinimumOSVersion", "15.0")),
         }
-        app["versions"].insert(0, version_entry)
+    ]
+    json_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
-# If news update is wanted
-###
-#    if "news" not in data:
-#        data["news"] = []
-#
-#    news_identifier = f"release-{full_version}"
-#    news_entry_exists = any(item["identifier"] == news_identifier for item in data["news"])
-#    if not news_entry_exists:
-#        date_string = date_obj.strftime("%Y/%m/%d")
-#        news_entry = {
-#            "appID": bundle_id,
-#            "caption": f"New version of Aidoku just got released!",
-#            "date": latest_release["published_at"],
-#            "identifier": news_identifier,
-#            "notify": True,
-#            "tintColor": "ff375f",
-#            "title": f"v{full_version}",
-#            "url": f"https://github.com/{repo}/releases/tag/{tag}"
-#        }
-#        data["news"].insert(0, news_entry)
-#
-#    if not version_entry_exists and not news_entry_exists:
-###
-
-# If news update is NOT wanted
-###
-    if not version_entry_exists:
-###
-        try:
-            with open(json_file, "w") as file:
-                json.dump(data, file, indent=2)
-            print("JSON file updated successfully.")
-        except IOError as e:
-            print(f"Error writing to JSON file: {e}")
-            raise
-    else:
-        print("No need to update JSON")
 
 def main():
-    try:
-        update_json_file(json_file_name, github_repo)
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        raise
+    parser = argparse.ArgumentParser(description="Generate the TachiyomiAZ AltStore source")
+    parser.add_argument("--json", type=Path, default=DEFAULT_JSON)
+    parser.add_argument("--tag", default="nightly")
+    parser.add_argument("--ipa", type=Path)
+    parser.add_argument("--download-url")
+    parser.add_argument("--date")
+    parser.add_argument("--description")
+    args = parser.parse_args()
+
+    if args.ipa:
+        if not args.download_url:
+            parser.error("--download-url is required with --ipa")
+        ipa_data = args.ipa.read_bytes()
+        download_url = args.download_url
+        date = parse_date(args.date)
+        description = release_description(args.description)
+    else:
+        release = fetch_release(args.tag)
+        asset = select_ipa_asset(release)
+        ipa_data = github_request(asset["browser_download_url"])
+        download_url = asset["browser_download_url"]
+        date = parse_date(release.get("published_at"))
+        description = release_description(release.get("body"))
+
+    update_source(args.json, ipa_data, download_url, date, description)
+    print(f"Updated {args.json}")
+
 
 if __name__ == "__main__":
     main()

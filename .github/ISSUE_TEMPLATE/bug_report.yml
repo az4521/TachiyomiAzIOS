@@ -30,4 +30,4 @@ body:
       label: Device and version
       description: What device, OS version, and app version are you using?
       placeholder: |
-        Example: "iPhone 16 Pro, iOS 26.1, Aidoku v0.7.2 (3)"
+        Example: "iPhone 16 Pro, iOS 26.1, TachiyomiAZ v0.8.4 (79)"

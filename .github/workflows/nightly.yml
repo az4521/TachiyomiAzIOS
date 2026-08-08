@@ -245,6 +245,7 @@ jobs:
             CODE_SIGN_IDENTITY= \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             archive
 
       - name: Verify statically linked JVM exports
@@ -345,3 +346,67 @@ jobs:
             echo
             echo "Download the artifact, extract the IPA, and install it with AltStore, SideStore, or Sideloadly. The sideloading tool signs the app with your Apple ID."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  publish-altstore-source:
+    name: Publish AltStore source
+    needs: build-ipa
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Download IPA artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: TachiyomiAZ-iOS-*
+          merge-multiple: true
+          path: dist
+
+      - name: Prepare rolling release asset
+        id: release
+        run: |
+          ipa_path="$(find dist -maxdepth 1 -type f -name '*.ipa' -print -quit)"
+          test -n "$ipa_path"
+          mv "$ipa_path" dist/TachiyomiAZ-iOS.ipa
+          (
+            cd dist
+            sha256sum TachiyomiAZ-iOS.ipa > TachiyomiAZ-iOS.ipa.sha256
+          )
+          echo "ipa_path=dist/TachiyomiAZ-iOS.ipa" >> "$GITHUB_OUTPUT"
+
+      - name: Publish rolling nightly release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: TachiyomiAZ iOS Nightly
+          body: Automated build from the latest commit on the main branch.
+          prerelease: true
+          make_latest: false
+          overwrite_files: true
+          files: |
+            dist/TachiyomiAZ-iOS.ipa
+            dist/TachiyomiAZ-iOS.ipa.sha256
+
+      - name: Generate AltStore source
+        run: |
+          python3 .github/workflows/supporting/update_altstore_json.py \
+            --ipa "${{ steps.release.outputs.ipa_path }}" \
+            --download-url "https://github.com/${{ github.repository }}/releases/download/nightly/TachiyomiAZ-iOS.ipa" \
+            --date "${{ github.event.head_commit.timestamp }}" \
+            --description "Automated build of commit ${{ github.sha }} from the main branch."
+
+      - name: Validate AltStore source
+        run: python3 -m json.tool .github/workflows/supporting/altstore/apps.json >/dev/null
+
+      - name: Deploy source to altstore branch
+        uses: JamesIves/github-pages-deploy-action@v4.7.2
+        with:
+          branch: altstore
+          folder: .github/workflows/supporting/altstore
+          git-config-name: github-actions[bot]
+          git-config-email: github-actions[bot]@users.noreply.github.com
+          commit-message: Update TachiyomiAZ AltStore source
+          single-commit: true

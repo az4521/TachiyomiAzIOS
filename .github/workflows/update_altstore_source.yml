@@ -1,40 +1,37 @@
-name: Update AltStore Source
+name: Republish AltStore Source
 
 on:
-  release:
-    types: [published]
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: GitHub release tag containing the IPA
+        required: true
+        default: nightly
+
+permissions:
+  contents: write
 
 jobs:
   update-source:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Check out repository
+        uses: actions/checkout@v5
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
+      - name: Generate source
+        run: >-
+          python3 .github/workflows/supporting/update_altstore_json.py
+          --tag "${{ inputs.release_tag }}"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests
+      - name: Validate source
+        run: python3 -m json.tool .github/workflows/supporting/altstore/apps.json >/dev/null
 
-      - name: Update AltStore source
-        id: update_source
-        run: |
-          python .github/workflows/supporting/update_altstore_json.py
-
-      - name: Deploy to GitHub Pages
+      - name: Deploy source to altstore branch
         uses: JamesIves/github-pages-deploy-action@v4.7.2
         with:
           branch: altstore
           folder: .github/workflows/supporting/altstore
-          git-config-name: GitHub Actions
+          git-config-name: github-actions[bot]
           git-config-email: github-actions[bot]@users.noreply.github.com
-          commit-message: Update AltStore Source
+          commit-message: Update TachiyomiAZ AltStore source
           single-commit: true
