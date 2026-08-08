@@ -328,6 +328,10 @@ extension DownloadManager {
         invalidateDownloadedMangaCache()
     }
 
+    func resumeAfterSystemSuspension() async {
+        await queue.resumeAfterSystemSuspension()
+    }
+
     func cancelDownload(for chapter: ChapterIdentifier) async {
         await queue.cancelDownload(for: chapter)
         // Invalidate cache since cancelled downloads may affect display

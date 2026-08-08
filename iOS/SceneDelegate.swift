@@ -71,6 +71,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func sceneWillEnterForeground(_ scene: UIScene) {
         contentHideView.removeFromSuperview()
+        Task {
+            await DownloadManager.shared.resumeAfterSystemSuspension()
+        }
     }
 
     func sceneDidBecomeActive(_ scene: UIScene) {

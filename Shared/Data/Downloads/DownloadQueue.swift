@@ -32,6 +32,7 @@ actor DownloadQueue {
     private var sendCancelNotification = true
     private var progressNotificationActive = false
     private var backgroundExecutionExpired = false
+    private var systemSuspended = false
 
 #if os(iOS)
     private var foregroundBackgroundTask: UIBackgroundTaskIdentifier = .invalid
@@ -131,6 +132,12 @@ actor DownloadQueue {
                 group.addTask { await task.pause() }
             }
         }
+#if !os(macOS) && !targetEnvironment(simulator)
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.taskIdentifier)
+#endif
+#if os(iOS)
+        await endForegroundBackgroundExecution()
+#endif
         await publishDownloadProgress(force: true)
     }
 
@@ -291,8 +298,10 @@ extension DownloadQueue {
             queue = restoredQueue
         }
         guard !queue.isEmpty else { return true }
+        guard !paused else { return true }
 
         backgroundExecutionExpired = false
+        systemSuspended = false
         setBackgroundTask(task)
         await beginProgressNotification()
         await initAndResumeTasks()
@@ -300,7 +309,7 @@ extension DownloadQueue {
         // Do not busy-spin here. The previous loop repeatedly entered this
         // actor without suspension and could consume an entire CPU core while
         // starving the download tasks it was waiting on.
-        while !queue.isEmpty && !backgroundExecutionExpired && !Task.isCancelled {
+        while !queue.isEmpty && !paused && !backgroundExecutionExpired && !Task.isCancelled {
             do {
                 try await Task.sleep(nanoseconds: 500_000_000)
             } catch {
@@ -308,7 +317,7 @@ extension DownloadQueue {
             }
         }
 
-        let success = queue.isEmpty
+        let success = queue.isEmpty || paused
         setBackgroundTask(nil)
         if !success {
             scheduleBackgroundProcessing()
@@ -318,7 +327,7 @@ extension DownloadQueue {
 
     func expireBackgroundExecution() async {
         backgroundExecutionExpired = true
-        await pause()
+        await suspendTasksForSystem()
         setBackgroundTask(nil)
         scheduleBackgroundProcessing()
         await NotificationManager.shared.finishProgress(
@@ -330,6 +339,22 @@ extension DownloadQueue {
                 comment: "Download background task expiration notification"
             )
         )
+    }
+
+    func resumeAfterSystemSuspension() async {
+        guard systemSuspended, !paused, !queue.isEmpty else { return }
+        systemSuspended = false
+        await start()
+    }
+
+    private func suspendTasksForSystem() async {
+        systemSuspended = true
+        await withTaskGroup(of: Void.self) { group in
+            for task in tasks.values {
+                group.addTask { await task.pause() }
+            }
+        }
+        saveQueueState()
     }
 
     private func beginProgressNotification() async {
@@ -453,7 +478,9 @@ extension DownloadQueue {
     }
 
     private func expireForegroundBackgroundExecution() async {
-        await pause()
+        // Do not mark the queue paused when the short foreground allowance
+        // expires. iOS may continue network execution briefly, suspend and
+        // later resume the process, or launch the pending BGProcessing task.
         scheduleBackgroundProcessing()
         await endForegroundBackgroundExecution()
     }
