@@ -36,11 +36,34 @@ public final class ImageInterceptorMaterializationTest {
             if (!source.interceptorInvoked) {
                 throw new AssertionError("The extension interceptor was bypassed");
             }
+            if (source.imageRequestInvoked) {
+                throw new AssertionError(
+                    "A manga cover was incorrectly sent through imageRequest(Page)"
+                );
+            }
             if (!Arrays.equals(EXPECTED, Files.readAllBytes(destination))) {
                 throw new AssertionError("The materialized image data changed");
             }
             if (!response.contains("\\\"contentType\\\":\\\"image/png\\\"")) {
                 throw new AssertionError("The image media type was not detected");
+            }
+
+            source.interceptorInvoked = false;
+            ExtensionHost.materializeImage(
+                source,
+                "https://fixture.invalid/generated-page",
+                "https://fixture.invalid/chapter-page",
+                destination.toString()
+            );
+            if (!source.imageRequestInvoked) {
+                throw new AssertionError(
+                    "A chapter page bypassed imageRequest(Page)"
+                );
+            }
+            if (!source.interceptorInvoked) {
+                throw new AssertionError(
+                    "The extension interceptor was bypassed for a chapter page"
+                );
             }
         } finally {
             Files.deleteIfExists(destination);
@@ -50,6 +73,7 @@ public final class ImageInterceptorMaterializationTest {
 
     private static final class FixtureSource extends HttpSource {
         private boolean interceptorInvoked;
+        private boolean imageRequestInvoked;
         private final OkHttpClient client = new OkHttpClient.Builder()
             .addInterceptor((Interceptor.Chain chain) -> {
                 interceptorInvoked = true;
@@ -100,6 +124,7 @@ public final class ImageInterceptorMaterializationTest {
         protected Request imageRequest(
             eu.kanade.tachiyomi.source.model.Page page
         ) {
+            imageRequestInvoked = true;
             return new Request.Builder().url(page.getImageUrl()).build();
         }
     }

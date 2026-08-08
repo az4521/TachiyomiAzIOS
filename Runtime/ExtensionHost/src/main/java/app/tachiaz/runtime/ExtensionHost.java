@@ -1239,13 +1239,37 @@ public final class ExtensionHost {
                 imageURL,
                 null
             );
-        Method imageRequest = findMethod(
-            source.getClass(),
-            "imageRequest",
-            pageType
-        );
-        imageRequest.setAccessible(true);
-        Object nativeRequest = imageRequest.invoke(source, page);
+        Object nativeRequest;
+        if (pageURL == null) {
+            // Manga thumbnails are regular source requests in Mihon. Calling
+            // imageRequest(Page) here is incorrect because extensions may
+            // override it for chapter-page metadata that covers do not have.
+            Object headers = getter(source, "getHeaders");
+            Class<?> headersType = Class.forName(
+                "okhttp3.Headers",
+                true,
+                loader
+            );
+            Class<?> builderType = Class.forName(
+                "okhttp3.Request$Builder",
+                true,
+                loader
+            );
+            Object builder = builderType.getConstructor().newInstance();
+            builderType.getMethod("url", String.class)
+                .invoke(builder, imageURL);
+            builderType.getMethod("headers", headersType)
+                .invoke(builder, headers);
+            nativeRequest = builderType.getMethod("build").invoke(builder);
+        } else {
+            Method imageRequest = findMethod(
+                source.getClass(),
+                "imageRequest",
+                pageType
+            );
+            imageRequest.setAccessible(true);
+            nativeRequest = imageRequest.invoke(source, page);
+        }
         Object client = getter(source, "getClient");
         Class<?> requestType = Class.forName("okhttp3.Request", true, loader);
         Object call = client.getClass()
