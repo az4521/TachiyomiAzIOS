@@ -47,12 +47,7 @@ enum AppAccentColor {
             with: UIScreen.main.traitCollection
         )
         let hex = hexString(from: resolved)
-        let changed = storedHex != hex
         persist(hex)
-        guard changed else {
-            AppTheme.shared.update(resolved)
-            return
-        }
         UserDefaults.standard.set(hex, forKey: defaultsKey)
         UserDefaults.standard.synchronize()
         apply(resolved)
@@ -71,13 +66,24 @@ enum AppAccentColor {
     }
 
     static func hexString(from color: UIColor) -> String {
-        var red: CGFloat = 0
-        var green: CGFloat = 0
-        var blue: CGFloat = 0
-        var alpha: CGFloat = 0
-        guard color.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
+        let resolved = color.resolvedColor(
+            with: UIScreen.main.traitCollection
+        )
+        guard
+            let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+            let converted = resolved.cgColor.converted(
+                to: colorSpace,
+                intent: .defaultIntent,
+                options: nil
+            ),
+            let components = converted.components,
+            components.count >= 3
+        else {
             return defaultHex
         }
+        let red = min(1, max(0, components[0]))
+        let green = min(1, max(0, components[1]))
+        let blue = min(1, max(0, components[2]))
         return String(
             format: "#%02X%02X%02X",
             Int(round(red * 255)),

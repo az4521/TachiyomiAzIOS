@@ -525,16 +525,27 @@ private struct AccentColorSettingView: View {
     @ObservedObject private var theme = AppTheme.shared
 
     var body: some View {
-        ColorPicker(title, selection: $color, supportsOpacity: false)
+        ColorPicker(
+            title,
+            selection: Binding(
+                get: { color },
+                set: { value in
+                    color = value
+                    AppAccentColor.set(UIColor(value))
+                }
+            ),
+            supportsOpacity: false
+        )
             .tint(theme.accentColor)
             .accentColor(theme.accentColor)
-            .onChange(of: color) { color in
-                AppAccentColor.set(UIColor(color))
-            }
             .onReceive(
                 NotificationCenter.default.publisher(for: .accentColorSetting)
             ) { notification in
                 guard let value = notification.object as? UIColor else { return }
+                guard
+                    AppAccentColor.hexString(from: UIColor(color))
+                        != AppAccentColor.hexString(from: value)
+                else { return }
                 color = Color(uiColor: value)
             }
     }
