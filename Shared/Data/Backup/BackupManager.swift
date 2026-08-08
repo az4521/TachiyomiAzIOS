@@ -23,7 +23,9 @@ actor BackupManager {
     static let directory = FileManager.default.documentDirectory.appendingPathComponent("Backups", isDirectory: true)
 
     static var backupUrls: [URL] {
-        Self.directory.contentsByDateModified
+        Self.directory.contentsByDateModified.filter {
+            $0.pathExtension.lowercased() == "tachibk"
+        }
     }
 
     private static let backupTaskIdentifier = (Bundle.main.bundleIdentifier ?? "") + ".backup"
@@ -53,45 +55,50 @@ actor BackupManager {
         "Token"
     ]
 
-    func save(backup: Backup, url: URL? = nil) {
+    @discardableResult
+    func save(backup: Backup, url: URL? = nil) async -> Bool {
         Self.directory.createDirectory()
-        let encoder = PropertyListEncoder()
-        encoder.outputFormat = .binary
-        if let plist = try? encoder.encode(backup) {
+        #if os(iOS)
+        do {
+            let encoded = try TachibkBackupCodec.encode(backup)
             let dateFormatter = DateFormatter()
             dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
             if let url = url {
-                try? plist.write(to: url)
+                try encoded.write(to: url, options: .atomic)
             } else {
-                let path = Self.directory.appendingPathComponent("aidoku_\(dateFormatter.string(from: backup.date)).aib")
-                try? plist.write(to: path)
+                let path = Self.directory.appendingPathComponent(
+                    "tachiyomiaz_\(dateFormatter.string(from: backup.date)).tachibk"
+                )
+                try encoded.write(to: path, options: .atomic)
             }
             NotificationCenter.default.post(name: Notification.Name("updateBackupList"), object: nil)
+            return true
+        } catch {
+            LogManager.logger.error("Unable to save .tachibk backup: \(error)")
+            return false
         }
+        #else
+        return false
+        #endif
     }
 
-    func saveNewBackup(name: String = "", options: BackupOptions) async {
-        save(backup: await createBackup(name: name, options: options))
+    @discardableResult
+    func saveNewBackup(name: String = "", options: BackupOptions) async -> Bool {
+        await save(backup: await createBackup(name: name, options: options))
     }
 
     func importBackup(from url: URL) async -> Bool {
         #if os(iOS)
-        if
-            url.pathExtension.lowercased() == "tachibk" ||
-            url.lastPathComponent.lowercased().hasSuffix(".proto.gz")
-        {
-            do {
-                let backup = try await MihonBackupImporter.load(from: url)
-                save(backup: backup)
-                return true
-            } catch {
-                LogManager.logger.error(
-                    "Unable to import Mihon backup: \(error)"
-                )
-                return false
-            }
+        guard url.pathExtension.lowercased() == "tachibk" else {
+            return false
         }
-        #endif
+
+        do {
+            _ = try await MihonBackupImporter.load(from: url)
+        } catch {
+            LogManager.logger.error("Unable to import .tachibk backup: \(error)")
+            return false
+        }
 
         Self.directory.createDirectory()
         var targetLocation = Self.directory.appendingPathComponent(url.lastPathComponent)
@@ -113,6 +120,9 @@ actor BackupManager {
         } catch {
             return false
         }
+        #else
+        return false
+        #endif
     }
 
     struct BackupOptions {
@@ -202,6 +212,11 @@ actor BackupManager {
                 sources: sources,
                 sourceLists: sourceLists,
                 settings: settings,
+                extensionRepositories: options.settings
+                    ? UserDefaults.standard.data(
+                        forKey: "extensionRepositories"
+                    )
+                    : nil,
                 date: Date.now,
                 name: name.isEmpty ? nil : name,
                 automatic: options.automatic,
@@ -247,10 +262,18 @@ actor BackupManager {
         return convertedSettings
     }
 
-    func renameBackup(url: URL, name: String?) {
-        guard var backup = Backup.load(from: url) else { return }
+    func loadBackup(from url: URL) async -> Backup? {
+        #if os(iOS)
+        return try? await MihonBackupImporter.load(from: url)
+        #else
+        return nil
+        #endif
+    }
+
+    func renameBackup(url: URL, name: String?) async {
+        guard var backup = await loadBackup(from: url) else { return }
         backup.name = name?.isEmpty ?? true ? nil : name
-        save(backup: backup, url: url)
+        await save(backup: backup, url: url)
     }
 
     func removeBackup(url: URL) {
@@ -595,6 +618,14 @@ extension BackupManager {
                     UserDefaults.standard.set(value.toRaw(), forKey: key)
                 }
             }
+            #if os(iOS)
+            if let repositories = backup.extensionRepositories {
+                UserDefaults.standard.set(
+                    repositories,
+                    forKey: "extensionRepositories"
+                )
+            }
+            #endif
 
             #if !os(iOS)
             // Restore delegated source lists only on upstream-compatible
@@ -966,7 +997,7 @@ extension BackupManager {
         let sourceLists = UserDefaults.standard.bool(forKey: "AutomaticBackups.sourceLists")
         let sensitiveSettings = UserDefaults.standard.bool(forKey: "AutomaticBackups.sensitiveSettings")
 
-        await self.saveNewBackup(
+        guard await self.saveNewBackup(
             options: .init(
                 automatic: true,
                 libraryEntries: libraryEntries,
@@ -980,20 +1011,20 @@ extension BackupManager {
                 sourceLists: sourceLists,
                 sensitiveSettings: sensitiveSettings
             )
-        )
+        ) else { return }
 
         // update last auto backup time
         UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: "AutomaticBackups.lastBackup")
 
-        cleanUpAutoBackups()
+        await cleanUpAutoBackups()
         scheduleAutoBackup() // schedule the next one
     }
 
     // ensure we keep only the latest maxAutoBackups automatic backups
-    private func cleanUpAutoBackups() {
+    private func cleanUpAutoBackups() async {
         var autoBackups: [(URL, Backup)] = []
         for backupUrl in Self.backupUrls {
-            let backup = Backup.load(from: backupUrl)
+            let backup = await loadBackup(from: backupUrl)
             if let backup, backup.automatic ?? false {
                 autoBackups.append((backupUrl, backup))
             }

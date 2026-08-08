@@ -612,12 +612,7 @@ extension AppDelegate {
                     }
                 }
             }
-        } else if
-            url.pathExtension.lowercased() == "json" ||
-            url.pathExtension.lowercased() == "aib" ||
-            url.pathExtension.lowercased() == "tachibk" ||
-            url.lastPathComponent.lowercased().hasSuffix(".proto.gz")
-        {
+        } else if url.pathExtension.lowercased() == "tachibk" {
             Task {
                 if await BackupManager.shared.importBackup(from: url) {
                     presentAlert(

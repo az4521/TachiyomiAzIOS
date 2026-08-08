@@ -21,20 +21,10 @@ struct Backup: Codable, Hashable, Identifiable, Sendable {
     var sources: [BackupSource]?
     var sourceLists: [String]?
     var settings: [String: JsonAnyValue]?
+    var extensionRepositories: Data? = nil
     var date: Date
     var name: String?
     var automatic: Bool?
     var version: String?
 
-    static func load(from url: URL) -> Backup? {
-        guard let json = try? Data(contentsOf: url) else { return nil }
-
-        if let backup = try? PropertyListDecoder().decode(Backup.self, from: json) {
-            return backup
-        } else {
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .secondsSince1970
-            return try? decoder.decode(Backup.self, from: json)
-        }
-    }
 }

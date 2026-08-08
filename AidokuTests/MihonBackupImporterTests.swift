@@ -3,6 +3,41 @@ import Foundation
 import Testing
 
 struct MihonBackupImporterTests {
+    @Test func tachibkRoundTripsNativeOnlyState() throws {
+        let date = Date(timeIntervalSince1970: 1_722_000_000)
+        let backup = Backup(
+            library: [],
+            history: [],
+            manga: [],
+            chapters: [],
+            trackItems: [],
+            readingSessions: [],
+            updates: [],
+            categories: [BackupCategory(title: "Reading", sort: 0)],
+            sources: [],
+            sourceLists: ["https://example.invalid/index.pb"],
+            settings: ["Library.showAllCategory": .bool(true)],
+            extensionRepositories: Data("repositories".utf8),
+            date: date,
+            name: "Round trip",
+            automatic: true,
+            version: "test"
+        )
+
+        let encoded = try TachibkBackupCodec.encode(backup)
+        #expect(encoded.starts(with: [0x1f, 0x8b]))
+        let decoded = try #require(
+            TachibkBackupCodec.decodeNativeBackup(from: encoded)
+        )
+        #expect(decoded.name == backup.name)
+        #expect(decoded.date == backup.date)
+        #expect(decoded.categories == backup.categories)
+        #expect(decoded.sourceLists == backup.sourceLists)
+        #expect(decoded.settings == backup.settings)
+        #expect(decoded.extensionRepositories == backup.extensionRepositories)
+        #expect(decoded.automatic == true)
+    }
+
     @Test func mapsMihonAndTachiyomiAZViewerModes() {
         #expect(MihonBackupImporter.aidokuViewer(mihonFlags: 1) == 1)
         #expect(MihonBackupImporter.aidokuViewer(mihonFlags: 2) == 2)

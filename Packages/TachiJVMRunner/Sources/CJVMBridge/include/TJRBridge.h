@@ -55,6 +55,13 @@ TJRStatus tjr_gzip_decompress(
     size_t *output_size
 );
 
+TJRStatus tjr_gzip_compress(
+    const unsigned char *input,
+    size_t input_size,
+    unsigned char **output,
+    size_t *output_size
+);
+
 void tjr_buffer_free(unsigned char *value);
 
 #ifdef __cplusplus

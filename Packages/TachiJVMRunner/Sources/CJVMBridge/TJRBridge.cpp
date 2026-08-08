@@ -954,7 +954,7 @@ TJRStatus tjr_gzip_decompress(
 
     std::vector<unsigned char> decompressed;
     unsigned char chunk[64 * 1024];
-    constexpr size_t max_decompressed_size = 64 * 1024 * 1024;
+    constexpr size_t max_decompressed_size = 256 * 1024 * 1024;
     int result = Z_OK;
     while (result == Z_OK) {
         stream.next_out = chunk;
@@ -978,9 +978,9 @@ TJRStatus tjr_gzip_decompress(
     }
 
     auto *buffer = static_cast<unsigned char *>(
-        std::malloc(decompressed.size())
+        std::malloc(decompressed.empty() ? 1 : decompressed.size())
     );
-    if (buffer == nullptr && !decompressed.empty()) {
+    if (buffer == nullptr) {
         return TJRStatusAllocationFailed;
     }
     if (!decompressed.empty()) {
@@ -988,6 +988,69 @@ TJRStatus tjr_gzip_decompress(
     }
     *output = buffer;
     *output_size = decompressed.size();
+    return TJRStatusOK;
+}
+
+TJRStatus tjr_gzip_compress(
+    const unsigned char *input,
+    size_t input_size,
+    unsigned char **output,
+    size_t *output_size
+) {
+    if (
+        (input == nullptr && input_size != 0) ||
+        output == nullptr ||
+        output_size == nullptr
+    ) {
+        return TJRStatusInvalidArgument;
+    }
+
+    *output = nullptr;
+    *output_size = 0;
+
+    z_stream stream = {};
+    stream.next_in = const_cast<Bytef *>(input);
+    stream.avail_in = static_cast<uInt>(input_size);
+    if (
+        deflateInit2(
+            &stream,
+            Z_DEFAULT_COMPRESSION,
+            Z_DEFLATED,
+            MAX_WBITS + 16,
+            8,
+            Z_DEFAULT_STRATEGY
+        ) != Z_OK
+    ) {
+        return TJRStatusCompressionFailed;
+    }
+
+    std::vector<unsigned char> compressed;
+    unsigned char chunk[64 * 1024];
+    int result = Z_OK;
+    while (result == Z_OK) {
+        stream.next_out = chunk;
+        stream.avail_out = sizeof(chunk);
+        result = deflate(&stream, Z_FINISH);
+        const size_t produced = sizeof(chunk) - stream.avail_out;
+        compressed.insert(compressed.end(), chunk, chunk + produced);
+    }
+    deflateEnd(&stream);
+
+    if (result != Z_STREAM_END) {
+        return TJRStatusCompressionFailed;
+    }
+
+    auto *buffer = static_cast<unsigned char *>(
+        std::malloc(compressed.empty() ? 1 : compressed.size())
+    );
+    if (buffer == nullptr) {
+        return TJRStatusAllocationFailed;
+    }
+    if (!compressed.empty()) {
+        std::memcpy(buffer, compressed.data(), compressed.size());
+    }
+    *output = buffer;
+    *output_size = compressed.size();
     return TJRStatusOK;
 }
 

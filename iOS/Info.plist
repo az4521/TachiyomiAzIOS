@@ -12,17 +12,7 @@
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
-			<string>Aidoku Backup</string>
-			<key>LSHandlerRank</key>
-			<string>Owner</string>
-			<key>LSItemContentTypes</key>
-			<array>
-				<string>app.tachiyomiaz.TachiyomiAZ.aib</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>Mihon Backup</string>
+			<string>Tachiyomi Backup</string>
 			<key>LSHandlerRank</key>
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
@@ -113,29 +103,10 @@
 		<dict>
 			<key>UTTypeConformsTo</key>
 			<array>
-				<string>com.apple.property-list</string>
-			</array>
-			<key>UTTypeDescription</key>
-			<string>Aidoku Backup</string>
-			<key>UTTypeIconFiles</key>
-			<array/>
-			<key>UTTypeIdentifier</key>
-			<string>app.tachiyomiaz.TachiyomiAZ.aib</string>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>aib</string>
-				</array>
-			</dict>
-		</dict>
-		<dict>
-			<key>UTTypeConformsTo</key>
-			<array>
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Mihon Backup</string>
+			<string>Tachiyomi Backup</string>
 			<key>UTTypeIconFiles</key>
 			<array/>
 			<key>UTTypeIdentifier</key>

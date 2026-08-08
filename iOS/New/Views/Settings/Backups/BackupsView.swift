@@ -63,10 +63,7 @@ struct BackupsView: View {
         .sheet(isPresented: $showImportSheet) {
             DocumentPickerView(
                 allowedContentTypes: [
-                    .init(filenameExtension: "aib")!,
-                    .init(filenameExtension: "tachibk")!,
-                    .gzip,
-                    .json
+                    .init(filenameExtension: "tachibk")!
                 ],
                 onDocumentsPicked: { urls in
                     guard let url = urls.first else {
@@ -286,15 +283,15 @@ struct BackupsView: View {
 
 extension BackupsView {
     func loadBackupInfo() {
-        Task.detached { [backupUrls] in
+        Task { [backupUrls] in
             for backupUrl in backupUrls {
-                let backup = Backup.load(from: backupUrl)
-                await MainActor.run {
-                    if let backup {
-                        self.backups[backupUrl] = backup
-                    } else {
-                        self.invalidBackups.insert(backupUrl)
-                    }
+                let backup = await BackupManager.shared.loadBackup(
+                    from: backupUrl
+                )
+                if let backup {
+                    self.backups[backupUrl] = backup
+                } else {
+                    self.invalidBackups.insert(backupUrl)
                 }
             }
         }

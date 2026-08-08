@@ -71,6 +71,16 @@ enum MihonBackupImporter {
     }
 
     static func load(from url: URL) async throws -> Backup {
+        let secured = url.startAccessingSecurityScopedResource()
+        defer {
+            if secured { url.stopAccessingSecurityScopedResource() }
+        }
+        let fileData = try Data(contentsOf: url)
+        if let native = try TachibkBackupCodec.decodeNativeBackup(
+            from: fileData
+        ) {
+            return native
+        }
         let data = try await JVMSourceRuntime.shared.decodeMihonBackup(at: url)
         let payload = try JSONDecoder().decode(Payload.self, from: data)
         return convert(payload)
