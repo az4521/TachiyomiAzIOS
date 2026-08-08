@@ -10,7 +10,7 @@ import Foundation
 actor BangumiApi {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
-    private let userAgent = "Aidoku/Aidoku (https://github.com/Aidoku/Aidoku)"
+    private let userAgent = "TachiyomiAZ/iOS (https://github.com/az4521/TachiyomiAZiOS)"
 
     nonisolated let oauth = OAuthClient(
         id: "bangumi",
