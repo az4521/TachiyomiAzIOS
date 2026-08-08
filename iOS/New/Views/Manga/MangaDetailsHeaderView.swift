@@ -386,7 +386,13 @@ struct MangaDetailsHeaderView: View {
                 HStack(spacing: 10) {
                     ForEach(manga.tags ?? [], id: \.self) { tag in
                         let label = TagView(text: tag)
-                        if let source, let filter = source.matchingGenreFilter(for: tag) {
+                        if bookmarked {
+                            Button {
+                                NotificationCenter.default.post(name: .searchLibrary, object: tag)
+                            } label: {
+                                label
+                            }
+                        } else if let source, let filter = source.matchingGenreFilter(for: tag) {
                             Button {
                                 let viewController = MangaListViewController(source: source, title: tag)
                                 viewController.getEntries = { page in

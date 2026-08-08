@@ -155,7 +155,8 @@ class Manga: Codable, Hashable {
             sourceId: sourceId,
             coverUrl: coverUrl,
             title: title,
-            author: author
+            author: author,
+            tags: tags
         )
     }
 

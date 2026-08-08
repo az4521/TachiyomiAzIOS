@@ -264,6 +264,7 @@ extension LibraryViewModel {
                     coverUrl: mangaObject.cover.flatMap { URL(string: $0) },
                     title: mangaObject.title,
                     author: mangaObject.author,
+                    tags: mangaObject.tags,
                     url: mangaObject.url.flatMap { URL(string: $0) }
                 )
 
@@ -720,9 +721,9 @@ extension LibraryViewModel {
             return
         }
 
-        let query = query.lowercased()
-        pinnedManga = storedPinnedManga.filter { $0.title?.lowercased().contains(query) ?? false }
-        manga = storedManga.filter { $0.title?.lowercased().fuzzyMatch(query) ?? false || $0.author?.lowercased().fuzzyMatch(query) ?? false }
+        let search = LibrarySearchQuery(query)
+        pinnedManga = storedPinnedManga.filter(search.matches)
+        manga = storedManga.filter(search.matches)
     }
 
     // returns true if library was reloaded
@@ -797,5 +798,87 @@ extension LibraryViewModel {
             mangaId: manga.mangaId,
             categories: [currentCategory]
         )
+    }
+}
+
+struct LibrarySearchQuery {
+    struct Term: Equatable {
+        let value: String
+        let isExcluded: Bool
+    }
+
+    let terms: [Term]
+
+    init(_ query: String) {
+        terms = Self.parse(query)
+    }
+
+    func matches(_ manga: MangaInfo) -> Bool {
+        let fields = [manga.title, manga.author].compactMap { $0?.searchNormalized }
+        let tags = (manga.tags ?? []).map(\.searchNormalized)
+
+        for term in terms {
+            let normalizedTerm = term.value.searchNormalized
+            guard !normalizedTerm.isEmpty else { continue }
+
+            if term.isExcluded {
+                if tags.contains(where: { $0.contains(normalizedTerm) }) {
+                    return false
+                }
+            } else if !fields.contains(where: { $0.fuzzyMatch(normalizedTerm) ?? false })
+                        && !tags.contains(where: { $0.contains(normalizedTerm) }) {
+                return false
+            }
+        }
+        return true
+    }
+
+    static func parse(_ query: String) -> [Term] {
+        var terms: [Term] = []
+        var index = query.startIndex
+
+        while index < query.endIndex {
+            while index < query.endIndex, query[index].isWhitespace {
+                index = query.index(after: index)
+            }
+            guard index < query.endIndex else { break }
+
+            var isExcluded = false
+            if query[index] == "-" {
+                let nextIndex = query.index(after: index)
+                if nextIndex < query.endIndex, !query[nextIndex].isWhitespace {
+                    isExcluded = true
+                    index = nextIndex
+                }
+            }
+
+            var value = ""
+            if index < query.endIndex, query[index] == "\"" {
+                index = query.index(after: index)
+                while index < query.endIndex, query[index] != "\"" {
+                    value.append(query[index])
+                    index = query.index(after: index)
+                }
+                if index < query.endIndex {
+                    index = query.index(after: index)
+                }
+            } else {
+                while index < query.endIndex, !query[index].isWhitespace {
+                    value.append(query[index])
+                    index = query.index(after: index)
+                }
+            }
+
+            if !value.isEmpty {
+                terms.append(Term(value: value, isExcluded: isExcluded))
+            }
+        }
+        return terms
+    }
+}
+
+private extension String {
+    var searchNormalized: String {
+        folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current).lowercased()
     }
 }

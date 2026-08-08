@@ -339,6 +339,11 @@ class LibraryViewController: OldMangaCollectionViewController {
                 }
             }
         }
+        addObserver(forName: .searchLibrary) { [weak self] notification in
+            guard let self, let query = notification.object as? String else { return }
+            navigationController?.popToViewController(self, animated: true)
+            showLibrarySearch(query: query)
+        }
         addObserver(forName: .updateMangaCategories) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
@@ -865,6 +870,17 @@ extension LibraryViewController {
             }
         } else if !shouldShowLockIcon, let index {
             navigationItem.rightBarButtonItems?.remove(at: index)
+        }
+    }
+
+    private func showLibrarySearch(query: String) {
+        guard let searchController = navigationItem.searchController else { return }
+        lastSearch = nil
+        searchController.searchBar.text = query
+        searchController.isActive = true
+        updateSearchResults(for: searchController)
+        DispatchQueue.main.async {
+            searchController.searchBar.becomeFirstResponder()
         }
     }
 
