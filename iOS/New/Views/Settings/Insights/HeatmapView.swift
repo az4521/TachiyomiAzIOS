@@ -26,7 +26,7 @@ struct HeatmapView: View {
         self.weekCount = (data.values.count + 6) / 7 // round result up instead of truncating
 
         // do "quantile bucketing" to determine heatmap colors
-        let themeColor = themeColor ?? .accentColor
+        let themeColor = themeColor ?? .appAccent
         let noColor = Color(uiColor: .init(dynamicProvider: { traitCollection in
             if traitCollection.userInterfaceStyle == .dark {
                 .tertiarySystemGroupedBackground

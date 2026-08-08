@@ -578,7 +578,7 @@ private struct LayoutSettingView: View {
                             Image(layout.imageName)
                                 .resizable()
                                 .renderingMode(.template)
-                                .foregroundStyle(Color(uiColor: selected ? .tintColor : .systemGray))
+                                .foregroundStyle(Color(uiColor: selected ? AppAccentColor.uiColor : .systemGray))
                                 .aspectRatio(contentMode: .fit)
                                 .frame(height: 82)
 
@@ -587,7 +587,7 @@ private struct LayoutSettingView: View {
 
                             Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                                 .imageScale(.large)
-                                .foregroundStyle(Color(uiColor: selected ? .tintColor : .secondarySystemFill))
+                                .foregroundStyle(Color(uiColor: selected ? AppAccentColor.uiColor : .secondarySystemFill))
                                 .transaction { t in
                                     t.animation = nil // disable fade when switching on/off custom
                                 }

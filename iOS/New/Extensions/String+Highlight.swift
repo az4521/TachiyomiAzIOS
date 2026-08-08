@@ -15,7 +15,7 @@ extension String {
         attributedString.backgroundColor = .clear
         for range in ranges {
             if let attributedRange = range.attributedRange(for: attributedString) {
-                attributedString[attributedRange].backgroundColor = .accentColor.opacity(0.2)
+                attributedString[attributedRange].backgroundColor = .appAccent.opacity(0.2)
             }
         }
 

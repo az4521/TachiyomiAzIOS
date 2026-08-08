@@ -117,14 +117,14 @@ private struct TapZoneCard<Content: View>: View {
 
                 Text(title)
                     .fontWeight(selected ? .medium : .regular)
-                    .foregroundStyle(selected ? Color.accentColor : Color.primary)
+                    .foregroundStyle(selected ? Color.appAccent : Color.primary)
                     .multilineTextAlignment(.center)
             }
             .padding(20)
 
             Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                 .imageScale(.large)
-                .foregroundStyle(Color(uiColor: selected ? .tintColor : .secondarySystemFill))
+                .foregroundStyle(Color(uiColor: selected ? AppAccentColor.uiColor : .secondarySystemFill))
                 .padding(8)
         }
         .background {
@@ -132,7 +132,7 @@ private struct TapZoneCard<Content: View>: View {
                 RoundedRectangle(cornerRadius: Self.outerCornerRadius)
                     .fill(
                         selected
-                            ? .accentColor.opacity(colorScheme == .dark ? 0.1 : 0.05)
+                            ? .appAccent.opacity(colorScheme == .dark ? 0.1 : 0.05)
                             : Color(uiColor: .quaternarySystemFill)
                     )
                 if selected {
@@ -140,7 +140,7 @@ private struct TapZoneCard<Content: View>: View {
                         .fill(Color(uiColor: .quaternarySystemFill).opacity(0.3))
                 }
                 RoundedRectangle(cornerRadius: Self.outerCornerRadius)
-                    .strokeBorder(selected ? .accentColor : Color(uiColor: .secondarySystemFill))
+                    .strokeBorder(selected ? .appAccent : Color(uiColor: .secondarySystemFill))
             }
         }
     }

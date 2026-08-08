@@ -263,7 +263,7 @@ struct MultiSelectFilterGroupView: View {
                                 .normal
                             }
                             RoundedRectangle(cornerRadius: 5)
-                                .fill(state == .normal ? Color(uiColor: .secondarySystemFill) : Color.accentColor)
+                                .fill(state == .normal ? Color(uiColor: .secondarySystemFill) : Color.appAccent)
                                 .aspectRatio(1, contentMode: .fill)
                                 .frame(width: 24)
                             if state != .normal {
@@ -316,7 +316,7 @@ private struct GenreButtonStyle: ButtonStyle {
             case .normal:
                 Color(uiColor: .secondarySystemBackground)
             case .enabled:
-                Color.accentColor
+                Color.appAccent
             case .included:
                 Color.green
             case .excluded:

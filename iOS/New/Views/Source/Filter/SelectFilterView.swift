@@ -191,7 +191,7 @@ struct SelectFilterGroupView: View {
                         ZStack {
                             let selected = selectedOption == option.value
                             RoundedRectangle(cornerRadius: 5)
-                                .fill(selected ? Color.accentColor : Color(uiColor: .secondarySystemFill))
+                                .fill(selected ? Color.appAccent : Color(uiColor: .secondarySystemFill))
                                 .aspectRatio(1, contentMode: .fill)
                                 .frame(width: 24)
                             if selected {
@@ -220,7 +220,7 @@ private struct SelectButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         let foregroundColor = selected ? Color.white : Color.primary
-        let backgroundColor = selected ? Color.accentColor : Color(uiColor: .secondarySystemBackground)
+        let backgroundColor = selected ? Color.appAccent : Color(uiColor: .secondarySystemBackground)
         return // HStack(spacing: 5) {
             configuration.label
                 .font(.callout)

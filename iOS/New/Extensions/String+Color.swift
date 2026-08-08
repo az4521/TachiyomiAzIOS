@@ -27,8 +27,15 @@ enum AppAccentColor {
 
     @MainActor
     static func set(_ color: UIColor) {
-        UserDefaults.standard.set(hexString(from: color), forKey: "Appearance.accentColor")
-        apply(color)
+        let resolved = color.resolvedColor(
+            with: UIScreen.main.traitCollection
+        )
+        UserDefaults.standard.set(
+            hexString(from: resolved),
+            forKey: "Appearance.accentColor"
+        )
+        UserDefaults.standard.synchronize()
+        apply(resolved)
     }
 
     @MainActor
@@ -76,6 +83,14 @@ enum AppAccentColor {
             }
         }
         NotificationCenter.default.post(name: .accentColorSetting, object: color)
+    }
+}
+
+extension Color {
+    /// The user-selected accent. `Color.accentColor` resolves the asset-catalog
+    /// default in explicit drawing code and therefore ignores runtime changes.
+    static var appAccent: Color {
+        Color(uiColor: AppAccentColor.uiColor)
     }
 }
 

@@ -37,7 +37,7 @@ struct ReaderChapterListView: View {
                             Spacer()
                             if chapter == self.chapter {
                                 Image(systemName: "checkmark")
-                                    .foregroundColor(.accentColor)
+                                    .foregroundColor(.appAccent)
                             }
                         }
                         .padding(.vertical, 2)

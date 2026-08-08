@@ -113,7 +113,7 @@ struct DownloadQueueView: View {
                                 } label: {
                                     Label(NSLocalizedString("CANCEL"), systemImage: "xmark")
                                 }
-                                .tint(.accentColor)
+                                .tint(Color.appAccent)
                             }
                         }
                     } header: {

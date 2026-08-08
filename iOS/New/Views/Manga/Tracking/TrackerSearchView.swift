@@ -119,7 +119,7 @@ struct TrackerSearchView: View {
                 hidesNavigationBarDuringPresentation: false,
                 hidesSearchBarWhenScrolling: false,
                 bookmarkIcon: UIImage(systemName: "slider.horizontal.3")?
-                    .withTintColor(.tintColor, renderingMode: .alwaysOriginal), // doesn't work ios 26
+                    .withTintColor(AppAccentColor.uiColor, renderingMode: .alwaysOriginal), // doesn't work ios 26
                 onSubmit: {
                     if query.isEmpty {
                         results = []
@@ -213,7 +213,7 @@ private struct TrackerSearchItemCell: View {
             if selected {
                 Image(systemName: "checkmark")
                     .font(.body.weight(.semibold))
-                    .foregroundColor(.accentColor)
+                    .foregroundColor(.appAccent)
             }
         }
     }

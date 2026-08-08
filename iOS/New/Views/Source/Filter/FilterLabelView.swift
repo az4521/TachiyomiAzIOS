@@ -33,7 +33,7 @@ struct FilterLabelView: View {
 
             Text(name)
                 .opacity(highlighted ? 1 : 0.6)
-                .foregroundColor(highlighted && colorScheme == .light ? .accentColor : .primary)
+                .foregroundColor(highlighted && colorScheme == .light ? .appAccent : .primary)
 
             Group {
                 if let icon {
@@ -44,7 +44,7 @@ struct FilterLabelView: View {
             }
             .foregroundColor(
                 highlighted
-                    ? (colorScheme == .light ? .accentColor : .primary)
+                    ? (colorScheme == .light ? .appAccent : .primary)
                     : .init(uiColor: .tertiaryLabel)
             )
         }
@@ -56,7 +56,7 @@ struct FilterLabelView: View {
         if #available(iOS 26.0, *) {
             label
                 .glassEffect(
-                    highlighted ? .regular.tint(.accentColor.opacity(highlighted && colorScheme == .light ? 0.1 : 1)) : .regular,
+                    highlighted ? .regular.tint(.appAccent.opacity(highlighted && colorScheme == .light ? 0.1 : 1)) : .regular,
                     in: .capsule
                 )
         } else {
@@ -64,7 +64,7 @@ struct FilterLabelView: View {
                 .background(
                     RoundedRectangle(cornerRadius: 100) // enough to make it fully rounded
                         .foregroundColor(
-                            highlighted ? .accentColor : .init(uiColor: .secondarySystemFill)
+                            highlighted ? .appAccent : .init(uiColor: .secondarySystemFill)
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 100)

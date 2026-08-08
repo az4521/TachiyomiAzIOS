@@ -15,8 +15,8 @@ struct BetterBorderedButtonStyle: ButtonStyle {
         let backgroundOpacity = configuration.isPressed ? (colorScheme == .dark ? 1.4 : 0.65) : 1
         let labelOpacity = configuration.isPressed && colorScheme == .light ? 0.75 : 1
         let foregroundColor = configuration.isPressed && colorScheme == .dark
-            ? Color(uiColor: .accent).mix(with: .white, by: 0.1)
-            : Color.accentColor
+            ? Color.appAccent.mix(with: .white, by: 0.1)
+            : Color.appAccent
 
         HStack {
             configuration.label

@@ -128,7 +128,7 @@ struct CheckFilterGroupView: View {
             HStack {
                 ZStack {
                     RoundedRectangle(cornerRadius: 5)
-                        .fill(state == 0 ? Color(uiColor: .secondarySystemFill) : Color.accentColor)
+                        .fill(state == 0 ? Color(uiColor: .secondarySystemFill) : Color.appAccent)
                         .aspectRatio(1, contentMode: .fill)
                         .frame(width: 24)
                     if state == 1 || state == 2 {

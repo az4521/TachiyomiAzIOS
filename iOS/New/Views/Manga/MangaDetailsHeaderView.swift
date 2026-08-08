@@ -198,7 +198,7 @@ struct MangaDetailsHeaderView: View {
             .font(.system(size: 14, weight: .medium))
             .padding(11)
             .foregroundStyle(.white)
-            .background(Color.accentColor)
+            .background(Color.appAccent)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .padding(.bottom, 20)
             .padding(.horizontal, 20)
@@ -536,11 +536,11 @@ private struct MangaActionButtonStyle: ButtonStyle {
 //            }
 //        }
         configuration.label
-            .foregroundStyle(selected ? Color.white : Color.accentColor)
+            .foregroundStyle(selected ? Color.white : Color.appAccent)
             .opacity(configuration.isPressed ? 0.4 : 1)
             .font(.system(size: 16, weight: .semibold))
             .frame(width: 40, height: 32)
-            .background(selected ? Color.accentColor : Color(UIColor.secondarySystemFill))
+            .background(selected ? Color.appAccent : Color(UIColor.secondarySystemFill))
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }

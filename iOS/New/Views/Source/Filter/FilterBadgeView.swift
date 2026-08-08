@@ -19,10 +19,10 @@ struct FilterBadgeView: View {
             .padding(.horizontal, 5)
             .frame(minWidth: Self.size)
             .frame(height: Self.size)
-            .foregroundColor(colorScheme == .light ? .white : .accentColor)
+            .foregroundColor(colorScheme == .light ? .white : .appAccent)
             .background {
                 RoundedRectangle(cornerRadius: Self.size / 2)
-                    .foregroundColor(colorScheme == .light ? .accentColor : .white)
+                    .foregroundColor(colorScheme == .light ? .appAccent : .white)
             }
     }
 }

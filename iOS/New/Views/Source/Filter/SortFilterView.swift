@@ -192,7 +192,7 @@ struct SortButtonStyle: ButtonStyle {
             case .normal:
                 Color(uiColor: .secondarySystemBackground)
             case .descending, .ascending:
-                Color.accentColor
+                Color.appAccent
         }
         return HStack(spacing: 5) {
             configuration.label
