@@ -239,6 +239,9 @@ class LibraryViewController: OldMangaCollectionViewController {
             collectionView.collectionViewLayout = self.makeCollectionViewLayout()
             updateEmptyStack()
             updateLockState()
+            collectionView.layoutIfNeeded()
+            updateHeaderCategories()
+            updateHeaderLockIcons()
         }
     }
 
