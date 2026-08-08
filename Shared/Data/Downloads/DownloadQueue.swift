@@ -267,6 +267,10 @@ actor DownloadQueue {
         !queue.isEmpty
     }
 
+    func isPaused() -> Bool {
+        paused && !queue.isEmpty
+    }
+
     func isRunning() async -> Bool {
         for task in tasks where await task.value.running {
             return true

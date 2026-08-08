@@ -34,7 +34,7 @@ struct DownloadQueueView: View {
 
     private var content: some View {
         List {
-                if isPaused {
+                if isPaused && !queue.isEmpty {
                     Section {
                         let padding: CGFloat = if #available(iOS 26.0, *) {
                             // ios 26 uses larger list cells
