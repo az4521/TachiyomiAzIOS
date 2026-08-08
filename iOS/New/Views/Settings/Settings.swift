@@ -146,6 +146,11 @@ extension Settings {
                 key: "General.useSystemAppearance",
                 title: NSLocalizedString("USE_SYSTEM_APPEARANCE"),
                 value: .toggle(.init())
+            ),
+            .init(
+                key: "Appearance.accentColor",
+                title: NSLocalizedString("ACCENT_COLOR"),
+                value: .custom
             )
         ]))),
         .init(

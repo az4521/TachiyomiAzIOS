@@ -110,6 +110,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 "General.appearance": 0,
                 "General.useSystemAppearance": true,
                 "Appearance.layout": "standard",
+                "Appearance.accentColor": AppAccentColor.defaultHex,
                 "Appearance.customPortraitRows": UIDevice.current.userInterfaceIdiom == .pad ? 5 : 2,
                 "Appearance.customLandscapeRows": UIDevice.current.userInterfaceIdiom == .pad ? 6 : 4,
 

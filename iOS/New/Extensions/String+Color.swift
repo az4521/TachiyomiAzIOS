@@ -6,6 +6,77 @@
 //
 
 import SwiftUI
+import UIKit
+
+enum AppAccentColor {
+    static let defaultHex = "#54759E"
+
+    static var storedHex: String {
+        let value = UserDefaults.standard.string(forKey: "Appearance.accentColor") ?? defaultHex
+        return uiColor(from: value) == nil ? defaultHex : value.uppercased()
+    }
+
+    static var uiColor: UIColor {
+        uiColor(from: storedHex) ?? UIColor(
+            red: 84 / 255,
+            green: 117 / 255,
+            blue: 158 / 255,
+            alpha: 1
+        )
+    }
+
+    @MainActor
+    static func set(_ color: UIColor) {
+        UserDefaults.standard.set(hexString(from: color), forKey: "Appearance.accentColor")
+        apply(color)
+    }
+
+    @MainActor
+    static func applyStoredColor() {
+        apply(uiColor)
+    }
+
+    static func hexString(from color: UIColor) -> String {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        guard color.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
+            return defaultHex
+        }
+        return String(
+            format: "#%02X%02X%02X",
+            Int(round(red * 255)),
+            Int(round(green * 255)),
+            Int(round(blue * 255))
+        )
+    }
+
+    private static func uiColor(from value: String) -> UIColor? {
+        var hex = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if hex.hasPrefix("#") {
+            hex.removeFirst()
+        }
+        guard hex.count == 6, let rgb = Int(hex, radix: 16) else { return nil }
+        return UIColor(
+            red: CGFloat((rgb >> 16) & 0xFF) / 255,
+            green: CGFloat((rgb >> 8) & 0xFF) / 255,
+            blue: CGFloat(rgb & 0xFF) / 255,
+            alpha: 1
+        )
+    }
+
+    @MainActor
+    private static func apply(_ color: UIColor) {
+        UIView.appearance().tintColor = color
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene else { continue }
+            for window in windowScene.windows {
+                window.tintColor = color
+            }
+        }
+    }
+}
 
 extension String {
     func toColor() -> Color {

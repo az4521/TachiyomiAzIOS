@@ -19,14 +19,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         if let windowScene = scene as? UIWindowScene {
+            let accentColor = AppAccentColor.uiColor
+            UIView.appearance().tintColor = accentColor
             let window = UIWindow(windowScene: windowScene)
             window.rootViewController = TabBarController()
-            window.tintColor = UIColor(
-                red: 103 / 255,
-                green: 58 / 255,
-                blue: 183 / 255,
-                alpha: 1
-            )
+            window.tintColor = accentColor
 
             if UserDefaults.standard.bool(forKey: "General.useSystemAppearance") {
                 window.overrideUserInterfaceStyle = .unspecified

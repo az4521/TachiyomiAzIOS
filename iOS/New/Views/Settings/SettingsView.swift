@@ -306,7 +306,9 @@ extension SettingsView {
 
     @ViewBuilder
     func customContentHandler(_ setting: Setting) -> some View {
-        if setting.key == "Appearance.layout" {
+        if setting.key == "Appearance.accentColor" {
+            AccentColorSettingView(title: setting.title)
+        } else if setting.key == "Appearance.layout" {
             LayoutSettingView()
         } else if setting.key == "Library.defaultCategory" {
             let newSetting = {
@@ -381,6 +383,7 @@ extension SettingsView {
         if let bundleID = Bundle.main.bundleIdentifier {
             UserDefaults.standard.removePersistentDomain(forName: bundleID)
         }
+        AppAccentColor.applyStoredColor()
     }
 }
 
@@ -513,6 +516,18 @@ private extension Setting {
             default:
                 return checkCurrent()
         }
+    }
+}
+
+private struct AccentColorSettingView: View {
+    let title: String
+    @State private var color = Color(uiColor: AppAccentColor.uiColor)
+
+    var body: some View {
+        ColorPicker(title, selection: $color, supportsOpacity: false)
+            .onChange(of: color) { color in
+                AppAccentColor.set(UIColor(color))
+            }
     }
 }
 
