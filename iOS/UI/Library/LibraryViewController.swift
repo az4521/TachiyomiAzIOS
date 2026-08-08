@@ -10,6 +10,8 @@ import LocalAuthentication
 import SwiftUI
 import AidokuRunner
 
+private final class LibraryCategorySwipeGestureRecognizer: UISwipeGestureRecognizer {}
+
 class LibraryViewController: OldMangaCollectionViewController {
     let viewModel = LibraryViewModel()
 
@@ -49,7 +51,6 @@ class LibraryViewController: OldMangaCollectionViewController {
     private lazy var lockedStackView = LockedPageStackView()
 
     private lazy var locked = viewModel.isCategoryLocked()
-    private var ignoreOptionChange = false
     private var lastSearch: String?
 
     private let libraryUndoManager = UndoManager()
@@ -153,35 +154,33 @@ class LibraryViewController: OldMangaCollectionViewController {
         collectionView.allowsMultipleSelection = !ProcessInfo.processInfo.isMacCatalystApp
         collectionView.allowsSelectionDuringEditing = true
 
+        let previousCategoryGesture = LibraryCategorySwipeGestureRecognizer(
+            target: self,
+            action: #selector(swipeBetweenCategories(_:))
+        )
+        previousCategoryGesture.direction = .right
+        previousCategoryGesture.cancelsTouchesInView = false
+        previousCategoryGesture.delegate = self
+        collectionView.addGestureRecognizer(previousCategoryGesture)
+
+        let nextCategoryGesture = LibraryCategorySwipeGestureRecognizer(
+            target: self,
+            action: #selector(swipeBetweenCategories(_:))
+        )
+        nextCategoryGesture.direction = .left
+        nextCategoryGesture.cancelsTouchesInView = false
+        nextCategoryGesture.delegate = self
+        collectionView.addGestureRecognizer(nextCategoryGesture)
+
         // header view
         let registration = UICollectionView.SupplementaryRegistration<LibraryCategorySelectionHeader>(
             elementKind: UICollectionView.elementKindSectionHeader
         ) { [weak self] header, _, _ in
-            guard let self, header.options.isEmpty else { return }
+            guard let self else { return }
 
             header.delegate = self
-            var options: [LibraryCategorySelectionHeader.Section] = []
-            if UserDefaults.standard.bool(forKey: "Library.showUncategorizedCategory") {
-                options.append(.init(options: [NSLocalizedString("ALL"), NSLocalizedString("UNCATEGORIZED")]))
-            } else {
-                options.append(.init(options: [NSLocalizedString("ALL")]))
-            }
-            if !viewModel.categories.isEmpty {
-                options.append(.init(title: NSLocalizedString("CATEGORIES"), options: viewModel.categories))
-            }
-            if !viewModel.filterGroups.isEmpty {
-                options.append(.init(title: NSLocalizedString("FILTER_GROUPS"), options: viewModel.filterGroups.map { $0.title }))
-            }
-            header.options = options
-            if let currentCategory = viewModel.currentCategory {
-                if let index = viewModel.categories.firstIndex(of: currentCategory) {
-                    header.setSelectedOption(IndexPath(row: index, section: 1))
-                } else if let index = viewModel.filterGroups.firstIndex(where: { $0.title == currentCategory }) {
-                    header.setSelectedOption(IndexPath(row: index, section: viewModel.categories.isEmpty ? 1 : 2))
-                } else if currentCategory.isEmpty {
-                    header.setSelectedOption(.init(row: 1, section: 0))
-                }
-            }
+            header.options = makeCategoryHeaderOptions()
+            header.setSelectedOption(selectedCategoryIndexPath())
 
             // load locked icons
             if UserDefaults.standard.bool(forKey: "Library.lockLibrary") {
@@ -445,17 +444,17 @@ class LibraryViewController: OldMangaCollectionViewController {
 
         let config = UICollectionViewCompositionalLayoutConfiguration()
         config.interSectionSpacing = layout.configuration.interSectionSpacing
-        if !viewModel.categories.isEmpty || !viewModel.filterGroups.isEmpty {
-            let globalHeader = NSCollectionLayoutBoundarySupplementaryItem(
-                layoutSize: NSCollectionLayoutSize(
-                    widthDimension: .fractionalWidth(1),
-                    heightDimension: .absolute(40)
-                ),
-                elementKind: UICollectionView.elementKindSectionHeader,
-                alignment: .top
-            )
-            config.boundarySupplementaryItems = [globalHeader]
-        }
+        let globalHeader = NSCollectionLayoutBoundarySupplementaryItem(
+            layoutSize: NSCollectionLayoutSize(
+                widthDimension: .fractionalWidth(1),
+                heightDimension: .absolute(48)
+            ),
+            elementKind: UICollectionView.elementKindSectionHeader,
+            alignment: .top
+        )
+        globalHeader.pinToVisibleBounds = true
+        globalHeader.zIndex = 2
+        config.boundarySupplementaryItems = [globalHeader]
         layout.configuration = config
 
         return layout
@@ -849,6 +848,67 @@ extension LibraryViewController {
         }
     }
 
+    private func makeCategoryHeaderOptions() -> [LibraryCategorySelectionHeader.Section] {
+        var options: [LibraryCategorySelectionHeader.Section] = []
+        if UserDefaults.standard.bool(forKey: "Library.showUncategorizedCategory") {
+            options.append(.init(options: [NSLocalizedString("ALL"), NSLocalizedString("UNCATEGORIZED")]))
+        } else {
+            options.append(.init(options: [NSLocalizedString("ALL")]))
+        }
+        if !viewModel.categories.isEmpty {
+            options.append(.init(title: NSLocalizedString("CATEGORIES"), options: viewModel.categories))
+        }
+        if !viewModel.filterGroups.isEmpty {
+            options.append(.init(title: NSLocalizedString("FILTER_GROUPS"), options: viewModel.filterGroups.map(\.title)))
+        }
+        return options
+    }
+
+    private func categoryIndexPaths() -> [IndexPath] {
+        makeCategoryHeaderOptions().enumerated().flatMap { sectionIndex, section in
+            section.options.indices.map { IndexPath(row: $0, section: sectionIndex) }
+        }
+    }
+
+    private func selectedCategoryIndexPath() -> IndexPath {
+        guard let currentCategory = viewModel.currentCategory else {
+            return IndexPath(row: 0, section: 0)
+        }
+        if currentCategory.isEmpty,
+           UserDefaults.standard.bool(forKey: "Library.showUncategorizedCategory") {
+            return IndexPath(row: 1, section: 0)
+        }
+        if let index = viewModel.categories.firstIndex(of: currentCategory) {
+            return IndexPath(row: index, section: 1)
+        }
+        if let index = viewModel.filterGroups.firstIndex(where: { $0.title == currentCategory }) {
+            return IndexPath(row: index, section: viewModel.categories.isEmpty ? 1 : 2)
+        }
+        return IndexPath(row: 0, section: 0)
+    }
+
+    @objc private func swipeBetweenCategories(_ gestureRecognizer: UISwipeGestureRecognizer) {
+        guard !isEditing else { return }
+        let indexPaths = categoryIndexPaths()
+        guard
+            indexPaths.count > 1,
+            let currentIndex = indexPaths.firstIndex(of: selectedCategoryIndexPath())
+        else { return }
+
+        let offset = gestureRecognizer.direction == .left ? 1 : -1
+        let destinationIndex = currentIndex + offset
+        guard indexPaths.indices.contains(destinationIndex) else { return }
+
+        let destination = indexPaths[destinationIndex]
+        let header = collectionView.supplementaryView(
+            forElementKind: UICollectionView.elementKindSectionHeader,
+            at: IndexPath(index: 0)
+        ) as? LibraryCategorySelectionHeader
+        header?.setSelectedOption(destination, animated: true)
+        optionSelected(destination)
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+
     func updateHeaderLockIcons() {
         guard let header = (collectionView.supplementaryView(
             forElementKind: UICollectionView.elementKindSectionHeader, at: IndexPath(index: 0)
@@ -878,31 +938,8 @@ extension LibraryViewController {
         ) as? LibraryCategorySelectionHeader) else {
             return
         }
-        ignoreOptionChange = true
-        var options: [LibraryCategorySelectionHeader.Section] = []
-        if UserDefaults.standard.bool(forKey: "Library.showUncategorizedCategory") {
-            options.append(.init(options: [NSLocalizedString("ALL"), NSLocalizedString("UNCATEGORIZED")]))
-        } else {
-            options.append(.init(options: [NSLocalizedString("ALL")]))
-        }
-        if !viewModel.categories.isEmpty {
-            options.append(.init(title: NSLocalizedString("CATEGORIES"), options: viewModel.categories))
-        }
-        if !viewModel.filterGroups.isEmpty {
-            options.append(.init(title: NSLocalizedString("FILTER_GROUPS"), options: viewModel.filterGroups.map { $0.title }))
-        }
-        header.options = options
-        if let currentCategory = viewModel.currentCategory {
-            if let index = viewModel.categories.firstIndex(of: currentCategory) {
-                header.setSelectedOption(IndexPath(row: index, section: 1))
-            } else if let index = viewModel.filterGroups.firstIndex(where: { $0.title == currentCategory }) {
-                header.setSelectedOption(IndexPath(row: index, section: viewModel.categories.isEmpty ? 1 : 2))
-            } else if currentCategory.isEmpty {
-                header.setSelectedOption(.init(row: 1, section: 0))
-            }
-        } else {
-            header.setSelectedOption(.init(row: 0, section: 0))
-        }
+        header.options = makeCategoryHeaderOptions()
+        header.setSelectedOption(selectedCategoryIndexPath())
     }
 }
 
@@ -1219,10 +1256,6 @@ extension LibraryViewController {
 extension LibraryViewController: LibraryCategorySelectionHeaderDelegate {
     nonisolated func optionSelected(_ indexPath: IndexPath) {
         Task { @MainActor in
-            guard !ignoreOptionChange else {
-                ignoreOptionChange = false
-                return
-            }
             if indexPath.section == 0 {
                 if indexPath.row == 0 {
                     viewModel.currentCategory = nil
@@ -1244,6 +1277,39 @@ extension LibraryViewController: LibraryCategorySelectionHeaderDelegate {
             updateEmptyStack()
             updateDataSource()
         }
+    }
+}
+
+// MARK: - Category Swipe Gestures
+extension LibraryViewController: UIGestureRecognizerDelegate {
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        guard let swipeGesture = gestureRecognizer as? LibraryCategorySwipeGestureRecognizer else {
+            return true
+        }
+        guard !isEditing else { return false }
+
+        var touchedView: UIView? = touch.view
+        while let currentView = touchedView {
+            if currentView is LibraryCategorySelectionHeader {
+                // Horizontal movement on the tab strip itself scrolls the tabs.
+                return false
+            }
+            touchedView = currentView.superview
+        }
+
+        // Preserve the navigation drawer's left-edge gesture.
+        if swipeGesture.direction == .right, touch.location(in: view).x <= max(view.safeAreaInsets.left, 24) {
+            return false
+        }
+        return true
+    }
+
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        gestureRecognizer is LibraryCategorySwipeGestureRecognizer
+            || otherGestureRecognizer is LibraryCategorySwipeGestureRecognizer
     }
 }
 
