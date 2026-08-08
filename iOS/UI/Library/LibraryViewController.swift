@@ -14,6 +14,8 @@ private final class LibraryCategorySwipeGestureRecognizer: UISwipeGestureRecogni
 
 class LibraryViewController: OldMangaCollectionViewController {
     let viewModel = LibraryViewModel()
+    private let filterDrawerTransitioningDelegate = FilterDrawerTransitioningDelegate()
+    private weak var presentedFilterDrawer: UIViewController?
 
     // MARK: Bar Buttons
     private lazy var downloadBarButton = makeBarButton(
@@ -117,6 +119,20 @@ class LibraryViewController: OldMangaCollectionViewController {
             ? NSLocalizedString("LIBRARY_SEARCH")
             : NSLocalizedString("CATEGORY_SEARCH")
         navigationItem.searchController = searchController
+
+        let filterEdgePan = UIScreenEdgePanGestureRecognizer(
+            target: self,
+            action: #selector(handleFilterEdgePan(_:))
+        )
+        filterEdgePan.edges = .right
+        view.addGestureRecognizer(filterEdgePan)
+
+        let activeSearchFilterEdgePan = UIScreenEdgePanGestureRecognizer(
+            target: self,
+            action: #selector(handleFilterEdgePan(_:))
+        )
+        activeSearchFilterEdgePan.edges = .right
+        searchController.view.addGestureRecognizer(activeSearchFilterEdgePan)
 
         // navbar buttons
         updateMoreMenu()
@@ -965,37 +981,58 @@ extension LibraryViewController {
         }
     }
 
-    func toggleFilter(method: LibraryFilter.FilterMethod, value: String? = nil) {
-        Task {
-            await viewModel.toggleFilter(method: method, value: value)
-            updateDataSource()
-            if #available(iOS 26.0, *) {
-                updateFilterMenuState()
-            } else {
-                updateMoreMenu()
-            }
+    @objc private func handleFilterEdgePan(_ gestureRecognizer: UIScreenEdgePanGestureRecognizer) {
+        if gestureRecognizer.state == .recognized {
+            presentFilterDrawer()
         }
     }
 
-    func filterState(for method: LibraryFilter.FilterMethod, value: String? = nil) -> UIMenuElement.State {
-        if let filter = viewModel.filters.first(where: { $0.type == method && $0.value == value }) {
-            filter.exclude ? .mixed : .on
+    @objc private func presentFilterDrawer() {
+        guard presentedFilterDrawer == nil else { return }
+
+        var sourceKeys = viewModel.sourceKeys
+        var categories = viewModel.categories
+        for filter in viewModel.filters {
+            guard let value = filter.value else { continue }
+            switch filter.type {
+                case .source where !sourceKeys.contains(value):
+                    sourceKeys.append(value)
+                case .category where !categories.contains(value):
+                    categories.append(value)
+                default:
+                    break
+            }
+        }
+
+        let view = LibraryFilterDrawerView(
+            filters: viewModel.filters,
+            sourceKeys: sourceKeys,
+            categories: categories
+        ) { [weak self] filters in
+            self?.applyLibraryFilters(filters)
+        }
+        let controller = UIHostingController(rootView: view)
+        controller.modalPresentationStyle = .custom
+        controller.transitioningDelegate = filterDrawerTransitioningDelegate
+
+        let presenter: UIViewController
+        if let searchController = navigationItem.searchController, searchController.isActive {
+            presenter = searchController
         } else {
-            .off
+            presenter = self
         }
+        guard presenter.presentedViewController == nil else { return }
+        presentedFilterDrawer = controller
+        presenter.present(controller, animated: true)
     }
 
-    func removeFilterAction() -> UIAction {
-        UIAction(
-            title: NSLocalizedString("REMOVE_FILTER"),
-            image: UIImage(systemName: "minus.circle")
-        ) { [weak self] _ in
-            Task {
-                self?.viewModel.filters = []
-                await self?.viewModel.loadLibrary()
-                self?.updateDataSource()
-                self?.updateMoreMenu()
-            }
+    private func applyLibraryFilters(_ filters: [LibraryFilter]) {
+        guard filters != viewModel.filters else { return }
+        viewModel.filters = filters
+        Task {
+            await viewModel.loadLibrary()
+            updateDataSource()
+            updateMoreMenu()
         }
     }
 
@@ -1022,93 +1059,6 @@ extension LibraryViewController {
             }
         }
         return options.joined(separator: NSLocalizedString("FILTER_SEPARATOR"))
-    }
-
-    @available(iOS 26.0, *)
-    func updateFilterMenuState() {
-        // _contextMenuInteraction only exists on ios 26+
-        // a similar thing could probably be achieved on lower versions by putting a UIButton in the bar button custom view
-        let contextMenuInteraction = moreBarButton.value(forKey: "_contextMenuInteraction") as? UIContextMenuInteraction
-        guard let contextMenuInteraction else { return }
-
-        func updateFilterSubmenu(_ menu: UIMenu) -> UIMenu {
-            menu.subtitle = self.filtersSubtitle()
-            return menu.replacingChildren(menu.children.map { element in
-                guard let action = element as? UIAction else { return element }
-                if let method = LibraryFilter.FilterMethod.allCases.first(where: { $0.title == action.title }) {
-                    action.state = filterState(for: method)
-                }
-                return action
-            })
-        }
-
-        contextMenuInteraction.updateVisibleMenu { menu in
-            if menu.title == NSLocalizedString("BUTTON_FILTER") {
-                updateFilterSubmenu(menu)
-            } else if menu.title == LibraryFilter.FilterMethod.source.title {
-                menu.replacingChildren(self.viewModel.sourceKeys.map { key in
-                    UIAction(
-                        title: SourceManager.shared.source(for: key)?.name ?? key,
-                        attributes: .keepsMenuPresented,
-                        state: self.filterState(for: .source, value: key)
-                    ) { [weak self] _ in
-                        self?.toggleFilter(method: .source, value: key)
-                    }
-                })
-            } else if menu.title == LibraryFilter.FilterMethod.contentRating.title {
-                menu.replacingChildren(MangaContentRating.allCases.map { rating in
-                    UIAction(
-                        title: rating.title,
-                        attributes: .keepsMenuPresented,
-                        state: self.filterState(for: .contentRating, value: rating.stringValue)
-                    ) { [weak self] _ in
-                        self?.toggleFilter(method: .contentRating, value: rating.stringValue)
-                    }
-                })
-            } else if menu.title == LibraryFilter.FilterMethod.category.title {
-                menu.replacingChildren(self.viewModel.categories.map { category in
-                    UIAction(
-                        title: category,
-                        attributes: .keepsMenuPresented,
-                        state: self.filterState(for: .category, value: category)
-                    ) { [weak self] _ in
-                        self?.toggleFilter(method: .category, value: category)
-                    }
-                })
-            } else {
-                menu.replacingChildren(menu.children.map { element in
-                    guard let menu = element as? UIMenu else { return element }
-                    if menu.children.first?.title == NSLocalizedString("SORT_BY") {
-                        let shouldShowRemoveFilter = !self.viewModel.filters.isEmpty
-                        let isShowingRemoveFilter = menu.children.last?.title == NSLocalizedString("REMOVE_FILTER")
-
-                        let updatedChildren = menu.children.map { element in
-                            if element.title == NSLocalizedString("BUTTON_FILTER"), let menu = element as? UIMenu {
-                                updateFilterSubmenu(menu) as UIMenuElement
-                            } else {
-                                element
-                            }
-                        }
-
-                        if shouldShowRemoveFilter && !isShowingRemoveFilter {
-                            return menu.replacingChildren(updatedChildren + [removeFilterAction()])
-                        } else if !shouldShowRemoveFilter && isShowingRemoveFilter {
-                            return menu.replacingChildren(updatedChildren.dropLast())
-                        }
-                    }
-                    return element
-                })
-            }
-        }
-
-        if !viewModel.filters.isEmpty {
-            moreBarButton.isSelected = true
-            moreBarButton.image = UIImage(systemName: "line.3.horizontal.decrease")?
-                .withTintColor(.white, renderingMode: .alwaysOriginal)
-        } else {
-            moreBarButton.isSelected = false
-            moreBarButton.image = UIImage(systemName: "ellipsis")
-        }
     }
 
     func updateMoreMenu() {
@@ -1170,76 +1120,15 @@ extension LibraryViewController {
             ]
         )
 
-        let filterMenu = UIDeferredMenuElement.uncached { [weak self] completion in
-            guard let self else {
-                completion([])
-                return
-            }
-            let attributes: UIMenuElement.Attributes = if #available(iOS 16.0, *) {
-                .keepsMenuPresented
-            } else {
-                []
-            }
-            let filters = UIMenu(
-                title: NSLocalizedString("BUTTON_FILTER"),
-                subtitle: self.filtersSubtitle(),
-                image: UIImage(systemName: "line.3.horizontal.decrease"),
-                children: LibraryFilter.FilterMethod.allCases.compactMap { method in
-                    guard method.isAvailable else { return nil }
-                    return UIAction(
-                        title: method.title,
-                        image: method.image,
-                        attributes: attributes,
-                        state: self.filterState(for: method)
-                    ) { [weak self] _ in
-                        self?.toggleFilter(method: method)
-                    }
-                } + [
-                    UIMenu(
-                        title: LibraryFilter.FilterMethod.contentRating.title,
-                        image: LibraryFilter.FilterMethod.contentRating.image,
-                        children: MangaContentRating.allCases.map { rating in
-                            UIAction(
-                                title: rating.title,
-                                attributes: attributes,
-                                state: self.filterState(for: .contentRating, value: rating.stringValue)
-                            ) { [weak self] _ in
-                                self?.toggleFilter(method: .contentRating, value: rating.stringValue)
-                            }
-                        }
-                    ),
-                    UIMenu(
-                        title: LibraryFilter.FilterMethod.source.title,
-                        image: LibraryFilter.FilterMethod.source.image,
-                        children: self.viewModel.sourceKeys.map { key in
-                            UIAction(
-                                title: SourceManager.shared.source(for: key)?.name ?? key,
-                                attributes: attributes,
-                                state: self.filterState(for: .source, value: key)
-                            ) { [weak self] _ in
-                                self?.toggleFilter(method: .source, value: key)
-                            }
-                        }
-                    ),
-                    UIMenu(
-                        title: LibraryFilter.FilterMethod.category.title,
-                        image: LibraryFilter.FilterMethod.category.image,
-                        children: self.viewModel.categories.map { category in
-                            UIAction(
-                                title: category,
-                                attributes: attributes,
-                                state: self.filterState(for: .category, value: category)
-                            ) { [weak self] _ in
-                                self?.toggleFilter(method: .category, value: category)
-                            }
-                        }
-                    )
-                ]
-            )
-            if self.viewModel.filters.isEmpty {
-                completion([filters])
-            } else {
-                completion([filters, self.removeFilterAction()])
+        let filterAction = UIAction(
+            title: NSLocalizedString("BUTTON_FILTER"),
+            subtitle: filtersSubtitle(),
+            image: UIImage(systemName: "line.3.horizontal.decrease")
+        ) { [weak self] _ in
+            Task { @MainActor in
+                // Let the menu finish dismissing before presenting the drawer.
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                self?.presentFilterDrawer()
             }
         }
 
@@ -1247,7 +1136,7 @@ extension LibraryViewController {
             children: [
                 UIMenu(options: .displayInline, children: [selectAction]),
                 UIMenu(options: .displayInline, children: layoutActions),
-                UIMenu(options: .displayInline, children: [sortMenu, filterMenu])
+                UIMenu(options: .displayInline, children: [sortMenu, filterAction])
             ]
         )
 
@@ -1312,6 +1201,11 @@ extension LibraryViewController: UIGestureRecognizerDelegate {
 
         // Preserve the navigation drawer's left-edge gesture.
         if swipeGesture.direction == .right, touch.location(in: view).x <= max(view.safeAreaInsets.left, 24) {
+            return false
+        }
+        // Preserve the filter drawer's right-edge gesture.
+        if swipeGesture.direction == .left,
+           touch.location(in: view).x >= view.bounds.width - max(view.safeAreaInsets.right, 24) {
             return false
         }
         return true

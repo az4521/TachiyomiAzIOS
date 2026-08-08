@@ -5,6 +5,7 @@
 //  Created by Skitty on 2/25/26.
 //
 
+import SwiftUI
 import UIKit
 
 protocol LibraryCategorySelectionHeaderDelegate: AnyObject {
@@ -212,5 +213,186 @@ class LibraryCategorySelectionHeader: UICollectionReusableView {
         if notifyDelegate, changed {
             delegate?.optionSelected(indexPath)
         }
+    }
+}
+
+struct LibraryFilterDrawerView: View {
+    private let originalFilters: [LibraryFilter]
+    private let sourceKeys: [String]
+    private let categories: [String]
+    private let onApply: ([LibraryFilter]) -> Void
+
+    @State private var filters: [LibraryFilter]
+    @State private var showDiscardConfirmation = false
+    @Environment(\.dismiss) private var dismiss
+
+    init(
+        filters: [LibraryFilter],
+        sourceKeys: [String],
+        categories: [String],
+        onApply: @escaping ([LibraryFilter]) -> Void
+    ) {
+        self.originalFilters = filters
+        self.sourceKeys = sourceKeys
+        self.categories = categories
+        self.onApply = onApply
+        self._filters = State(initialValue: filters)
+    }
+
+    var body: some View {
+        PlatformNavigationStack {
+            List {
+                Section(NSLocalizedString("FILTERS")) {
+                    ForEach(LibraryFilter.FilterMethod.allCases, id: \.self) { method in
+                        if method.isAvailable {
+                            filterRow(title: method.title, image: method.systemImageName, method: method)
+                        }
+                    }
+                }
+
+                Section {
+                    DisclosureGroup {
+                        ForEach(MangaContentRating.allCases, id: \.self) { rating in
+                            filterRow(
+                                title: rating.title,
+                                method: .contentRating,
+                                value: rating.stringValue
+                            )
+                        }
+                    } label: {
+                        filterGroupLabel(for: .contentRating)
+                    }
+
+                    if !sourceKeys.isEmpty {
+                        DisclosureGroup {
+                            ForEach(sourceKeys, id: \.self) { key in
+                                filterRow(
+                                    title: SourceManager.shared.source(for: key)?.name ?? key,
+                                    method: .source,
+                                    value: key
+                                )
+                            }
+                        } label: {
+                            filterGroupLabel(for: .source)
+                        }
+                    }
+
+                    if !categories.isEmpty {
+                        DisclosureGroup {
+                            ForEach(categories, id: \.self) { category in
+                                filterRow(title: category, method: .category, value: category)
+                            }
+                        } label: {
+                            filterGroupLabel(for: .category)
+                        }
+                    }
+                }
+
+                Section {
+                    Button(NSLocalizedString("CLEAR_FILTERS")) {
+                        filters = []
+                    }
+                    .disabled(filters.isEmpty)
+                }
+            }
+            .navigationTitle(NSLocalizedString("FILTERS"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(NSLocalizedString("CANCEL")) {
+                        if filters == originalFilters {
+                            dismiss()
+                        } else {
+                            showDiscardConfirmation = true
+                        }
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(NSLocalizedString("APPLY")) {
+                        onApply(filters)
+                        dismiss()
+                    }
+                    .font(.body.weight(.medium))
+                }
+            }
+            .confirmationDialogOrAlert(
+                NSLocalizedString("CANCEL_CONFIRM"),
+                isPresented: $showDiscardConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button(NSLocalizedString("DISCARD_CHANGES"), role: .destructive) {
+                    dismiss()
+                }
+            } message: {
+                Text(NSLocalizedString("CANCEL_CONFIRM_TEXT"))
+            }
+        }
+    }
+
+    private func filterGroupLabel(for method: LibraryFilter.FilterMethod) -> some View {
+        Label(method.title, systemImage: method.systemImageName)
+            .foregroundStyle(.primary)
+    }
+
+    private func filterRow(
+        title: String,
+        image: String? = nil,
+        method: LibraryFilter.FilterMethod,
+        value: String? = nil
+    ) -> some View {
+        Button {
+            toggleFilter(method: method, value: value)
+        } label: {
+            HStack(spacing: 12) {
+                if let image {
+                    Image(systemName: image)
+                        .frame(minWidth: 24)
+                        .foregroundStyle(.tint)
+                }
+                Text(title)
+                Spacer()
+                switch filterState(for: method, value: value) {
+                    case .included:
+                        Image(systemName: "checkmark")
+                            .foregroundStyle(.tint)
+                    case .excluded:
+                        Image(systemName: "xmark")
+                            .foregroundStyle(.tint)
+                    case .none:
+                        EmptyView()
+                }
+            }
+        }
+        .foregroundStyle(.primary)
+    }
+
+    private func toggleFilter(method: LibraryFilter.FilterMethod, value: String? = nil) {
+        let index = filters.firstIndex { $0.type == method && $0.value == value }
+        if let index {
+            if filters[index].exclude {
+                filters.remove(at: index)
+            } else {
+                filters[index].exclude = true
+            }
+        } else {
+            filters.append(.init(type: method, value: value, exclude: false))
+        }
+    }
+
+    private func filterState(
+        for method: LibraryFilter.FilterMethod,
+        value: String? = nil
+    ) -> FilterState {
+        if let filter = filters.first(where: { $0.type == method && $0.value == value }) {
+            filter.exclude ? .excluded : .included
+        } else {
+            .none
+        }
+    }
+
+    private enum FilterState {
+        case none
+        case included
+        case excluded
     }
 }
