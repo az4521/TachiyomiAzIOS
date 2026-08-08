@@ -138,8 +138,11 @@ class TabBarController: UITabBarController {
         let updatesViewController = makeMangaUpdatesViewController()
 
         let historyPath = NavigationCoordinator(rootViewController: nil)
-        let historyHostingController = UIHostingController(rootView: HistoryView()
-            .environmentObject(historyPath))
+        let historyHostingController = UIHostingController(
+            rootView: HistoryView()
+                .environmentObject(historyPath)
+                .appTheme()
+        )
         historyPath.rootViewController = historyHostingController
         let historyViewController = NavigationController(rootViewController: historyHostingController)
 
@@ -147,6 +150,7 @@ class TabBarController: UITabBarController {
         let extensionsHostingController = UIHostingController(
             rootView: ExtensionManagementView()
                 .environmentObject(extensionsPath)
+                .appTheme()
         )
         extensionsPath.rootViewController = extensionsHostingController
         let extensionsViewController = NavigationController(
@@ -155,6 +159,7 @@ class TabBarController: UITabBarController {
 
         let downloadQueueHostingController = UIHostingController(
             rootView: DownloadQueueView(embeddedInNavigationController: true)
+                .appTheme()
         )
         let downloadQueueViewController = NavigationController(
             rootViewController: downloadQueueHostingController
@@ -162,7 +167,9 @@ class TabBarController: UITabBarController {
 
         let settingsPath = NavigationCoordinator(rootViewController: nil)
         let settingsHostingController = UIHostingController(
-            rootView: SettingsView().environmentObject(settingsPath)
+            rootView: SettingsView()
+                .environmentObject(settingsPath)
+                .appTheme()
         )
         let settingsViewController = NavigationController(
             rootViewController: settingsHostingController
@@ -217,6 +224,8 @@ class TabBarController: UITabBarController {
         NotificationCenter.default.publisher(for: .accentColorSetting)
             .sink { [weak self] notification in
                 let color = notification.object as? UIColor ?? AppAccentColor.uiColor
+                self?.view.tintColor = color
+                self?.drawerView.tintColor = color
                 self?.drawerHeaderView?.backgroundColor = color
                 self?.updateDrawerSelection()
             }
@@ -385,7 +394,9 @@ class TabBarController: UITabBarController {
     private func makeMangaUpdatesViewController() -> NavigationController {
         let path = NavigationCoordinator(rootViewController: nil)
         let hostingController = UIHostingController(
-            rootView: MangaUpdatesView().environmentObject(path)
+            rootView: MangaUpdatesView()
+                .environmentObject(path)
+                .appTheme()
         )
         path.rootViewController = hostingController
 

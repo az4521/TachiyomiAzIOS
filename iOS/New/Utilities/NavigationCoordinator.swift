@@ -24,7 +24,9 @@ class NavigationCoordinator: ObservableObject {
     }
 
     func push<V: View>(_ view: V, animated: Bool = true, title: String? = nil) {
-        let vc = UIHostingController(rootView: view.environmentObject(self))
+        let vc = UIHostingController(
+            rootView: view.environmentObject(self).appTheme()
+        )
         vc.title = title
         navigationController?.pushViewController(vc, animated: animated)
     }

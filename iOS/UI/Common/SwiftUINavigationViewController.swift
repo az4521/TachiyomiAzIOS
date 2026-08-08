@@ -11,7 +11,11 @@ class SwiftUINavigationViewController<Content: View>: UINavigationController {
     let path = NavigationCoordinator(rootViewController: nil)
 
     init(rootView: Content, addDismissButton: Bool = true) {
-        let view = ModelWrapper(rootView: rootView, path: path, addDismissButton: addDismissButton)
+        let view = ModelWrapper(
+            rootView: rootView,
+            path: path,
+            addDismissButton: addDismissButton
+        ).appTheme()
         super.init(rootViewController: UIHostingController(rootView: view))
         path.rootViewController = self
     }

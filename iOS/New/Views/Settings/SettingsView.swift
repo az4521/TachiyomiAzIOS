@@ -383,7 +383,7 @@ extension SettingsView {
         if let bundleID = Bundle.main.bundleIdentifier {
             UserDefaults.standard.removePersistentDomain(forName: bundleID)
         }
-        AppAccentColor.applyStoredColor()
+        AppAccentColor.reset()
     }
 }
 
@@ -522,11 +522,20 @@ private extension Setting {
 private struct AccentColorSettingView: View {
     let title: String
     @State private var color = Color(uiColor: AppAccentColor.uiColor)
+    @ObservedObject private var theme = AppTheme.shared
 
     var body: some View {
         ColorPicker(title, selection: $color, supportsOpacity: false)
+            .tint(theme.accentColor)
+            .accentColor(theme.accentColor)
             .onChange(of: color) { color in
                 AppAccentColor.set(UIColor(color))
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(for: .accentColorSetting)
+            ) { notification in
+                guard let value = notification.object as? UIColor else { return }
+                color = Color(uiColor: value)
             }
     }
 }

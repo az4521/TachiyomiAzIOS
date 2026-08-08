@@ -10,10 +10,26 @@ import UIKit
 
 enum AppAccentColor {
     static let defaultHex = "#54759E"
+    private static let defaultsKey = "Appearance.accentColor"
+    private static let fileName = "accent-color.txt"
 
     static var storedHex: String {
-        let value = UserDefaults.standard.string(forKey: "Appearance.accentColor") ?? defaultHex
-        return uiColor(from: value) == nil ? defaultHex : value.uppercased()
+        let explicitValue = Bundle.main.bundleIdentifier.flatMap {
+            UserDefaults.standard.persistentDomain(forName: $0)?[defaultsKey]
+                as? String
+        }
+        if let explicitValue, uiColor(from: explicitValue) != nil {
+            return explicitValue.uppercased()
+        }
+        if
+            let data = try? Data(contentsOf: persistenceURL),
+            let value = String(data: data, encoding: .utf8),
+            uiColor(from: value) != nil
+        {
+            UserDefaults.standard.set(value, forKey: defaultsKey)
+            return value.uppercased()
+        }
+        return defaultHex
     }
 
     static var uiColor: UIColor {
@@ -30,10 +46,14 @@ enum AppAccentColor {
         let resolved = color.resolvedColor(
             with: UIScreen.main.traitCollection
         )
-        UserDefaults.standard.set(
-            hexString(from: resolved),
-            forKey: "Appearance.accentColor"
-        )
+        let hex = hexString(from: resolved)
+        let changed = storedHex != hex
+        persist(hex)
+        guard changed else {
+            AppTheme.shared.update(resolved)
+            return
+        }
+        UserDefaults.standard.set(hex, forKey: defaultsKey)
         UserDefaults.standard.synchronize()
         apply(resolved)
     }
@@ -41,6 +61,13 @@ enum AppAccentColor {
     @MainActor
     static func applyStoredColor() {
         apply(uiColor)
+    }
+
+    @MainActor
+    static func reset() {
+        UserDefaults.standard.removeObject(forKey: defaultsKey)
+        try? FileManager.default.removeItem(at: persistenceURL)
+        apply(uiColor(from: defaultHex) ?? uiColor)
     }
 
     static func hexString(from color: UIColor) -> String {
@@ -73,6 +100,20 @@ enum AppAccentColor {
         )
     }
 
+    private static var persistenceURL: URL {
+        FileManager.default.applicationSupportDirectory
+            .appendingPathComponent(fileName, isDirectory: false)
+    }
+
+    private static func persist(_ value: String) {
+        let directory = persistenceURL.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        try? Data(value.utf8).write(to: persistenceURL, options: .atomic)
+    }
+
     @MainActor
     private static func apply(_ color: UIColor) {
         UIView.appearance().tintColor = color
@@ -83,6 +124,22 @@ enum AppAccentColor {
             }
         }
         NotificationCenter.default.post(name: .accentColorSetting, object: color)
+        AppTheme.shared.update(color)
+    }
+}
+
+@MainActor
+final class AppTheme: ObservableObject {
+    static let shared = AppTheme()
+
+    @Published private(set) var accentColor: Color
+
+    private init() {
+        accentColor = Color(uiColor: AppAccentColor.uiColor)
+    }
+
+    fileprivate func update(_ color: UIColor) {
+        accentColor = Color(uiColor: color)
     }
 }
 
@@ -91,6 +148,22 @@ extension Color {
     /// default in explicit drawing code and therefore ignores runtime changes.
     static var appAccent: Color {
         Color(uiColor: AppAccentColor.uiColor)
+    }
+}
+
+private struct AppThemeModifier: ViewModifier {
+    @ObservedObject private var theme = AppTheme.shared
+
+    func body(content: Content) -> some View {
+        content
+            .tint(theme.accentColor)
+            .accentColor(theme.accentColor)
+    }
+}
+
+extension View {
+    func appTheme() -> some View {
+        modifier(AppThemeModifier())
     }
 }
 
