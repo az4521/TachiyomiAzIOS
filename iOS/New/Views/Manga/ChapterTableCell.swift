@@ -36,6 +36,7 @@ struct ChapterTableCell: View {
             if let thumbnail = chapter.thumbnail {
                 MangaCoverView(
                     source: source,
+                    sourceKey: sourceKey,
                     coverImage: thumbnail,
                     width: 40,
                     height: 40

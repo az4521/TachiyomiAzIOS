@@ -286,6 +286,7 @@ private struct HistoryEntryCell: View, @MainActor Equatable {
         } label: {
             HStack(spacing: 12) {
                 MangaCoverView(
+                    sourceKey: manga?.sourceKey,
                     coverImage: manga?.cover ?? "",
                     width: Self.coverImageWidth,
                     height: Self.coverImageWidth * 3/2,

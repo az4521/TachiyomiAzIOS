@@ -12,6 +12,7 @@ import NukeUI
 
 struct MangaCoverView: View {
     var source: AidokuRunner.Source?
+    var sourceKey: String?
 
     let coverImage: String
     var width: CGFloat?
@@ -24,6 +25,7 @@ struct MangaCoverView: View {
     var body: some View {
         SourceImageView(
             source: source,
+            sourceKey: sourceKey,
             imageUrl: coverImage,
             width: width,
             height: height,

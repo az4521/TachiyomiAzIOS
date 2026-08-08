@@ -32,6 +32,7 @@ struct MangaUpdateItemView: View {
         HStack(alignment: count == 1 ? .center : .top) {
             MangaCoverView(
                 source: manga.flatMap { SourceManager.shared.source(for: $0.sourceKey) },
+                sourceKey: manga?.sourceKey,
                 coverImage: manga?.cover ?? "",
                 width: coverWidth,
                 height: coverHeight

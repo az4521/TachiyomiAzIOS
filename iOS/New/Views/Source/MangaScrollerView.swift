@@ -36,6 +36,7 @@ struct MangaScrollerView: View {
                     let label = VStack(alignment: .leading) {
                         MangaCoverView(
                             source: source,
+                            sourceKey: manga.sourceKey,
                             coverImage: manga.cover ?? "",
                             width: Self.coverHeight * 2/3,
                             height: Self.coverHeight,

@@ -123,6 +123,7 @@ extension MigrateSelectSeriesView {
             HStack(spacing: 12) {
                 MangaCoverView(
                     source: source,
+                    sourceKey: item.sourceKey,
                     coverImage: item.cover ?? "",
                     width: coverWidth,
                     height: coverHeight

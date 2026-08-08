@@ -127,6 +127,7 @@ private struct DownloadedMangaRow: View {
             // Manga cover or placeholder matching history page style
             MangaCoverView(
                 source: SourceManager.shared.source(for: manga.sourceId),
+                sourceKey: manga.sourceId,
                 coverImage: manga.coverUrl ?? "",
                 width: 56,
                 height: 56 * 3/2

@@ -233,6 +233,7 @@ extension MigrateResultsView {
                         path.push(MangaViewController(manga: fromManga, parent: path.rootViewController))
                     } label: {
                         MangaGridItem(
+                            sourceKey: fromManga.sourceKey,
                             title: fromManga.title,
                             coverImage: fromManga.cover ?? ""
                         )
@@ -253,6 +254,7 @@ extension MigrateResultsView {
                             path.push(MangaViewController(manga: toManga, parent: path.rootViewController))
                         } label: {
                             MangaGridItem(
+                                sourceKey: toManga.sourceKey,
                                 title: toManga.title,
                                 coverImage: toManga.cover ?? ""
                             )

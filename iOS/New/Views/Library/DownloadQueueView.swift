@@ -74,6 +74,7 @@ struct DownloadQueueView: View {
                             HStack {
                                 MangaCoverView(
                                     source: nil,
+                                    sourceKey: download.manga.sourceKey,
                                     coverImage: download.manga.cover ?? "",
                                     width: 56,
                                     height: 56 * 3/2,

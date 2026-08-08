@@ -11,6 +11,7 @@ import NukeUI
 
 struct MangaGridItem: View {
     var source: AidokuRunner.Source?
+    var sourceKey: String?
     let title: String
     let coverImage: String
     var bookmarked: Bool = false
@@ -29,6 +30,7 @@ struct MangaGridItem: View {
             .background {
                 SourceImageView(
                     source: source,
+                    sourceKey: sourceKey,
                     imageUrl: coverImage,
                     downsampleWidth: 400 // reduces stuttering caused by rendering large images
                 )

@@ -6,11 +6,13 @@
 //
 
 import AidokuRunner
+import Foundation
 import NukeUI
 import SwiftUI
 
 struct SourceImageView: View {
     var source: AidokuRunner.Source?
+    var sourceKey: String?
 
     let imageUrl: String
     var width: CGFloat?
@@ -53,17 +55,12 @@ struct SourceImageView: View {
                 []
             }
         }())
-        .onAppear {
-            guard imageRequest == nil else { return }
-            Task {
-                await loadImageRequest(url: imageUrl)
-            }
-        }
-        .onChange(of: imageUrl) { newValue in
+        .task(id: ImageRequestIdentity(
+            imageUrl: imageUrl,
+            sourceKey: source?.key ?? sourceKey
+        )) {
             imageRequest = nil
-            Task {
-                await loadImageRequest(url: newValue)
-            }
+            await loadImageRequest(url: imageUrl)
         }
     }
 
@@ -73,10 +70,29 @@ struct SourceImageView: View {
             imageRequest = ImageRequest(url: fileUrl)
             return
         }
-        guard let source, let url, !url.isFileURL else {
+        guard let url, !url.isFileURL else {
             imageRequest = ImageRequest(url: url)
             return
         }
-        imageRequest = ImageRequest(urlRequest: await source.getModifiedImageRequest(url: url, context: nil))
+
+        var resolvedSource = source
+        if resolvedSource == nil, let sourceKey {
+            await SourceManager.shared.waitForSourcesLoad()
+            resolvedSource = SourceManager.shared.source(for: sourceKey)
+        }
+        guard !Task.isCancelled else { return }
+
+        let urlRequest = if let resolvedSource {
+            await resolvedSource.getModifiedImageRequest(url: url, context: nil)
+        } else {
+            await AidokuRunner.Source.modify(url: url, request: URLRequest(url: url))
+        }
+        guard !Task.isCancelled else { return }
+        imageRequest = ImageRequest(urlRequest: urlRequest)
     }
+}
+
+private struct ImageRequestIdentity: Equatable {
+    let imageUrl: String
+    let sourceKey: String?
 }

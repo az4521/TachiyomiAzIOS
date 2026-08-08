@@ -113,6 +113,7 @@ struct MangaDetailsHeaderView: View {
                         // 2:3 aspect ratio
                         MangaCoverView(
                             source: source,
+                            sourceKey: manga.sourceKey,
                             coverImage: manga.cover ?? "",
                             width: Self.coverWidth,
                             height: Self.coverWidth * 3/2

@@ -116,6 +116,7 @@ struct MangaGridView: View {
         } label: {
             MangaGridItem(
                 source: source,
+                sourceKey: entry.sourceKey,
                 title: entry.title,
                 coverImage: entry.cover ?? "",
                 bookmarked: inLibrary
