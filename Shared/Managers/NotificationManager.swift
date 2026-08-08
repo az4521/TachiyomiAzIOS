@@ -158,6 +158,7 @@ actor NotificationManager {
         )
         content.threadIdentifier = Self.progressThreadIdentifier
         content.categoryIdentifier = Self.progressCategoryIdentifier
+        content.interruptionLevel = .passive
         content.userInfo = ["progressOperation": operation.rawValue]
 
         let request = UNNotificationRequest(
@@ -221,9 +222,10 @@ actor NotificationManager {
                 value: "The operation did not finish and can be resumed in the app.",
                 comment: "Background operation stopped notification body"
             ))
-        content.sound = success ? .default : nil
+        content.sound = nil
         content.threadIdentifier = Self.progressThreadIdentifier
         content.categoryIdentifier = Self.progressCompletionCategoryIdentifier
+        content.interruptionLevel = .passive
 
         let request = UNNotificationRequest(
             identifier: progressIdentifier(for: operation),

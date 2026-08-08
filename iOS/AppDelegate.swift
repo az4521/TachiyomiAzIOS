@@ -918,7 +918,10 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        if notification.request.content.categoryIdentifier == NotificationManager.progressCategoryIdentifier {
+        if
+            notification.request.content.categoryIdentifier == NotificationManager.progressCategoryIdentifier
+            || notification.request.content.categoryIdentifier == NotificationManager.progressCompletionCategoryIdentifier
+        {
             completionHandler([.list])
         } else {
             completionHandler([.banner, .sound, .list])
