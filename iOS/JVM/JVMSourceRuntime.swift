@@ -856,29 +856,6 @@ actor JVMSourceRuntime {
         }
     }
 
-    func decodeMihonBackup(at url: URL) async throws -> Data {
-        let secured = url.startAccessingSecurityScopedResource()
-        defer {
-            if secured {
-                url.stopAccessingSecurityScopedResource()
-            }
-        }
-
-        let response = try await dispatch(
-            .init(
-                operation: "decodeBackup",
-                backupPath: url.path
-            )
-        )
-        try requireSuccess(response)
-        guard let result = response.result else {
-            throw RuntimeError.hostRejected(
-                "The backup decoder returned no payload."
-            )
-        }
-        return Data(result.utf8)
-    }
-
     private func dispatch(
         _ request: ExtensionHostRequest
     ) async throws -> ExtensionHostResponse {

@@ -181,13 +181,34 @@ enum TachibkBackupCodec {
         return try TachiJVMCompression.gzip(root.data)
     }
 
-    static func decodeNativeBackup(from data: Data) throws -> Backup? {
-        let uncompressed: Data
-        if data.starts(with: [0x1f, 0x8b]) {
-            uncompressed = try TachiJVMCompression.gunzip(data)
-        } else {
-            uncompressed = data
+    /// Decodes both Tachiyomi/Mihon protobuf backups and backups containing
+    /// TachiyomiAZ iOS's optional native state. Backup decoding deliberately
+    /// stays out of the Java extension host: `.tachibk` is an application data
+    /// format, not an extension API.
+    static func decode(from data: Data) throws -> Backup {
+        let uncompressed = try uncompressed(data)
+        if let native = try decodeNativeBackup(fromUncompressed: uncompressed) {
+            return native
         }
+        return MihonBackupImporter.convert(
+            try decodeStandardPayload(from: uncompressed)
+        )
+    }
+
+    static func decodeNativeBackup(from data: Data) throws -> Backup? {
+        try decodeNativeBackup(fromUncompressed: uncompressed(data))
+    }
+
+    private static func uncompressed(_ data: Data) throws -> Data {
+        if data.starts(with: [0x1f, 0x8b]) {
+            return try TachiJVMCompression.gunzip(data)
+        }
+        return data
+    }
+
+    private static func decodeNativeBackup(
+        fromUncompressed uncompressed: Data
+    ) throws -> Backup? {
         var reader = ProtobufReader(data: uncompressed)
         while let tag = try reader.nextTag() {
             if tag.field == nativeBackupField, tag.wire == 2 {
@@ -199,6 +220,262 @@ enum TachibkBackupCodec {
             try reader.skip(wire: tag.wire)
         }
         return nil
+    }
+
+    private static func decodeStandardPayload(
+        from data: Data
+    ) throws -> MihonBackupImporter.Payload {
+        var reader = ProtobufReader(data: data)
+        var manga: [MihonBackupImporter.Manga] = []
+        var categories: [MihonBackupImporter.Category] = []
+        var sources: [MihonBackupImporter.Source] = []
+
+        while let tag = try reader.nextTag() {
+            switch (tag.field, tag.wire) {
+                case (1, 2):
+                    manga.append(try decodeManga(from: reader.bytes()))
+                case (2, 2):
+                    categories.append(try decodeCategory(from: reader.bytes()))
+                case (101, 2):
+                    sources.append(try decodeSource(from: reader.bytes()))
+                default:
+                    try reader.skip(wire: tag.wire)
+            }
+        }
+
+        guard !manga.isEmpty || !categories.isEmpty || !sources.isEmpty else {
+            throw CodecError.invalidBackup
+        }
+        return .init(manga: manga, categories: categories, sources: sources)
+    }
+
+    private static func decodeManga(
+        from data: Data
+    ) throws -> MihonBackupImporter.Manga {
+        var reader = ProtobufReader(data: data)
+        var source: Int64 = 0
+        var url = ""
+        var title = ""
+        var artist: String?
+        var author: String?
+        var description: String?
+        var genre: [String] = []
+        var status = 0
+        var thumbnailURL: String?
+        var dateAdded: Int64 = 0
+        var viewer = 0
+        var chapters: [MihonBackupImporter.Chapter] = []
+        var tracking: [MihonBackupImporter.Tracking] = []
+        var categories: [Int64] = []
+        var favorite = true
+        var chapterFlags = 0
+        var viewerFlags: Int?
+        var history: [MihonBackupImporter.History] = []
+        var updateStrategy = 0
+        var excludedScanlators: [String] = []
+        var notes = ""
+        var initialized = false
+
+        while let tag = try reader.nextTag() {
+            switch tag.field {
+                case 1: source = try reader.int64(wire: tag.wire)
+                case 2: url = try reader.string(wire: tag.wire)
+                case 3: title = try reader.string(wire: tag.wire)
+                case 4: artist = try reader.string(wire: tag.wire)
+                case 5: author = try reader.string(wire: tag.wire)
+                case 6: description = try reader.string(wire: tag.wire)
+                case 7: genre.append(try reader.string(wire: tag.wire))
+                case 8: status = try reader.int(wire: tag.wire)
+                case 9: thumbnailURL = try reader.string(wire: tag.wire)
+                case 13: dateAdded = try reader.int64(wire: tag.wire)
+                case 14: viewer = try reader.int(wire: tag.wire)
+                case 16:
+                    try requireWire(tag.wire, 2)
+                    chapters.append(try decodeChapter(from: reader.bytes()))
+                case 17:
+                    if tag.wire == 2 {
+                        var packed = ProtobufReader(data: try reader.bytes())
+                        while !packed.isAtEnd {
+                            categories.append(try packed.int64(wire: 0))
+                        }
+                    } else {
+                        categories.append(try reader.int64(wire: tag.wire))
+                    }
+                case 18:
+                    try requireWire(tag.wire, 2)
+                    tracking.append(try decodeTracking(from: reader.bytes()))
+                case 100: favorite = try reader.bool(wire: tag.wire)
+                case 101: chapterFlags = try reader.int(wire: tag.wire)
+                case 103: viewerFlags = try reader.int(wire: tag.wire)
+                case 104:
+                    try requireWire(tag.wire, 2)
+                    history.append(try decodeHistory(from: reader.bytes()))
+                case 105: updateStrategy = try reader.int(wire: tag.wire)
+                case 108:
+                    excludedScanlators.append(
+                        try reader.string(wire: tag.wire)
+                    )
+                case 110: notes = try reader.string(wire: tag.wire)
+                case 111: initialized = try reader.bool(wire: tag.wire)
+                default: try reader.skip(wire: tag.wire)
+            }
+        }
+
+        return .init(
+            source: String(source),
+            url: url,
+            title: title,
+            artist: artist,
+            author: author,
+            description: description,
+            genre: genre,
+            status: status,
+            thumbnailUrl: thumbnailURL,
+            dateAdded: dateAdded,
+            viewer: viewer,
+            chapters: chapters,
+            tracking: tracking,
+            categories: categories,
+            favorite: favorite,
+            chapterFlags: chapterFlags,
+            viewerFlags: viewerFlags,
+            history: history,
+            updateStrategy: updateStrategy,
+            excludedScanlators: excludedScanlators,
+            notes: notes,
+            initialized: initialized
+        )
+    }
+
+    private static func decodeChapter(
+        from data: Data
+    ) throws -> MihonBackupImporter.Chapter {
+        var reader = ProtobufReader(data: data)
+        var url = ""
+        var name = ""
+        var scanlator: String?
+        var read = false
+        var bookmark = false
+        var lastPageRead: Int64 = 0
+        var dateFetch: Int64 = 0
+        var dateUpload: Int64 = 0
+        var chapterNumber: Float = 0
+        var sourceOrder: Int64 = 0
+
+        while let tag = try reader.nextTag() {
+            switch tag.field {
+                case 1: url = try reader.string(wire: tag.wire)
+                case 2: name = try reader.string(wire: tag.wire)
+                case 3: scanlator = try reader.string(wire: tag.wire)
+                case 4: read = try reader.bool(wire: tag.wire)
+                case 5: bookmark = try reader.bool(wire: tag.wire)
+                case 6: lastPageRead = try reader.int64(wire: tag.wire)
+                case 7: dateFetch = try reader.int64(wire: tag.wire)
+                case 8: dateUpload = try reader.int64(wire: tag.wire)
+                case 9: chapterNumber = try reader.float(wire: tag.wire)
+                case 10: sourceOrder = try reader.int64(wire: tag.wire)
+                default: try reader.skip(wire: tag.wire)
+            }
+        }
+        return .init(
+            url: url,
+            name: name,
+            scanlator: scanlator,
+            read: read,
+            bookmark: bookmark,
+            lastPageRead: lastPageRead,
+            dateFetch: dateFetch,
+            dateUpload: dateUpload,
+            chapterNumber: chapterNumber,
+            sourceOrder: sourceOrder
+        )
+    }
+
+    private static func decodeHistory(
+        from data: Data
+    ) throws -> MihonBackupImporter.History {
+        var reader = ProtobufReader(data: data)
+        var url = ""
+        var lastRead: Int64 = 0
+        var readDuration: Int64 = 0
+        while let tag = try reader.nextTag() {
+            switch tag.field {
+                case 1: url = try reader.string(wire: tag.wire)
+                case 2: lastRead = try reader.int64(wire: tag.wire)
+                case 3: readDuration = try reader.int64(wire: tag.wire)
+                default: try reader.skip(wire: tag.wire)
+            }
+        }
+        return .init(
+            url: url,
+            lastRead: lastRead,
+            readDuration: readDuration
+        )
+    }
+
+    private static func decodeTracking(
+        from data: Data
+    ) throws -> MihonBackupImporter.Tracking {
+        var reader = ProtobufReader(data: data)
+        var syncId = 0
+        var mediaIdInt = 0
+        var mediaId: Int64 = 0
+        var title = ""
+        while let tag = try reader.nextTag() {
+            switch tag.field {
+                case 1: syncId = try reader.int(wire: tag.wire)
+                case 3: mediaIdInt = try reader.int(wire: tag.wire)
+                case 5: title = try reader.string(wire: tag.wire)
+                case 100: mediaId = try reader.int64(wire: tag.wire)
+                default: try reader.skip(wire: tag.wire)
+            }
+        }
+        return .init(
+            syncId: syncId,
+            mediaIdInt: mediaIdInt,
+            mediaId: mediaId,
+            title: title
+        )
+    }
+
+    private static func decodeCategory(
+        from data: Data
+    ) throws -> MihonBackupImporter.Category {
+        var reader = ProtobufReader(data: data)
+        var name = ""
+        var order: Int64 = 0
+        var id: Int64 = 0
+        var flags: Int64 = 0
+        while let tag = try reader.nextTag() {
+            switch tag.field {
+                case 1: name = try reader.string(wire: tag.wire)
+                case 2: order = try reader.int64(wire: tag.wire)
+                case 3: id = try reader.int64(wire: tag.wire)
+                case 100: flags = try reader.int64(wire: tag.wire)
+                default: try reader.skip(wire: tag.wire)
+            }
+        }
+        return .init(name: name, order: order, id: id, flags: flags)
+    }
+
+    private static func decodeSource(
+        from data: Data
+    ) throws -> MihonBackupImporter.Source {
+        var reader = ProtobufReader(data: data)
+        var name = ""
+        var id: Int64 = 0
+        while let tag = try reader.nextTag() {
+            switch tag.field {
+                case 1: name = try reader.string(wire: tag.wire)
+                case 2: id = try reader.int64(wire: tag.wire)
+                default: try reader.skip(wire: tag.wire)
+            }
+        }
+        return .init(name: name, id: String(id))
+    }
+
+    private static func requireWire(_ actual: Int, _ expected: Int) throws {
+        guard actual == expected else { throw CodecError.invalidBackup }
     }
 
     private static func numericSourceId(_ key: String) -> Int64? {
@@ -313,6 +590,8 @@ private struct ProtobufReader {
     let data: Data
     var index = 0
 
+    var isAtEnd: Bool { index >= data.count }
+
     mutating func nextTag() throws -> (field: Int, wire: Int)? {
         guard index < data.count else { return nil }
         let value = try varint()
@@ -330,6 +609,48 @@ private struct ProtobufReader {
         }
         defer { index += count }
         return data.subdata(in: index..<(index + count))
+    }
+
+    mutating func string(wire: Int) throws -> String {
+        guard wire == 2, let value = String(data: try bytes(), encoding: .utf8)
+        else {
+            throw TachibkBackupCodec.CodecError.invalidBackup
+        }
+        return value
+    }
+
+    mutating func int64(wire: Int) throws -> Int64 {
+        guard wire == 0 else {
+            throw TachibkBackupCodec.CodecError.invalidBackup
+        }
+        return Int64(bitPattern: try varint())
+    }
+
+    mutating func int(wire: Int) throws -> Int {
+        guard wire == 0 else {
+            throw TachibkBackupCodec.CodecError.invalidBackup
+        }
+        return Int(Int32(truncatingIfNeeded: try varint()))
+    }
+
+    mutating func bool(wire: Int) throws -> Bool {
+        guard wire == 0 else {
+            throw TachibkBackupCodec.CodecError.invalidBackup
+        }
+        return try varint() != 0
+    }
+
+    mutating func float(wire: Int) throws -> Float {
+        guard wire == 5, index + 4 <= data.count else {
+            throw TachibkBackupCodec.CodecError.invalidBackup
+        }
+        let bits =
+            UInt32(data[index]) |
+            (UInt32(data[index + 1]) << 8) |
+            (UInt32(data[index + 2]) << 16) |
+            (UInt32(data[index + 3]) << 24)
+        index += 4
+        return Float(bitPattern: bits)
     }
 
     mutating func skip(wire: Int) throws {

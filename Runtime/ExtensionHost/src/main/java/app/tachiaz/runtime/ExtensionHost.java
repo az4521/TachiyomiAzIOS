@@ -119,8 +119,6 @@ public final class ExtensionHost {
                     return invoke(request);
                 case "unloadExtension":
                     return unloadExtension(request);
-                case "decodeBackup":
-                    return decodeBackup(request);
                 default:
                     throw new IllegalArgumentException(
                         "Unsupported operation: " + operation
@@ -2106,17 +2104,6 @@ public final class ExtensionHost {
             extension.close();
         }
         return MiniJson.response(true, extensionId, null, null);
-    }
-
-    private static String decodeBackup(Map<String, String> request)
-        throws Exception {
-        File backup = new File(require(request, "backupPath"));
-        return MiniJson.response(
-            true,
-            MihonBackupDecoder.decodeToJson(backup),
-            null,
-            null
-        );
     }
 
     private static String require(Map<String, String> request, String key) {

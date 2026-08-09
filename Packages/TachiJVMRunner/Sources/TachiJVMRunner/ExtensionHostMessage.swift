@@ -21,7 +21,6 @@ public struct ExtensionHostRequest: Codable, Sendable {
     public let imageURL: String?
     public let pageURL: String?
     public let destinationPath: String?
-    public let backupPath: String?
 
     public init(
         operation: String,
@@ -43,8 +42,7 @@ public struct ExtensionHostRequest: Codable, Sendable {
         chapterName: String? = nil,
         imageURL: String? = nil,
         pageURL: String? = nil,
-        destinationPath: String? = nil,
-        backupPath: String? = nil
+        destinationPath: String? = nil
     ) {
         self.operation = operation
         self.extensionId = extensionId
@@ -66,7 +64,6 @@ public struct ExtensionHostRequest: Codable, Sendable {
         self.imageURL = imageURL
         self.pageURL = pageURL
         self.destinationPath = destinationPath
-        self.backupPath = backupPath
     }
 }
 

@@ -3,6 +3,50 @@ import Foundation
 import Testing
 
 struct MihonBackupImporterTests {
+    @Test func decodesStandardTachibkWithoutJavaHost() throws {
+        var chapter = BackupTestProtobufWriter()
+        chapter.string(1, "/chapter-1")
+        chapter.string(2, "Chapter 1")
+        chapter.int64(4, 1)
+        chapter.float(9, 12.5)
+
+        var tracking = BackupTestProtobufWriter()
+        tracking.int64(1, 2)
+        tracking.int64(3, 12_345)
+        tracking.string(5, "Fixture Tracker")
+
+        var manga = BackupTestProtobufWriter()
+        manga.int64(1, 42)
+        manga.string(2, "/fixture")
+        manga.string(3, "Fixture Manga")
+        manga.message(16, chapter.data)
+        manga.int64(17, 7)
+        manga.message(18, tracking.data)
+        manga.int64(100, 1)
+
+        var category = BackupTestProtobufWriter()
+        category.string(1, "Reading")
+        category.int64(3, 7)
+
+        var source = BackupTestProtobufWriter()
+        source.string(1, "Fixture Source")
+        source.int64(2, 42)
+
+        var root = BackupTestProtobufWriter()
+        root.message(1, manga.data)
+        root.message(2, category.data)
+        root.message(101, source.data)
+
+        let backup = try TachibkBackupCodec.decode(from: root.data)
+        #expect(backup.manga?.first?.title == "Fixture Manga")
+        #expect(backup.manga?.first?.sourceId == "mihon.42")
+        #expect(backup.chapters?.first?.title == "Chapter 1")
+        #expect(backup.chapters?.first?.chapter == 12.5)
+        #expect(backup.library?.first?.categories == ["Reading"])
+        #expect(backup.trackItems?.first?.id == "12345")
+        #expect(backup.sources?.first?.id == "mihon.42")
+    }
+
     @Test func tachibkRoundTripsNativeOnlyState() throws {
         let date = Date(timeIntervalSince1970: 1_722_000_000)
         let backup = Backup(
@@ -179,5 +223,39 @@ struct MihonBackupImporterTests {
         #expect(merged.completed)
         #expect(merged.progress == 12)
         #expect(merged.dateRead == importedRead.dateRead)
+    }
+}
+
+private struct BackupTestProtobufWriter {
+    var data = Data()
+
+    mutating func int64(_ field: Int, _ value: Int64) {
+        varint(UInt64(field << 3))
+        varint(UInt64(bitPattern: value))
+    }
+
+    mutating func string(_ field: Int, _ value: String) {
+        message(field, Data(value.utf8))
+    }
+
+    mutating func message(_ field: Int, _ value: Data) {
+        varint(UInt64((field << 3) | 2))
+        varint(UInt64(value.count))
+        data.append(value)
+    }
+
+    mutating func float(_ field: Int, _ value: Float) {
+        varint(UInt64((field << 3) | 5))
+        var bits = value.bitPattern.littleEndian
+        Swift.withUnsafeBytes(of: &bits) { data.append(contentsOf: $0) }
+    }
+
+    private mutating func varint(_ input: UInt64) {
+        var value = input
+        while value >= 0x80 {
+            data.append(UInt8(value & 0x7f) | 0x80)
+            value >>= 7
+        }
+        data.append(UInt8(value))
     }
 }
