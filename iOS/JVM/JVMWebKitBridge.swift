@@ -102,7 +102,9 @@ final class JVMWebKitBridge {
             case "cookieRemoveAll": return await removeCookies(sessionOnly: false)
             case "cookieHas": return String(!(await allCookies()).isEmpty)
             case "cookieFlush":
-                await copyWebKitCookiesToHTTPStorage(store: .default().httpCookieStore)
+                await copyWebKitCookiesToHTTPStorage(
+                    store: WKWebsiteDataStore.default().httpCookieStore
+                )
                 return "true"
             default: break
         }
@@ -154,7 +156,11 @@ final class JVMWebKitBridge {
                     let data = Data(base64Encoded: encoded),
                     let html = String(data: data, encoding: .utf8)
                 else { return "__ERROR__Invalid WebView HTML" }
-                context.load(html: html, baseURL: argument1.flatMap(URL.init(string:)))
+                let baseURL = argument1.flatMap(URL.init(string:))
+                if let baseURL {
+                    await copyHTTPCookiesToWebKit(store: context.cookieStore, for: baseURL)
+                }
+                context.load(html: html, baseURL: baseURL)
                 return "true"
             case "evaluate":
                 do {
@@ -481,17 +487,17 @@ final class JVMWebKitBridge {
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
             emit("progress", "0")
-            emit("pageStarted", webView.url?.absoluteString ?? originalURL?.absoluteString ?? "")
         }
 
         func webView(
             _ webView: WKWebView,
             didReceiveServerRedirectForProvisionalNavigation navigation: WKNavigation!
         ) {
-            emit("pageStarted", webView.url?.absoluteString ?? "")
+            emit("progress", "0")
         }
 
         func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+            emit("pageStarted", webView.url?.absoluteString ?? originalURL?.absoluteString ?? "")
             emit("progress", "60")
         }
 
