@@ -1866,7 +1866,14 @@ struct TachiyomiXMaterializedImage: Sendable {
 final class JVMImageURLProtocol: URLProtocol {
     // Change this when the Java/native materialization pipeline changes so
     // Nuke cannot reuse bytes produced by an older compatibility layer.
-    private static let materializerRevision = "2"
+    private static let materializerRevision = "3"
+    // Nightly builds receive a unique CFBundleVersion. Including it prevents
+    // future native/JVM image-pipeline fixes from being hidden by an image
+    // materialized by an older installed build, even if the manual revision
+    // above is accidentally left unchanged.
+    private static let appBuildRevision = Bundle.main.object(
+        forInfoDictionaryKey: "CFBundleVersion"
+    ) as? String ?? "development"
 
     private struct Descriptor: Sendable {
         let extensionId: String
@@ -1887,6 +1894,7 @@ final class JVMImageURLProtocol: URLProtocol {
     ) -> URLRequest {
         let identity = [
             materializerRevision,
+            appBuildRevision,
             extensionId,
             String(sourceId),
             imageURL,
