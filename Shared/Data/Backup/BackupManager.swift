@@ -309,11 +309,12 @@ extension BackupManager {
         }
     }
 
-    func restore(from backup: Backup) async {
+    @discardableResult
+    func restore(from backup: Backup) async -> Bool {
         if backup.version == "Mihon/TachiyomiAZ" {
-            await mergeMihonBackup(backup)
+            return await mergeMihonBackup(backup)
         } else {
-            await doRestore(from: backup)
+            return await doRestore(from: backup)
         }
     }
 
@@ -558,13 +559,28 @@ extension BackupManager {
                     SourceManager.shared.source(for: $0.id) == nil &&
                         !CoreDataManager.shared.hasSource(id: $0.id)
                 }
+                var message = NSLocalizedString(
+                    "BACKUP_RESTORE_COMPLETE_TEXT",
+                    tableName: nil,
+                    bundle: .main,
+                    value: "The backup was restored successfully.",
+                    comment: "Shown after a backup restore finishes"
+                )
                 if !missingSources.isEmpty {
-                    delegate?.presentAlert(
-                        title: NSLocalizedString("MISSING_SOURCES"),
-                        message: NSLocalizedString("MISSING_SOURCES_TEXT") +
-                            missingSources.map { "\n- \($0.id)" }.joined()
-                    )
+                    message += "\n\n" + NSLocalizedString(
+                        "MISSING_SOURCES_TEXT"
+                    ) + missingSources.map { "\n- \($0.id)" }.joined()
                 }
+                delegate?.presentAlert(
+                    title: NSLocalizedString(
+                        "BACKUP_RESTORE_COMPLETE",
+                        tableName: nil,
+                        bundle: .main,
+                        value: "Backup Restored",
+                        comment: "Backup restore success alert title"
+                    ),
+                    message: message
+                )
             }
         }.value
 #endif
@@ -907,17 +923,32 @@ extension BackupManager {
                     )
                 )
             } else {
-                // show missing sources alert if there are any
                 let missingSources = (backup.sources ?? []).filter {
                     SourceManager.shared.source(for: $0.id) == nil &&
                         !CoreDataManager.shared.hasSource(id: $0.id)
                 }
+                var message = NSLocalizedString(
+                    "BACKUP_RESTORE_COMPLETE_TEXT",
+                    tableName: nil,
+                    bundle: .main,
+                    value: "The backup was restored successfully.",
+                    comment: "Shown after a backup restore finishes"
+                )
                 if !missingSources.isEmpty {
-                    delegate?.presentAlert(
-                        title: NSLocalizedString("MISSING_SOURCES"),
-                        message: NSLocalizedString("MISSING_SOURCES_TEXT") + missingSources.map { "\n- \($0.id)" }.joined()
-                    )
+                    message += "\n\n" + NSLocalizedString(
+                        "MISSING_SOURCES_TEXT"
+                    ) + missingSources.map { "\n- \($0.id)" }.joined()
                 }
+                delegate?.presentAlert(
+                    title: NSLocalizedString(
+                        "BACKUP_RESTORE_COMPLETE",
+                        tableName: nil,
+                        bundle: .main,
+                        value: "Backup Restored",
+                        comment: "Backup restore success alert title"
+                    ),
+                    message: message
+                )
             }
         }.value
 #endif

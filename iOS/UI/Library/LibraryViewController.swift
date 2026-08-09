@@ -396,18 +396,28 @@ class LibraryViewController: OldMangaCollectionViewController {
         addObserver(forName: "Library.unreadChapterBadges") { [weak self] _ in
             if UserDefaults.standard.bool(forKey: "Library.unreadChapterBadges") {
                 self?.viewModel.badgeType.insert(.unread)
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    await viewModel.fetchUnreads(skipSortCheck: true)
+                    reloadItems()
+                }
             } else {
                 self?.viewModel.badgeType.remove(.unread)
+                self?.reloadItems()
             }
-            self?.reloadItems()
         }
         addObserver(forName: "Library.downloadedChapterBadges") { [weak self] _ in
             if UserDefaults.standard.bool(forKey: "Library.downloadedChapterBadges") {
                 self?.viewModel.badgeType.insert(.downloaded)
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    await viewModel.fetchDownloadCounts()
+                    reloadItems()
+                }
             } else {
                 self?.viewModel.badgeType.remove(.downloaded)
+                self?.reloadItems()
             }
-            self?.reloadItems()
         }
 
         // update history
@@ -754,7 +764,7 @@ extension LibraryViewController {
         dataSource.apply(snapshot)
     }
 
-    func updateDataSource() {
+    func updateDataSource(animatingDifferences: Bool = true) {
         var snapshot = NSDiffableDataSourceSnapshot<Section, MangaInfo>()
 
         if !locked {
@@ -768,7 +778,10 @@ extension LibraryViewController {
             snapshot.appendItems(viewModel.manga, toSection: .regular)
         }
 
-        dataSource.apply(snapshot)
+        dataSource.apply(
+            snapshot,
+            animatingDifferences: animatingDifferences
+        )
 
         // handle empty library or category
         if navigationItem.searchController?.searchBar.text?.isEmpty ?? true {
@@ -828,7 +841,7 @@ extension LibraryViewController {
         }
     }
 
-    func updateLockState() {
+    func updateLockState(updateCollection: Bool = true) {
         if locked {
             // only update if lock view not already showing
             if emptyStackView.alpha != 0 {
@@ -855,7 +868,9 @@ extension LibraryViewController {
 
         updateNavbarLock()
         updateHeaderLockIcons()
-        updateDataSource()
+        if updateCollection {
+            updateDataSource()
+        }
     }
 
     func updateNavbarLock() {
@@ -1197,14 +1212,33 @@ extension LibraryViewController: LibraryCategorySelectionHeaderDelegate {
                 viewModel.currentCategory = viewModel.filterGroups[indexPath.row].title
             }
             locked = viewModel.isCategoryLocked()
-            updateLockState()
+            updateLockState(updateCollection: false)
             deselectAllItems()
             updateToolbar()
             updateNavbarItems()
 
-            await viewModel.loadLibrary()
+            let requiresFreshBadges =
+                viewModel.categorySwitchRequiresFreshBadges
+            await viewModel.loadLibrary(
+                refreshBadges: requiresFreshBadges,
+                refreshCategoryAvailability: false
+            )
             updateEmptyStack()
-            updateDataSource()
+            updateDataSource(animatingDifferences: false)
+
+            guard !requiresFreshBadges else { return }
+            let selectedCategory = viewModel.currentCategory
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let refreshed = await viewModel.refreshUncachedBadges()
+                guard
+                    refreshed,
+                    viewModel.currentCategory == selectedCategory
+                else {
+                    return
+                }
+                updateDataSource(animatingDifferences: false)
+            }
         }
     }
 }
