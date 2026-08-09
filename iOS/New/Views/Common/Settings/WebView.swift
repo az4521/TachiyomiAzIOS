@@ -19,6 +19,7 @@ struct WebView: UIViewRepresentable {
     @Binding var reloadToggle: Bool
 
     let preferredUserAgent: String?
+    let initialCookies: [HTTPCookie]
 
     private let webView = WKWebView()
 
@@ -30,6 +31,7 @@ struct WebView: UIViewRepresentable {
         localStorage: Binding<[String: String]> = .constant([:]),
         userAgent: Binding<String> = .constant(""),
         preferredUserAgent: String? = nil,
+        initialCookies: [HTTPCookie] = [],
         reloadToggle: Binding<Bool> = .constant(false)
     ) {
         self.url = url
@@ -39,6 +41,7 @@ struct WebView: UIViewRepresentable {
         self._localStorage = localStorage
         self._userAgent = userAgent
         self.preferredUserAgent = preferredUserAgent
+        self.initialCookies = initialCookies
         self._reloadToggle = reloadToggle
     }
 
@@ -46,7 +49,16 @@ struct WebView: UIViewRepresentable {
         webView.navigationDelegate = context.coordinator
         webView.customUserAgent = preferredUserAgent
         context.coordinator.webView = webView
-        webView.load(URLRequest(url: url))
+        Task { @MainActor in
+            let store = webView.configuration.websiteDataStore.httpCookieStore
+            for cookie in initialCookies {
+                await withCheckedContinuation {
+                    (continuation: CheckedContinuation<Void, Never>) in
+                    store.setCookie(cookie) { continuation.resume() }
+                }
+            }
+            webView.load(URLRequest(url: url))
+        }
         return webView
     }
 

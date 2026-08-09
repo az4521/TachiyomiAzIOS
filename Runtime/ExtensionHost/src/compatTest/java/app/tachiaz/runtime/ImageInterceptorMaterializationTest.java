@@ -51,8 +51,8 @@ public final class ImageInterceptorMaterializationTest {
             source.interceptorInvoked = false;
             ExtensionHost.materializeImage(
                 source,
-                "https://fixture.invalid/generated-page",
-                "https://fixture.invalid/chapter-page",
+                "https://fixture.invalid/generated-page#scramble",
+                "",
                 destination.toString()
             );
             if (!source.imageRequestInvoked) {
@@ -77,6 +77,24 @@ public final class ImageInterceptorMaterializationTest {
         private final OkHttpClient client = new OkHttpClient.Builder()
             .addInterceptor((Interceptor.Chain chain) -> {
                 interceptorInvoked = true;
+                if (
+                    chain.request().url().encodedPath().contains("generated-page") &&
+                    !"scramble".equals(chain.request().url().fragment())
+                ) {
+                    throw new AssertionError(
+                        "The encrypted-image fragment was lost before the " +
+                            "extension interceptor"
+                    );
+                }
+                if (
+                    chain.request().url().encodedPath().contains("generated-page") &&
+                    !"page".equals(chain.request().header("X-Image-Request"))
+                ) {
+                    throw new AssertionError(
+                        "The request returned by imageRequest(Page) was not " +
+                            "executed"
+                    );
+                }
                 return new Response.Builder()
                     .request(chain.request())
                     .protocol(Protocol.HTTP_1_1)
@@ -125,7 +143,10 @@ public final class ImageInterceptorMaterializationTest {
             eu.kanade.tachiyomi.source.model.Page page
         ) {
             imageRequestInvoked = true;
-            return new Request.Builder().url(page.getImageUrl()).build();
+            return new Request.Builder()
+                .url(page.getImageUrl())
+                .header("X-Image-Request", "page")
+                .build();
         }
     }
 }

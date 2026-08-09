@@ -55,8 +55,10 @@ Last updated: 2026-07-31
   persisted in Core Data across app launches.
 - AndroidX extension preference discovery and persisted editing for switches,
   text, single-select, and multi-select values.
-- Native reader image requests reconstructed through each extension's
-  `imageRequest`, including source headers and persistent Java cookies.
+- Reader and downloader chapter images are fetched by each extension's own
+  configured OkHttp client after its `imageRequest(Page)` is built. Extension
+  request/response interceptors therefore run before iOS receives the final
+  bytes, including MangaPlus decryption and VIZ image descrambling.
 - JVM home and temporary paths explicitly rooted inside the app container so
   AndroidCompat preferences and cookies persist on simulator and device.
 - Source cookie inspection/clearing and a native WKWebView login flow that

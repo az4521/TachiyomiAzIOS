@@ -9,6 +9,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.net.URL;
 import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -100,6 +101,8 @@ public final class ExtensionHost {
                     return setSetting(request);
                 case "getMangaUpdate":
                     return getMangaUpdate(request);
+                case "getMangaUrl":
+                    return getMangaUrl(request);
                 case "getPageList":
                     return getPageList(request);
                 case "getImageRequest":
@@ -112,6 +115,8 @@ public final class ExtensionHost {
                     return clearCookies(request);
                 case "getWebLoginInfo":
                     return getWebLoginInfo(request);
+                case "getWebLoginCookies":
+                    return getWebLoginCookies(request);
                 case "setWebLoginCookies":
                     return setWebLoginCookies(request);
                 case "listSources":
@@ -1213,6 +1218,38 @@ public final class ExtensionHost {
         return MiniJson.response(true, output.toString(), null, null);
     }
 
+    private static String getMangaUrl(Map<String, String> request)
+        throws Exception {
+        Object source = requireSource(request);
+        ClassLoader loader = source.getClass().getClassLoader();
+        Class<?> mangaType = Class.forName(
+            "eu.kanade.tachiyomi.source.model.SManga",
+            true,
+            loader
+        );
+        Object manga = Class.forName(
+            "eu.kanade.tachiyomi.source.model.SMangaImpl",
+            true,
+            loader
+        ).getDeclaredConstructor().newInstance();
+        setter(manga, "setUrl", String.class, require(request, "mangaURL"));
+        setter(
+            manga,
+            "setTitle",
+            String.class,
+            defaultValue(request.get("mangaTitle"), "")
+        );
+        restoreMemo(manga, request.get("mangaMemo"));
+        Method getMangaUrl = findMethod(
+            source.getClass(),
+            "getMangaUrl",
+            mangaType
+        );
+        getMangaUrl.setAccessible(true);
+        String url = String.valueOf(getMangaUrl.invoke(source, manga));
+        return MiniJson.response(true, url, null, null);
+    }
+
     private static String materializeImage(Map<String, String> request)
         throws Exception {
         return materializeImage(
@@ -1483,6 +1520,51 @@ public final class ExtensionHost {
         return MiniJson.response(true, result, null, null);
     }
 
+    @SuppressWarnings("unchecked")
+    private static String getWebLoginCookies(Map<String, String> request)
+        throws Exception {
+        Object source = requireSource(request);
+        Object client = getter(source, "getClient");
+        Object cookieJar = client.getClass()
+            .getMethod("cookieJar")
+            .invoke(client);
+        String url = defaultValue(
+            request.get("mangaURL"),
+            String.valueOf(getter(source, "getBaseUrl"))
+        );
+        ClassLoader loader = source.getClass().getClassLoader();
+        Class<?> httpUrlType = Class.forName("okhttp3.HttpUrl", true, loader);
+        Object httpUrl = httpUrlType
+            .getMethod("parse", String.class)
+            .invoke(null, url);
+        if (httpUrl == null) {
+            throw new IllegalArgumentException("Invalid web-login URL: " + url);
+        }
+        List<Object> cookies = (List<Object>) cookieJar.getClass()
+            .getMethod("loadForRequest", httpUrlType)
+            .invoke(cookieJar, httpUrl);
+        List<String> encoded = new ArrayList<>();
+        for (Object cookie : cookies) {
+            encoded.add(String.join(
+                "\t",
+                encodeCookieField(String.valueOf(getter(cookie, "name"))),
+                encodeCookieField(String.valueOf(getter(cookie, "value"))),
+                encodeCookieField(String.valueOf(getter(cookie, "domain"))),
+                encodeCookieField(String.valueOf(getter(cookie, "path"))),
+                String.valueOf(getter(cookie, "expiresAt")),
+                String.valueOf(getter(cookie, "secure")),
+                String.valueOf(getter(cookie, "httpOnly")),
+                String.valueOf(getter(cookie, "hostOnly"))
+            ));
+        }
+        return MiniJson.response(
+            true,
+            String.join("\n", encoded),
+            null,
+            null
+        );
+    }
+
     private static String setWebLoginCookies(Map<String, String> request)
         throws Exception {
         Object source = requireSource(request);
@@ -1574,6 +1656,11 @@ public final class ExtensionHost {
 
     private static String decodeCookieField(String value) throws Exception {
         return URLDecoder.decode(value, StandardCharsets.UTF_8.name());
+    }
+
+    private static String encodeCookieField(String value) throws Exception {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8.name())
+            .replace("+", "%20");
     }
 
     private static String sourceUserAgent(Object source, Object client) {

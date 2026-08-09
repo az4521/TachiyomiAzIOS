@@ -627,6 +627,80 @@ actor JVMSourceRuntime {
         return await UserAgentProvider.shared.getUserAgent()
     }
 
+    func mangaWebURL(
+        extensionId: String,
+        sourceId: Int64,
+        manga: AidokuRunner.Manga
+    ) async throws -> URL {
+        let response = try await dispatch(
+            .init(
+                operation: "getMangaUrl",
+                extensionId: extensionId,
+                sourceId: String(sourceId),
+                mangaURL: manga.key,
+                mangaTitle: manga.title,
+                mangaMemo: manga.memo
+            )
+        )
+        try requireSuccess(response)
+        guard
+            let value = response.result,
+            let url = URL(string: value),
+            url.scheme == "http" || url.scheme == "https"
+        else {
+            throw RuntimeError.hostRejected(
+                "The extension did not provide a valid manga website URL."
+            )
+        }
+        return url
+    }
+
+    func webLoginCookies(
+        extensionId: String,
+        sourceId: Int64,
+        url: URL
+    ) async throws -> [HTTPCookie] {
+        let response = try await dispatch(
+            .init(
+                operation: "getWebLoginCookies",
+                extensionId: extensionId,
+                sourceId: String(sourceId),
+                mangaURL: url.absoluteString
+            )
+        )
+        try requireSuccess(response)
+        guard let encoded = response.result, !encoded.isEmpty else { return [] }
+        return encoded.split(separator: "\n").compactMap { line in
+            let fields = line.split(separator: "\t", omittingEmptySubsequences: false)
+            guard fields.count == 8 else { return nil }
+            func decode(_ index: Int) -> String {
+                String(fields[index]).removingPercentEncoding ?? String(fields[index])
+            }
+            let rawDomain = decode(2)
+            let hostOnly = String(fields[7]) == "true"
+            let domain = hostOnly || rawDomain.hasPrefix(".")
+                ? rawDomain
+                : "." + rawDomain
+            var properties: [HTTPCookiePropertyKey: Any] = [
+                .name: decode(0),
+                .value: decode(1),
+                .domain: domain,
+                .path: decode(3).isEmpty ? "/" : decode(3),
+                .secure: String(fields[5]),
+                HTTPCookiePropertyKey("HttpOnly"): String(fields[6])
+            ]
+            if
+                let milliseconds = Double(String(fields[4])),
+                milliseconds < 253_402_300_799_999
+            {
+                properties[.expires] = Date(
+                    timeIntervalSince1970: milliseconds / 1_000
+                )
+            }
+            return HTTPCookie(properties: properties)
+        }
+    }
+
     func setWebLoginSession(
         extensionId: String,
         sourceId: Int64,
@@ -1515,6 +1589,22 @@ actor TachiyomiXSourceRunner: AidokuRunner.Runner {
         return try pages.map { try $0.intoAidoku }
     }
 
+    func mangaWebURL(for manga: AidokuRunner.Manga) async throws -> URL {
+        try await JVMSourceRuntime.shared.mangaWebURL(
+            extensionId: extensionId,
+            sourceId: descriptor.id,
+            manga: manga
+        )
+    }
+
+    func webLoginCookies(for url: URL) async throws -> [HTTPCookie] {
+        try await JVMSourceRuntime.shared.webLoginCookies(
+            extensionId: extensionId,
+            sourceId: descriptor.id,
+            url: url
+        )
+    }
+
     func getImageRequest(
         url: String,
         context: AidokuRunner.PageContext?
@@ -1750,11 +1840,11 @@ private extension TachiyomiXPage {
             else {
                 throw SourceError.message("INVALID_PAGE_URL")
             }
-            let context = url.isEmpty
-                ? nil
-                : ["mihonPageURL": url]
             return .init(
-                content: .url(url: resolvedURL, context: context)
+                content: .url(
+                    url: resolvedURL,
+                    context: ["mihonPageURL": url]
+                )
             )
         }
     }

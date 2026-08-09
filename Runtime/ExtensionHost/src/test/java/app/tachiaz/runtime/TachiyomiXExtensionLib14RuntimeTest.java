@@ -87,6 +87,15 @@ public final class TachiyomiXExtensionLib14RuntimeTest {
         );
         assertSuccess(cookieSummary);
         assertContains(cookieSummary, "tachiaz_test");
+        String webLoginCookies = ExtensionHost.dispatch(
+            "{\"operation\":\"getWebLoginCookies\"," +
+                "\"extensionId\":\"extlib14\"," +
+                "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"," +
+                "\"mangaURL\":\"https://mangadex.org/title/test\"}"
+        );
+        assertSuccess(webLoginCookies);
+        assertContains(webLoginCookies, "tachiaz_test\\tworking");
+        assertContains(webLoginCookies, "mangadex.org\\t%2F");
         assertSuccess(ExtensionHost.dispatch(
             "{\"operation\":\"clearCookies\"," +
                 "\"extensionId\":\"extlib14\"," +
@@ -174,6 +183,17 @@ public final class TachiyomiXExtensionLib14RuntimeTest {
         String mangaURL = firstStringField(latestResult, "url");
         String mangaTitle = firstStringField(latestResult, "title");
         String coverURL = firstStringField(latestResult, "thumbnailURL");
+        String mangaWebURL = ExtensionHost.dispatch(
+            "{\"operation\":\"getMangaUrl\"," +
+                "\"extensionId\":\"extlib14\"," +
+                "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"," +
+                "\"mangaURL\":\"" +
+                MiniJson.escapeValue(mangaURL) +
+                "\",\"mangaTitle\":\"" +
+                MiniJson.escapeValue(mangaTitle) + "\"}"
+        );
+        assertSuccess(mangaWebURL);
+        assertContains(mangaWebURL, "https://mangadex.org/title/");
         assertSuccess(ExtensionHost.dispatch(
             "{\"operation\":\"getImageRequest\"," +
                 "\"extensionId\":\"extlib14\"," +

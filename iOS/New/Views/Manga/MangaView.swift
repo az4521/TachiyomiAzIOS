@@ -30,6 +30,14 @@ struct MangaView: View {
 
     @State private var openChapter: AidokuRunner.Chapter?
 
+    @State private var mangaWebSession: MangaWebSession?
+    @State private var mangaWebCookies: [String: String] = [:]
+    @State private var mangaWebDetailedCookies: [HTTPCookie] = []
+    @State private var mangaWebUserAgent = ""
+    @State private var mangaWebReload = false
+    @State private var mangaWebLoading = false
+    @State private var mangaWebError: String?
+
     @StateObject private var refreshController = RefreshController()
 
     private var path: NavigationCoordinator
@@ -170,6 +178,21 @@ struct MangaView: View {
                     source: viewModel.source,
                     manga: viewModel.manga
                 )
+            }
+            .sheet(item: $mangaWebSession) { session in
+                mangaWebSheet(session)
+                    .interactiveDismissDisabled()
+            }
+            .alert(
+                NSLocalizedString("ERROR"),
+                isPresented: Binding(
+                    get: { mangaWebError != nil },
+                    set: { if !$0 { mangaWebError = nil } }
+                )
+            ) {
+                Button(NSLocalizedString("OK"), role: .cancel) {}
+            } message: {
+                Text(mangaWebError ?? "")
             }
             .task {
                 guard !detailsLoaded else { return }
@@ -589,6 +612,7 @@ extension MangaView {
                 path.present(viewController)
             },
             showShareSheet: showShareSheet(item:),
+            openWebsite: openMangaWebView,
             removeDownloads: {
                 showRemoveAllConfirm = true
             },
@@ -598,6 +622,102 @@ extension MangaView {
 }
 
 extension MangaView {
+    private struct MangaWebSession: Identifiable {
+        let id = UUID()
+        let url: URL
+        let userAgent: String
+        let cookies: [HTTPCookie]
+    }
+
+    @ViewBuilder
+    private func mangaWebSheet(_ session: MangaWebSession) -> some View {
+        PlatformNavigationStack {
+            WebView(
+                session.url,
+                cookies: $mangaWebCookies,
+                detailedCookies: $mangaWebDetailedCookies,
+                userAgent: $mangaWebUserAgent,
+                preferredUserAgent: session.userAgent,
+                initialCookies: session.cookies,
+                reloadToggle: $mangaWebReload
+            )
+            .edgesIgnoringSafeArea(.bottom)
+            .navigationTitle(viewModel.manga.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(NSLocalizedString("CANCEL")) {
+                        mangaWebSession = nil
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        mangaWebReload = true
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(NSLocalizedString("DONE")) {
+                        commitMangaWebSession(session)
+                    }
+                    .disabled(mangaWebLoading)
+                }
+            }
+        }
+    }
+
+    private func openMangaWebView() {
+        guard
+            !mangaWebLoading,
+            let runner = viewModel.source?.runner as? TachiyomiXSourceRunner
+        else { return }
+        mangaWebLoading = true
+        Task {
+            defer { mangaWebLoading = false }
+            do {
+                async let url = runner.mangaWebURL(for: viewModel.manga)
+                async let userAgent = runner.webLoginUserAgent()
+                let resolvedURL = try await url
+                let resolvedUserAgent = try await userAgent
+                let cookies = try await runner.webLoginCookies(for: resolvedURL)
+                mangaWebCookies = [:]
+                mangaWebDetailedCookies = cookies
+                mangaWebUserAgent = resolvedUserAgent
+                mangaWebReload = false
+                mangaWebSession = MangaWebSession(
+                    url: resolvedURL,
+                    userAgent: resolvedUserAgent,
+                    cookies: cookies
+                )
+            } catch {
+                mangaWebError = error.localizedDescription
+            }
+        }
+    }
+
+    private func commitMangaWebSession(_ session: MangaWebSession) {
+        guard
+            !mangaWebLoading,
+            let runner = viewModel.source?.runner as? TachiyomiXSourceRunner
+        else { return }
+        mangaWebLoading = true
+        Task {
+            defer { mangaWebLoading = false }
+            do {
+                try await runner.commitWebLogin(
+                    cookies: mangaWebDetailedCookies,
+                    userAgent: mangaWebUserAgent.isEmpty
+                        ? session.userAgent
+                        : mangaWebUserAgent
+                )
+                mangaWebSession = nil
+            } catch {
+                mangaWebError = error.localizedDescription
+            }
+        }
+    }
+
     @ToolbarContentBuilder
     var toolbarContentBase: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
@@ -871,6 +991,7 @@ private struct RightNavbarButton: View, Equatable {
     private let hasCategories: Bool
     private let url: URL?
     private let hasDownloads: Bool
+    private let supportsMangaWebView: Bool
     private let isEditing: Bool
     private let refresh: () async -> Void
 
@@ -879,6 +1000,7 @@ private struct RightNavbarButton: View, Equatable {
     let editCategories: () -> Void
     let migrate: () -> Void
     let showShareSheet: (URL) -> Void
+    let openWebsite: () -> Void
     let removeDownloads: () -> Void
 
     @Binding var editMode: EditMode
@@ -891,6 +1013,7 @@ private struct RightNavbarButton: View, Equatable {
         editCategories: @escaping () -> Void,
         migrate: @escaping () -> Void,
         showShareSheet: @escaping (URL) -> Void,
+        openWebsite: @escaping () -> Void,
         removeDownloads: @escaping () -> Void,
         editMode: Binding<EditMode>
     ) {
@@ -898,6 +1021,7 @@ private struct RightNavbarButton: View, Equatable {
         self.hasCategories = !CoreDataManager.shared.getCategoryTitles(sorted: false).isEmpty
         self.url = viewModel.manga.url
         self.hasDownloads = viewModel.downloadStatus.contains(where: { $0.value == .finished })
+        self.supportsMangaWebView = viewModel.source?.runner is TachiyomiXSourceRunner
         self.refresh = refreshController.refresh
 
         self.markAllRead = markAllRead
@@ -905,6 +1029,7 @@ private struct RightNavbarButton: View, Equatable {
         self.editCategories = editCategories
         self.migrate = migrate
         self.showShareSheet = showShareSheet
+        self.openWebsite = openWebsite
         self.removeDownloads = removeDownloads
 
         self.isEditing = editMode.wrappedValue == .active
@@ -914,6 +1039,18 @@ private struct RightNavbarButton: View, Equatable {
     var body: some View {
         if editMode == .inactive {
             Menu {
+                if supportsMangaWebView {
+                    Section {
+                        Button {
+                            openWebsite()
+                        } label: {
+                            Label(
+                                NSLocalizedString("OPEN_WEBSITE"),
+                                systemImage: "safari"
+                            )
+                        }
+                    }
+                }
                 if let url {
                     Section {
                         Button {
@@ -999,6 +1136,7 @@ private struct RightNavbarButton: View, Equatable {
             && lhs.hasCategories == rhs.hasCategories
             && lhs.url == rhs.url
             && lhs.hasDownloads == rhs.hasDownloads
+            && lhs.supportsMangaWebView == rhs.supportsMangaWebView
             && lhs.isEditing == rhs.isEditing
     }
 }
