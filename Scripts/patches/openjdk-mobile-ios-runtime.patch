@@ -112,3 +112,29 @@ diff --git a/src/hotspot/os/posix/os_posix.cpp b/src/hotspot/os/posix/os_posix.c
    // This returns the global symbol in the main executable and its dependencies,
    // as well as shared objects dynamically loaded with RTLD_GLOBAL flag.
    return dlsym(RTLD_DEFAULT, name);
+
+diff --git a/src/hotspot/os_cpu/bsd_zero/os_bsd_zero.cpp b/src/hotspot/os_cpu/bsd_zero/os_bsd_zero.cpp
+--- a/src/hotspot/os_cpu/bsd_zero/os_bsd_zero.cpp
++++ b/src/hotspot/os_cpu/bsd_zero/os_bsd_zero.cpp
+@@ -91,4 +91,13 @@
+ address os::Posix::ucontext_get_pc(const ucontext_t* uc) {
++#if defined(__IOS__) && defined(__aarch64__)
++  // The generic Zero port leaves signal contexts unimplemented. On iOS this
++  // made every signal handled by HotSpot call ShouldNotCallThis() and abort,
++  // including otherwise recoverable signals received during library updates.
++  // Darwin's arm64 ucontext layout is the same one used by the BSD/AArch64
++  // HotSpot port.
++  return reinterpret_cast<address>(uc->uc_mcontext->__ss.__pc);
++#else
+   ShouldNotCallThis();
+   return nullptr;
++#endif
+ }
+@@ -96,3 +105,7 @@
+ void os::Posix::ucontext_set_pc(ucontext_t * uc, address pc) {
++#if defined(__IOS__) && defined(__aarch64__)
++  uc->uc_mcontext->__ss.__pc = reinterpret_cast<uintptr_t>(pc);
++#else
+   ShouldNotCallThis();
++#endif
+ }

@@ -37,6 +37,9 @@ actor NotificationManager {
     static let progressThreadIdentifier = "backgroundTasks"
 
     private struct ProgressState {
+        var completed: Double
+        var total: Int
+        var detail: String?
         var percentage: Int
         var lastUpdate: Date
     }
@@ -100,8 +103,17 @@ actor NotificationManager {
         total: Int,
         detail: String? = nil
     ) async {
-        guard progressNotificationsEnabled(for: operation) else { return }
-        progressStates.removeValue(forKey: operation)
+        guard progressNotificationsEnabled(for: operation), total > 0 else {
+            progressStates.removeValue(forKey: operation)
+            return
+        }
+        progressStates[operation] = .init(
+            completed: 0,
+            total: total,
+            detail: detail,
+            percentage: 0,
+            lastUpdate: .distantPast
+        )
 
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
@@ -141,7 +153,13 @@ actor NotificationManager {
             let waitedLongEnough = now.timeIntervalSince(state.lastUpdate) >= 1
             guard percentage == 100 || changedEnough || waitedLongEnough else { return }
         }
-        progressStates[operation] = .init(percentage: percentage, lastUpdate: now)
+        progressStates[operation] = .init(
+            completed: completed,
+            total: total,
+            detail: detail,
+            percentage: percentage,
+            lastUpdate: now
+        )
 
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
@@ -167,6 +185,20 @@ actor NotificationManager {
             trigger: nil
         )
         try? await center.add(request)
+    }
+
+    /// Reissues the latest progress notification immediately. SceneDelegate
+    /// uses this when the app moves to the background so an operation that is
+    /// currently waiting on a network request is still visible right away.
+    func republishProgress(_ operation: ProgressOperation) async {
+        guard let state = progressStates[operation] else { return }
+        await updateProgress(
+            operation,
+            completed: state.completed,
+            total: state.total,
+            detail: state.detail,
+            force: true
+        )
     }
 
     func finishProgress(

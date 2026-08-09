@@ -82,6 +82,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         if incognitoEnabled {
             (scene as? UIWindowScene)?.windows.first?.addSubview(contentHideView)
         }
+        Task {
+            await NotificationManager.shared.republishProgress(.libraryUpdate)
+        }
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
