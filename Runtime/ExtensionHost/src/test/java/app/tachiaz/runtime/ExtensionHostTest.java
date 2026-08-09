@@ -1,7 +1,9 @@
 package app.tachiaz.runtime;
 
 import android.net.Uri;
+import android.os.Build;
 import android.util.Base64;
+import android.util.Log;
 import java.nio.charset.StandardCharsets;
 
 public final class ExtensionHostTest {
@@ -50,6 +52,16 @@ public final class ExtensionHostTest {
                 -1
             )
         );
+        assertEquals(
+            "https://example.test/path",
+            Uri.parse("https://example.test")
+                .buildUpon()
+                .appendPath("path")
+                .toString()
+        );
+        assertTrue(!Build.ID.isEmpty());
+        assertTrue(Log.d("ExtensionHostTest", "debug", null) > 0);
+        assertTrue(Log.wtf("ExtensionHostTest", "assert") > 0);
         assertFloatEquals(
             12.5f,
             ChapterNumberParser.parse(
@@ -82,10 +94,15 @@ public final class ExtensionHostTest {
                 ExtensionHost.dispatch(
                     "{\"operation\":\"loadExtension\"," +
                         "\"extensionId\":\"fixture\"," +
+                        "\"userAgent\":\"TachiyomiAZ-Test-UA\"," +
                         "\"jarPath\":\"" + escapedPath + "\"," +
                         "\"entryClass\":\"fixture.EchoExtension\"}"
                 ),
                 "\"success\":true"
+            );
+            assertEquals(
+                "TachiyomiAZ-Test-UA",
+                System.getProperty("http.agent")
             );
             assertNull(Thread.currentThread().getContextClassLoader());
             assertContains(

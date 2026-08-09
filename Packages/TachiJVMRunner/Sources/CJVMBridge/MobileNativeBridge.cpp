@@ -154,12 +154,29 @@ jstring java_string(JNIEnv *environment, JSStringRef value) {
     return environment->NewStringUTF(utf8.data());
 }
 
-CTFontRef create_font(float size, bool bold) {
-    return CTFontCreateWithName(
-        bold ? CFSTR("Helvetica-Bold") : CFSTR("Helvetica"),
+CTFontRef create_font(float size, bool bold, CFStringRef font_name = nullptr) {
+    CTFontRef base = CTFontCreateWithName(
+        font_name == nullptr || CFStringGetLength(font_name) == 0
+            ? CFSTR("Helvetica")
+            : font_name,
         std::max(1.0f, size),
         nullptr
     );
+    if (!bold || base == nullptr) {
+        return base;
+    }
+    CTFontRef styled = CTFontCreateCopyWithSymbolicTraits(
+        base,
+        0,
+        nullptr,
+        kCTFontBoldTrait,
+        kCTFontBoldTrait
+    );
+    if (styled == nullptr) {
+        return base;
+    }
+    CFRelease(base);
+    return styled;
 }
 
 CFAttributedStringRef attributed_text(
@@ -168,9 +185,10 @@ CFAttributedStringRef attributed_text(
     bool bold,
     int32_t color,
     int style = 0,
-    float stroke_width = 0
+    float stroke_width = 0,
+    CFStringRef font_name = nullptr
 ) {
-    CTFontRef font = create_font(size, bold);
+    CTFontRef font = create_font(size, bold, font_name);
     const CGFloat alpha = static_cast<CGFloat>((color >> 24) & 0xff) / 255.0;
     const CGFloat red = static_cast<CGFloat>((color >> 16) & 0xff) / 255.0;
     const CGFloat green = static_cast<CGFloat>((color >> 8) & 0xff) / 255.0;
@@ -645,6 +663,7 @@ void JNICALL canvas_draw_text(
     jfloat size,
     jint color,
     jboolean bold,
+    jstring font_name,
     jint style,
     jfloat stroke_width,
     jfloat a,
@@ -660,13 +679,15 @@ void JNICALL canvas_draw_text(
         if (string != nullptr) CFRelease(string);
         return;
     }
+    CFStringRef font_name_cf = cf_string(environment, font_name);
     CFAttributedStringRef attributed = attributed_text(
         string,
         size,
         bold == JNI_TRUE,
         color,
         style,
-        stroke_width
+        stroke_width,
+        font_name_cf
     );
     CTLineRef line = CTLineCreateWithAttributedString(attributed);
     CGContextRef context = CGBitmapContextCreate(
@@ -695,7 +716,61 @@ void JNICALL canvas_draw_text(
     CGContextRelease(context);
     CFRelease(line);
     CFRelease(attributed);
+    CFRelease(font_name_cf);
     CFRelease(string);
+}
+
+jstring JNICALL text_register_font(
+    JNIEnv *environment,
+    jclass,
+    jstring path
+) {
+    CFStringRef path_string = cf_string(environment, path);
+    if (path_string == nullptr) {
+        return nullptr;
+    }
+    CFURLRef url = CFURLCreateWithFileSystemPath(
+        kCFAllocatorDefault,
+        path_string,
+        kCFURLPOSIXPathStyle,
+        false
+    );
+    CFRelease(path_string);
+    if (url == nullptr) {
+        return nullptr;
+    }
+    CFErrorRef error = nullptr;
+    CTFontManagerRegisterFontsForURL(url, kCTFontManagerScopeProcess, &error);
+    if (error != nullptr) {
+        CFRelease(error);
+    }
+    CFArrayRef descriptors = CTFontManagerCreateFontDescriptorsFromURL(url);
+    CFRelease(url);
+    if (descriptors == nullptr || CFArrayGetCount(descriptors) == 0) {
+        if (descriptors != nullptr) {
+            CFRelease(descriptors);
+        }
+        return nullptr;
+    }
+    CTFontDescriptorRef descriptor = reinterpret_cast<CTFontDescriptorRef>(
+        CFArrayGetValueAtIndex(descriptors, 0)
+    );
+    CFStringRef name = reinterpret_cast<CFStringRef>(
+        CTFontDescriptorCopyAttribute(descriptor, kCTFontNameAttribute)
+    );
+    CFRelease(descriptors);
+    if (name == nullptr) {
+        return nullptr;
+    }
+    const CFIndex length = CFStringGetLength(name);
+    std::vector<UniChar> characters(static_cast<size_t>(length));
+    CFStringGetCharacters(name, CFRangeMake(0, length), characters.data());
+    jstring result = environment->NewString(
+        reinterpret_cast<const jchar *>(characters.data()),
+        static_cast<jsize>(length)
+    );
+    CFRelease(name);
+    return result;
 }
 
 jfloat JNICALL text_measure(
@@ -703,17 +778,22 @@ jfloat JNICALL text_measure(
     jclass,
     jstring text,
     jfloat size,
-    jboolean bold
+    jboolean bold,
+    jstring font_name
 ) {
     CFStringRef string = cf_string(environment, text);
     if (string == nullptr) {
         return 0;
     }
+    CFStringRef font_name_cf = cf_string(environment, font_name);
     CFAttributedStringRef attributed = attributed_text(
         string,
         size,
         bold == JNI_TRUE,
-        0xff000000
+        0xff000000,
+        0,
+        0,
+        font_name_cf
     );
     CTLineRef line = CTLineCreateWithAttributedString(attributed);
     const double width = CTLineGetTypographicBounds(
@@ -724,6 +804,7 @@ jfloat JNICALL text_measure(
     );
     CFRelease(line);
     CFRelease(attributed);
+    CFRelease(font_name_cf);
     CFRelease(string);
     return static_cast<jfloat>(width);
 }
@@ -732,15 +813,18 @@ jfloatArray JNICALL text_font_metrics(
     JNIEnv *environment,
     jclass,
     jfloat size,
-    jboolean bold
+    jboolean bold,
+    jstring font_name
 ) {
-    CTFontRef font = create_font(size, bold == JNI_TRUE);
+    CFStringRef font_name_cf = cf_string(environment, font_name);
+    CTFontRef font = create_font(size, bold == JNI_TRUE, font_name_cf);
     const jfloat values[] = {
         static_cast<jfloat>(CTFontGetAscent(font)),
         static_cast<jfloat>(CTFontGetDescent(font)),
         static_cast<jfloat>(CTFontGetLeading(font)),
     };
     CFRelease(font);
+    CFRelease(font_name_cf);
     jfloatArray result = environment->NewFloatArray(3);
     if (result != nullptr) {
         environment->SetFloatArrayRegion(result, 0, 3, values);
@@ -754,17 +838,22 @@ jintArray JNICALL text_line_ends(
     jstring text,
     jfloat width,
     jfloat size,
-    jboolean bold
+    jboolean bold,
+    jstring font_name
 ) {
     CFStringRef string = cf_string(environment, text);
     if (string == nullptr) {
         return nullptr;
     }
+    CFStringRef font_name_cf = cf_string(environment, font_name);
     CFAttributedStringRef attributed = attributed_text(
         string,
         size,
         bold == JNI_TRUE,
-        0xff000000
+        0xff000000,
+        0,
+        0,
+        font_name_cf
     );
     CTTypesetterRef typesetter = CTTypesetterCreateWithAttributedString(attributed);
     const CFIndex length = CFStringGetLength(string);
@@ -792,6 +881,7 @@ jintArray JNICALL text_line_ends(
     }
     CFRelease(typesetter);
     CFRelease(attributed);
+    CFRelease(font_name_cf);
     CFRelease(string);
     jintArray result = environment->NewIntArray(static_cast<jsize>(ends.size()));
     if (result != nullptr && !ends.empty()) {
@@ -803,6 +893,125 @@ jintArray JNICALL text_line_ends(
         );
     }
     return result;
+}
+
+jlong JNICALL pdf_open(JNIEnv *environment, jclass, jstring path) {
+    CFStringRef path_string = cf_string(environment, path);
+    if (path_string == nullptr) {
+        return 0;
+    }
+    CFURLRef url = CFURLCreateWithFileSystemPath(
+        kCFAllocatorDefault,
+        path_string,
+        kCFURLPOSIXPathStyle,
+        false
+    );
+    CFRelease(path_string);
+    if (url == nullptr) {
+        return 0;
+    }
+    CGPDFDocumentRef document = CGPDFDocumentCreateWithURL(url);
+    CFRelease(url);
+    return static_cast<jlong>(reinterpret_cast<intptr_t>(document));
+}
+
+jint JNICALL pdf_page_count(JNIEnv *, jclass, jlong value) {
+    CGPDFDocumentRef document = reinterpret_cast<CGPDFDocumentRef>(
+        static_cast<intptr_t>(value)
+    );
+    return document == nullptr
+        ? 0
+        : static_cast<jint>(CGPDFDocumentGetNumberOfPages(document));
+}
+
+jintArray JNICALL pdf_page_size(
+    JNIEnv *environment,
+    jclass,
+    jlong value,
+    jint page_index
+) {
+    CGPDFDocumentRef document = reinterpret_cast<CGPDFDocumentRef>(
+        static_cast<intptr_t>(value)
+    );
+    if (document == nullptr || page_index < 0) {
+        return nullptr;
+    }
+    CGPDFPageRef page = CGPDFDocumentGetPage(document, page_index + 1);
+    if (page == nullptr) {
+        return nullptr;
+    }
+    const CGRect box = CGPDFPageGetBoxRect(page, kCGPDFMediaBox);
+    const int rotation = std::abs(CGPDFPageGetRotationAngle(page)) % 180;
+    const CGFloat page_width = rotation == 90
+        ? CGRectGetHeight(box)
+        : CGRectGetWidth(box);
+    const CGFloat page_height = rotation == 90
+        ? CGRectGetWidth(box)
+        : CGRectGetHeight(box);
+    const jint values[] = {
+        static_cast<jint>(std::ceil(page_width)),
+        static_cast<jint>(std::ceil(page_height)),
+    };
+    jintArray result = environment->NewIntArray(2);
+    if (result != nullptr) {
+        environment->SetIntArrayRegion(result, 0, 2, values);
+    }
+    return result;
+}
+
+jboolean JNICALL pdf_render(
+    JNIEnv *,
+    jclass,
+    jlong value,
+    jint page_index,
+    jlong bitmap_handle,
+    jint left,
+    jint top,
+    jint right,
+    jint bottom
+) {
+    CGPDFDocumentRef document = reinterpret_cast<CGPDFDocumentRef>(
+        static_cast<intptr_t>(value)
+    );
+    NativeBitmap *target = bitmap(bitmap_handle);
+    if (
+        document == nullptr || target == nullptr || target->context == nullptr ||
+        page_index < 0 || left >= right || top >= bottom
+    ) {
+        return JNI_FALSE;
+    }
+    CGPDFPageRef page = CGPDFDocumentGetPage(document, page_index + 1);
+    if (page == nullptr) {
+        return JNI_FALSE;
+    }
+    const CGRect destination = CGRectMake(
+        left,
+        static_cast<CGFloat>(target->height) - bottom,
+        right - left,
+        bottom - top
+    );
+    CGContextSaveGState(target->context);
+    CGContextClipToRect(target->context, destination);
+    const CGAffineTransform transform = CGPDFPageGetDrawingTransform(
+        page,
+        kCGPDFMediaBox,
+        destination,
+        0,
+        true
+    );
+    CGContextConcatCTM(target->context, transform);
+    CGContextDrawPDFPage(target->context, page);
+    CGContextRestoreGState(target->context);
+    return JNI_TRUE;
+}
+
+void JNICALL pdf_close(JNIEnv *, jclass, jlong value) {
+    CGPDFDocumentRef document = reinterpret_cast<CGPDFDocumentRef>(
+        static_cast<intptr_t>(value)
+    );
+    if (document != nullptr) {
+        CGPDFDocumentRelease(document);
+    }
 }
 
 jlong JNICALL javascript_create(JNIEnv *, jclass) {
@@ -976,10 +1185,16 @@ const JNINativeMethod methods[] = {
     {const_cast<char *>("bitmapGetPixels"), const_cast<char *>("(J[IIIIIII)V"), reinterpret_cast<void *>(&bitmap_get_pixels)},
     {const_cast<char *>("bitmapSetPixels"), const_cast<char *>("(J[IIIIIII)V"), reinterpret_cast<void *>(&bitmap_set_pixels)},
     {const_cast<char *>("canvasDrawBitmap"), const_cast<char *>("(JJIIIIIIIIFFFFFF)V"), reinterpret_cast<void *>(&canvas_draw_bitmap)},
-    {const_cast<char *>("canvasDrawText"), const_cast<char *>("(JLjava/lang/String;FFFIZIFFFFFFF)V"), reinterpret_cast<void *>(&canvas_draw_text)},
-    {const_cast<char *>("textMeasure"), const_cast<char *>("(Ljava/lang/String;FZ)F"), reinterpret_cast<void *>(&text_measure)},
-    {const_cast<char *>("textFontMetrics"), const_cast<char *>("(FZ)[F"), reinterpret_cast<void *>(&text_font_metrics)},
-    {const_cast<char *>("textLineEnds"), const_cast<char *>("(Ljava/lang/String;FFZ)[I"), reinterpret_cast<void *>(&text_line_ends)},
+    {const_cast<char *>("canvasDrawText"), const_cast<char *>("(JLjava/lang/String;FFFIZLjava/lang/String;IFFFFFFF)V"), reinterpret_cast<void *>(&canvas_draw_text)},
+    {const_cast<char *>("textRegisterFont"), const_cast<char *>("(Ljava/lang/String;)Ljava/lang/String;"), reinterpret_cast<void *>(&text_register_font)},
+    {const_cast<char *>("textMeasure"), const_cast<char *>("(Ljava/lang/String;FZLjava/lang/String;)F"), reinterpret_cast<void *>(&text_measure)},
+    {const_cast<char *>("textFontMetrics"), const_cast<char *>("(FZLjava/lang/String;)[F"), reinterpret_cast<void *>(&text_font_metrics)},
+    {const_cast<char *>("textLineEnds"), const_cast<char *>("(Ljava/lang/String;FFZLjava/lang/String;)[I"), reinterpret_cast<void *>(&text_line_ends)},
+    {const_cast<char *>("pdfOpen"), const_cast<char *>("(Ljava/lang/String;)J"), reinterpret_cast<void *>(&pdf_open)},
+    {const_cast<char *>("pdfPageCount"), const_cast<char *>("(J)I"), reinterpret_cast<void *>(&pdf_page_count)},
+    {const_cast<char *>("pdfPageSize"), const_cast<char *>("(JI)[I"), reinterpret_cast<void *>(&pdf_page_size)},
+    {const_cast<char *>("pdfRender"), const_cast<char *>("(JIJIIII)Z"), reinterpret_cast<void *>(&pdf_render)},
+    {const_cast<char *>("pdfClose"), const_cast<char *>("(J)V"), reinterpret_cast<void *>(&pdf_close)},
     {const_cast<char *>("javascriptCreate"), const_cast<char *>("()J"), reinterpret_cast<void *>(&javascript_create)},
     {const_cast<char *>("javascriptEvaluate"), const_cast<char *>("(JLjava/lang/String;)Ljava/lang/Object;"), reinterpret_cast<void *>(&javascript_evaluate)},
     {const_cast<char *>("javascriptClose"), const_cast<char *>("(J)V"), reinterpret_cast<void *>(&javascript_close)},

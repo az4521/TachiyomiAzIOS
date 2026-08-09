@@ -61,14 +61,16 @@ public final class StaticLayout extends Layout {
             value,
             width,
             paint.getTextSize(),
-            paint.getTypeface().isBold()
+            paint.getTypeface().isBold(),
+            paint.getTypeface().getNativeName()
         );
         this.lineEnds = measured == null || measured.length == 0
             ? new int[] {value.length()}
             : measured;
         float[] metrics = NativeBridge.textFontMetrics(
             paint.getTextSize(),
-            paint.getTypeface().isBold()
+            paint.getTypeface().isBold(),
+            paint.getTypeface().getNativeName()
         );
         float naturalHeight = metrics[0] + metrics[1] + metrics[2];
         this.lineHeight = Math.max(

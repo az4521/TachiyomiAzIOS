@@ -982,11 +982,15 @@ actor JVMSourceRuntime {
         var request = originalRequest
         if
             request.userAgent == nil,
-            request.extensionId != nil,
-            request.sourceId != nil
+            request.extensionId != nil
         {
-            let key = "\(request.extensionId!):\(request.sourceId!)"
-            if let sessionUserAgent = cloudflareSessionUserAgents[key] {
+            let key = request.sourceId.map {
+                "\(request.extensionId!):\($0)"
+            }
+            if
+                let key,
+                let sessionUserAgent = cloudflareSessionUserAgents[key]
+            {
                 request.userAgent = sessionUserAgent
             } else {
                 request.userAgent = await UserAgentProvider.shared

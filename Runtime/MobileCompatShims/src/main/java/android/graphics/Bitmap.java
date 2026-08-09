@@ -24,7 +24,7 @@ public final class Bitmap {
         return new Bitmap(result[0], (int) result[1], (int) result[2], config);
     }
 
-    long nativeHandle() {
+    public long nativeHandle() {
         requireLive();
         return nativeHandle;
     }

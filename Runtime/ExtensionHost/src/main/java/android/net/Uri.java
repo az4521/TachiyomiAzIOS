@@ -218,5 +218,10 @@ public final class Uri {
             }
             return Uri.parse(result.toString());
         }
+
+        @Override
+        public String toString() {
+            return build().toString();
+        }
     }
 }

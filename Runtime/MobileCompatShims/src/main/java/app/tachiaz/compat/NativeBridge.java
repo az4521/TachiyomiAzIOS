@@ -74,6 +74,7 @@ public final class NativeBridge {
         float size,
         int color,
         boolean bold,
+        String fontName,
         int style,
         float strokeWidth,
         float scaleX,
@@ -83,14 +84,39 @@ public final class NativeBridge {
         float translateX,
         float translateY
     );
-    public static native float textMeasure(String text, float size, boolean bold);
-    public static native float[] textFontMetrics(float size, boolean bold);
+    public static native String textRegisterFont(String path);
+    public static native float textMeasure(
+        String text,
+        float size,
+        boolean bold,
+        String fontName
+    );
+    public static native float[] textFontMetrics(
+        float size,
+        boolean bold,
+        String fontName
+    );
     public static native int[] textLineEnds(
         String text,
         float width,
         float size,
-        boolean bold
+        boolean bold,
+        String fontName
     );
+
+    public static native long pdfOpen(String path);
+    public static native int pdfPageCount(long handle);
+    public static native int[] pdfPageSize(long handle, int pageIndex);
+    public static native boolean pdfRender(
+        long handle,
+        int pageIndex,
+        long bitmapHandle,
+        int left,
+        int top,
+        int right,
+        int bottom
+    );
+    public static native void pdfClose(long handle);
 
     public static native long javascriptCreate();
     public static native Object javascriptEvaluate(long handle, String script);

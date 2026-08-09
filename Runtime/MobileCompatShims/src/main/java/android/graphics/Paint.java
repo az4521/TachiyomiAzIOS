@@ -196,7 +196,12 @@ public class Paint {
         if (text == null) {
             throw new NullPointerException("text");
         }
-        return NativeBridge.textMeasure(text, textSize, typeface.isBold());
+        return NativeBridge.textMeasure(
+            text,
+            textSize,
+            typeface.isBold(),
+            typeface.getNativeName()
+        );
     }
 
     public float measureText(String text, int start, int end) {
@@ -212,7 +217,11 @@ public class Paint {
     }
 
     private float[] fontMetrics() {
-        return NativeBridge.textFontMetrics(textSize, typeface.isBold());
+        return NativeBridge.textFontMetrics(
+            textSize,
+            typeface.isBold(),
+            typeface.getNativeName()
+        );
     }
 
     private void setFlag(int flag, boolean value) {

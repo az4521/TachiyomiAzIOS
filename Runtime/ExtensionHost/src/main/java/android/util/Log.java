@@ -19,6 +19,10 @@ public final class Log {
         return print("DEBUG", tag, message, null);
     }
 
+    public static int d(String tag, String message, Throwable error) {
+        return print("DEBUG", tag, message, error);
+    }
+
     public static int i(String tag, String message) {
         return print("INFO", tag, message, null);
     }
@@ -37,6 +41,14 @@ public final class Log {
 
     public static int e(String tag, String message, Throwable error) {
         return print("ERROR", tag, message, error);
+    }
+
+    public static int wtf(String tag, String message) {
+        return print("ASSERT", tag, message, null);
+    }
+
+    public static int wtf(String tag, String message, Throwable error) {
+        return print("ASSERT", tag, message, error);
     }
 
     public static int println(int priority, String tag, String message) {

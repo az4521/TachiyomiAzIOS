@@ -1720,8 +1720,14 @@ public final class ExtensionHost {
         Map<String, String> request
     ) throws Exception {
         String userAgent = defaultValue(request.get("userAgent"), "").trim();
+        if (userAgent.isEmpty()) {
+            return;
+        }
+        // WebSettings.getDefaultUserAgent is static and may be called while
+        // constructing an extension, before a source ID exists. Keep the JVM
+        // property synchronized for both construction and normal requests.
+        System.setProperty("http.agent", userAgent);
         if (
-            userAgent.isEmpty() ||
             request.get("extensionId") == null ||
             request.get("sourceId") == null
         ) {
@@ -2129,6 +2135,9 @@ public final class ExtensionHost {
     }
 
     private static void setForcedUserAgent(Object client, String userAgent) {
+        if (userAgent != null && !userAgent.isEmpty()) {
+            System.setProperty("http.agent", userAgent);
+        }
         try {
             for (Object interceptor : clientInterceptors(client)) {
                 if (!interceptor.getClass().getName().endsWith(

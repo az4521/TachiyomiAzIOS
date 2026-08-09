@@ -2,6 +2,7 @@ package app.tachiaz.runtime;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import android.webkit.JavascriptInterface;
@@ -35,6 +36,12 @@ public final class AndroidCompatibilitySurfaceTest {
         Class<?> textPaint = Class.forName("android.text.TextPaint");
         Class<?> alignment = Class.forName("android.text.Layout$Alignment");
         Class<?> staticLayout = Class.forName("android.text.StaticLayout");
+        Class<?> parcelFileDescriptor = Class.forName(
+            "android.os.ParcelFileDescriptor"
+        );
+        Class<?> pdfRenderer = Class.forName("android.graphics.pdf.PdfRenderer");
+        Class<?> pdfPage = Class.forName("android.graphics.pdf.PdfRenderer$Page");
+        Class<?> matrix = Class.forName("android.graphics.Matrix");
 
         bitmap.getMethod("createBitmap", int.class, int.class, bitmapConfig);
         bitmap.getMethod(
@@ -84,6 +91,22 @@ public final class AndroidCompatibilitySurfaceTest {
         canvas.getMethod("restore");
         canvas.getMethod("restoreToCount", int.class);
         paint.getMethod("measureText", String.class);
+        parcelFileDescriptor.getMethod("open", java.io.File.class, int.class);
+        pdfRenderer.getConstructor(parcelFileDescriptor);
+        pdfRenderer.getMethod("getPageCount");
+        pdfRenderer.getMethod("openPage", int.class);
+        pdfPage.getMethod("getWidth");
+        pdfPage.getMethod("getHeight");
+        pdfPage.getMethod("render", bitmap, rect, matrix, int.class);
+        Class<?> sslHandler = Class.forName("android.webkit.SslErrorHandler");
+        sslHandler.getConstructor();
+        sslHandler.getMethod("proceed");
+        sslHandler.getMethod("cancel");
+        Class<?> webSettings = Class.forName("android.webkit.WebSettings");
+        webSettings.getMethod(
+            "getDefaultUserAgent",
+            Class.forName("android.content.Context")
+        );
         Object rectangle = rect
             .getConstructor(int.class, int.class, int.class, int.class)
             .newInstance(10, 20, 50, 80);
@@ -258,6 +281,7 @@ public final class AndroidCompatibilitySurfaceTest {
         Class.forName("android.os.Looper").getMethod("getMainLooper");
         assertMobileServerConfig();
         assertConfigurableUserAgent();
+        assertHeadlessAndroidUtilities();
 
         byte[] decoded = (byte[]) Class.forName("android.util.Base64")
             .getMethod("decode", String.class, int.class)
@@ -352,6 +376,52 @@ public final class AndroidCompatibilitySurfaceTest {
             interceptor.effectiveUserAgent("Extension/Custom")
         )) {
             throw new AssertionError("Cloudflare user-agent force was not cleared");
+        }
+    }
+
+    private static void assertHeadlessAndroidUtilities() throws Exception {
+        android.util.DisplayMetrics metrics = android.content.res.Resources
+            .getSystem()
+            .getDisplayMetrics();
+        if (metrics.widthPixels <= 0 || metrics.heightPixels <= 0 || metrics.density <= 0) {
+            throw new AssertionError("Headless display metrics are invalid");
+        }
+
+        android.util.JsonReader reader = new android.util.JsonReader(
+            new StringReader("{\"items\":[1,{\"skip\":true},null],\"value\":2.5}")
+        );
+        reader.beginObject();
+        if (!"items".equals(reader.nextName())) throw new AssertionError("JSON name lost");
+        reader.beginArray();
+        if (reader.nextInt() != 1) throw new AssertionError("JSON integer lost");
+        reader.skipValue();
+        reader.nextNull();
+        reader.endArray();
+        if (!"value".equals(reader.nextName()) || reader.nextDouble() != 2.5d) {
+            throw new AssertionError("JSON numeric value lost");
+        }
+        reader.endObject();
+        if (reader.peek() != android.util.JsonToken.END_DOCUMENT) {
+            throw new AssertionError("JSON document did not terminate");
+        }
+        reader.close();
+
+        android.icu.text.RuleBasedCollator collator =
+            (android.icu.text.RuleBasedCollator) android.icu.text.Collator.getInstance();
+        collator.setStrength(android.icu.text.Collator.PRIMARY);
+        android.icu.text.StringSearch search = new android.icu.text.StringSearch(
+            "café",
+            new java.text.StringCharacterIterator("A CAFE title"),
+            collator
+        );
+        if (search.first() != 2 || !"CAFE".equals(search.getMatchedText())) {
+            throw new AssertionError("ICU-compatible collation search failed");
+        }
+        String folded = android.icu.text.Normalizer2
+            .getNFKCCasefoldInstance()
+            .normalize("Straße");
+        if (!"strasse".equals(folded)) {
+            throw new AssertionError("ICU-compatible case folding failed: " + folded);
         }
     }
 

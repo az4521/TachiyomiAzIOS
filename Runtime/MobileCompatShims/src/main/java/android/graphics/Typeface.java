@@ -1,6 +1,7 @@
 package android.graphics;
 
 import java.io.File;
+import app.tachiaz.compat.NativeBridge;
 
 public class Typeface {
     public static final int NORMAL = 0;
@@ -46,7 +47,11 @@ public class Typeface {
         if (file == null || !file.exists()) {
             throw new RuntimeException("Font asset not found");
         }
-        return DEFAULT;
+        String name = NativeBridge.textRegisterFont(file.getAbsolutePath());
+        if (name == null || name.isEmpty()) {
+            throw new RuntimeException("Unable to load font asset: " + file);
+        }
+        return new Typeface(name, NORMAL);
     }
 
     public static Typeface createFromFile(String path) {
@@ -70,6 +75,19 @@ public class Typeface {
     }
 
     public String getSystemFontFamilyName() {
+        return family;
+    }
+
+    public String getNativeName() {
+        if ("sans-serif".equals(family)) {
+            return "Helvetica";
+        }
+        if ("serif".equals(family)) {
+            return "Times New Roman";
+        }
+        if ("monospace".equals(family)) {
+            return "Menlo";
+        }
         return family;
     }
 

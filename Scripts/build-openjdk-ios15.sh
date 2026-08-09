@@ -11,7 +11,7 @@ ios_runtime_patch="$repository_root/Scripts/patches/openjdk-mobile-ios-runtime.p
 symbol_keeper_sha256="ec02a950b2c630b234aa393abdf48efe7ce95c3a637c189e0a2e492e8ec316db"
 device_libffi_sha256="4f39fd1d53fbd69d1bdbd915413077d130daa3f6792d1b3a03a690a9cbd4dea3"
 simulator_libffi_sha256="701b522e3eff0263f18d4a9e487f0a7ac30050fb2af20e86b6849daa14f5781f"
-stamp_value="openjdk-mobile-$mobile_revision-ios-$deployment_target-v12"
+stamp_value="openjdk-mobile-$mobile_revision-ios-$deployment_target-v13"
 stamp_file="$vendor_root/.ios-runtime"
 runtime_data_files=(
     conf/net.properties
@@ -20,6 +20,7 @@ runtime_data_files=(
     lib/security/public_suffix_list.dat
     lib/tzdb.dat
     legal/java.base/LICENSE
+    legal/java.xml/LICENSE
 )
 
 if [[ -f "$stamp_file" ]] && [[ "$(<"$stamp_file")" == "$stamp_value" ]]; then
@@ -176,7 +177,7 @@ macos_sdk="$(xcrun --sdk macosx --show-sdk-path)"
         --with-extra-ldflags="-miphoneos-version-min=$deployment_target" \
         --with-cups-include="$macos_sdk/usr/include"
     make LOG=info CONF=ios-aarch64-zero-release \
-        static-libs-image jdk.crypto.ec-java jdk.unsupported-java
+        static-libs-image java.xml-java jdk.crypto.ec-java jdk.unsupported-java
 
     bash configure \
         --with-conf-name=iossim-aarch64-zero-release \
@@ -190,7 +191,7 @@ macos_sdk="$(xcrun --sdk macosx --show-sdk-path)"
         --with-extra-ldflags="-target arm64-apple-ios${deployment_target}-simulator -mios-simulator-version-min=$deployment_target" \
         --with-cups-include="$macos_sdk/usr/include"
     make LOG=info CONF=iossim-aarch64-zero-release \
-        static-libs-image jdk.crypto.ec-java jdk.unsupported-java
+        static-libs-image java.xml-java jdk.crypto.ec-java jdk.unsupported-java
 )
 
 image_java_home="$mobile_root/build/macos-aarch64/images/jdk"
@@ -345,7 +346,7 @@ create_java_bundle() {
     local module
     local descriptor
     local module_classes_path
-    for module in jdk.crypto.ec jdk.unsupported
+    for module in java.xml jdk.crypto.ec jdk.unsupported
     do
         module_classes_path="$mobile_root/build/$configuration/jdk/modules/$module"
         if [[ ! -f "$module_classes_path/module-info.class" ]]; then
@@ -374,7 +375,7 @@ create_java_bundle() {
         --module-version "$module_version" \
         --target-platform "$platform" \
         --module-path "$jmods" \
-        --hash-modules '^(jdk\.crypto\.ec|jdk\.unsupported)$' \
+        --hash-modules '^(java\.xml|jdk\.crypto\.ec|jdk\.unsupported)$' \
         "$jmods/java.base.jmod"
     descriptor="$(
         "$image_java_home/bin/jmod" describe "$jmods/java.base.jmod" |
@@ -386,7 +387,7 @@ create_java_bundle() {
     fi
     "$image_java_home/bin/jlink" \
         --module-path "$jmods" \
-        --add-modules java.base,jdk.crypto.ec,jdk.unsupported \
+        --add-modules java.base,java.xml,jdk.crypto.ec,jdk.unsupported \
         --output "$destination"
     "$image_java_home/bin/jimage" verify "$destination/lib/modules"
     local linked_modules
@@ -394,7 +395,7 @@ create_java_bundle() {
         "$image_java_home/bin/jimage" list "$destination/lib/modules" |
             awk '/^Module: / { print $2 }'
     )"
-    for module in java.base jdk.crypto.ec jdk.unsupported
+    for module in java.base java.xml jdk.crypto.ec jdk.unsupported
     do
         if ! grep -Fxq "$module" <<< "$linked_modules"; then
             echo "Java image is missing module $module" >&2
@@ -411,7 +412,7 @@ create_java_bundle() {
     ditto "$image_java_home/lib/security" "$destination/lib/security"
     ditto "$image_java_home/lib/tzdb.dat" "$destination/lib/tzdb.dat"
     mkdir -p "$destination/legal"
-    for module in java.base jdk.crypto.ec jdk.unsupported
+    for module in java.base java.xml jdk.crypto.ec jdk.unsupported
     do
         ditto "$image_java_home/legal/$module" "$destination/legal/$module"
     done

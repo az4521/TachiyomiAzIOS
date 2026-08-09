@@ -76,6 +76,7 @@ public final class Canvas {
             paint.getTextSize(),
             paint.getColor(),
             paint.getTypeface().isBold(),
+            paint.getTypeface().getNativeName(),
             paint.getStyle().ordinal(),
             paint.getStrokeWidth(),
             a,

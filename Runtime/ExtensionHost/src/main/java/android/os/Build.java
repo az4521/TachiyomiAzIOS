@@ -5,6 +5,7 @@ public final class Build {
     public static final String BRAND = "Apple";
     public static final String DEVICE = "iPhone";
     public static final String DISPLAY = "TachiyomiAZ";
+    public static final String ID = "TachiyomiAZ-iOS";
     public static final String MANUFACTURER = "Apple";
     public static final String MODEL = "iPhone";
     public static final String PRODUCT = "TachiyomiAZ";

@@ -19,7 +19,7 @@ fi
 
 rm -rf "$probe_root"
 "$java_home/bin/jlink" \
-    --add-modules java.base,jdk.crypto.ec,jdk.unsupported \
+    --add-modules java.base,java.xml,jdk.crypto.ec,jdk.unsupported \
     --output "$probe_root" \
     --strip-debug \
     --no-header-files \
