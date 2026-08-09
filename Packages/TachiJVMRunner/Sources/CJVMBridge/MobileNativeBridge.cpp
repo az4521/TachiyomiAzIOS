@@ -79,6 +79,17 @@ jlong handle(NativeBitmap *value) {
     return static_cast<jlong>(reinterpret_cast<intptr_t>(value));
 }
 
+// Quartz bitmap contexts use a bottom-left origin, while Android Bitmap and
+// Canvas expose row zero at the top. Keep the backing context in Quartz's
+// native orientation (so CGImage encode/decode remains lossless) and map every
+// Android pixel coordinate at the raw-buffer boundary.
+size_t pixel_offset(const NativeBitmap *value, int x, int android_y) {
+    const size_t quartz_y = value->height - 1 -
+        static_cast<size_t>(android_y);
+    return (quartz_y * value->bytes_per_row) +
+        (static_cast<size_t>(x) * 4);
+}
+
 bool valid_bitmap_dimensions(size_t width, size_t height) {
     constexpr size_t maximum_pixel_count =
         (256ULL * 1024ULL * 1024ULL) / 4ULL;
@@ -326,15 +337,11 @@ jlongArray JNICALL bitmap_decode(
         return nullptr;
     }
     if (result != nullptr && result->valid()) {
-        CGContextSaveGState(result->context);
-        CGContextTranslateCTM(result->context, 0, result->height);
-        CGContextScaleCTM(result->context, 1, -1);
         CGContextDrawImage(
             result->context,
             CGRectMake(0, 0, result->width, result->height),
             image
         );
-        CGContextRestoreGState(result->context);
     }
     CGImageRelease(image);
     return bitmap_result(environment, result);
@@ -374,8 +381,8 @@ jlongArray JNICALL bitmap_crop(
     }
     for (int row = 0; row < height; ++row) {
         std::memcpy(
-            result->pixels.data() + (row * result->bytes_per_row),
-            source->pixels.data() + ((y + row) * source->bytes_per_row) + (x * 4),
+            result->pixels.data() + pixel_offset(result, 0, row),
+            source->pixels.data() + pixel_offset(source, x, y + row),
             static_cast<size_t>(width) * 4
         );
     }
@@ -472,7 +479,7 @@ void JNICALL bitmap_erase(JNIEnv *, jclass, jlong value, jint color) {
 jint JNICALL bitmap_get_pixel(JNIEnv *, jclass, jlong value, jint x, jint y) {
     NativeBitmap *target = bitmap(value);
     return read_color(
-        target->pixels.data() + (y * target->bytes_per_row) + (x * 4)
+        target->pixels.data() + pixel_offset(target, x, y)
     );
 }
 
@@ -481,7 +488,7 @@ void JNICALL bitmap_set_pixel(
 ) {
     NativeBitmap *target = bitmap(value);
     write_color(
-        target->pixels.data() + (y * target->bytes_per_row) + (x * 4),
+        target->pixels.data() + pixel_offset(target, x, y),
         color
     );
 }
@@ -511,18 +518,22 @@ void transfer_pixels(
             );
             for (int column = 0; column < width; ++column) {
                 write_color(
-                    target->pixels.data() +
-                        ((y + line) * target->bytes_per_row) +
-                        ((x + column) * 4),
+                    target->pixels.data() + pixel_offset(
+                        target,
+                        x + column,
+                        y + line
+                    ),
                     row[column]
                 );
             }
         } else {
             for (int column = 0; column < width; ++column) {
                 row[column] = read_color(
-                    target->pixels.data() +
-                        ((y + line) * target->bytes_per_row) +
-                        ((x + column) * 4)
+                    target->pixels.data() + pixel_offset(
+                        target,
+                        x + column,
+                        y + line
+                    )
                 );
             }
             environment->SetIntArrayRegion(
@@ -643,10 +654,12 @@ void JNICALL canvas_draw_bitmap(
                 continue;
             }
             std::memcpy(
-                destination->pixels.data() +
-                    (output_y * destination->bytes_per_row) + (output_x * 4),
-                source_pixels +
-                    (input_y * source->bytes_per_row) + (input_x * 4),
+                destination->pixels.data() + pixel_offset(
+                    destination,
+                    output_x,
+                    output_y
+                ),
+                source_pixels + pixel_offset(source, input_x, input_y),
                 4
             );
         }
