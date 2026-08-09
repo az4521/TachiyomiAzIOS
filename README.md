@@ -53,6 +53,40 @@ mihon://extension-store?url=<percent-encoded-repository-url>
 Only add repositories whose contents you trust. Extensions execute code inside
 the bundled JVM compatibility environment and can make network requests.
 
+## How Suwayomi is used
+
+TachiyomiAZ iOS uses part of
+[Suwayomi-Server](https://github.com/Suwayomi/Suwayomi-Server) as its JVM
+compatibility foundation. It does **not** launch a Suwayomi web server or use
+Suwayomi's web interface, library database, reader, or download manager.
+
+During the build,
+[`Scripts/bootstrap-suwayomi-compat.sh`](Scripts/bootstrap-suwayomi-compat.sh)
+checks out the pinned Suwayomi-Server commit
+[`eb2dc0b`](https://github.com/Suwayomi/Suwayomi-Server/tree/eb2dc0b19a9571b27c02bebc5c883e404b7bd7fb),
+applies a small
+[iOS runtime patch](Scripts/patches/suwayomi-ios-runtime.patch), and copies an
+allowlisted set of build outputs and runtime dependencies into the app. The
+important pieces are Suwayomi's Tachiyomi source API, `AndroidCompat`, Android
+API stubs, configuration support, and their required JVM libraries.
+
+At runtime, those JARs run inside the bundled OpenJDK VM. TachiyomiAZ's Java
+extension host initializes the Suwayomi application, AndroidCompat,
+configuration, and Koin modules without starting the server entry point. Our
+iOS-specific compatibility shims provide or replace mobile APIs such as the
+Android main looper and native graphics/text behavior. The extension host then
+invokes Tachiyomi extension source methods and returns their models to the
+native Swift app.
+
+The native UI, extension repository management, library, backup support,
+downloads, and reader are implemented by TachiyomiAZ iOS. Thank you to the
+Suwayomi contributors for the compatibility work that makes JVM extensions
+practical outside Android. The pinned Suwayomi-Server code is distributed
+under the
+[Mozilla Public License 2.0](https://github.com/Suwayomi/Suwayomi-Server/blob/eb2dc0b19a9571b27c02bebc5c883e404b7bd7fb/LICENSE),
+while TachiyomiAZ iOS is distributed under GPLv3. See their respective
+repositories for source and full license terms.
+
 ## Backups
 
 TachiyomiAZ iOS uses `.tachibk` as its backup format. Restoring a backup merges
