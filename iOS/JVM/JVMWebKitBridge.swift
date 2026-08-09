@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import UIKit
 import WebKit
 
 @_silgen_name("tachiyomiaz_jvm_webkit_event")
@@ -333,7 +334,12 @@ final class JVMWebKitBridge {
 
         init(handle: Int64, configuration: WKWebViewConfiguration) {
             self.handle = handle
-            webView = WKWebView(frame: .zero, configuration: configuration)
+            // Android's helper measures its headless WebView to the display.
+            // A zero-sized WKWebView changes responsive/lazy-loading behavior.
+            webView = WKWebView(
+                frame: UIScreen.main.bounds,
+                configuration: configuration
+            )
             super.init()
             webView.navigationDelegate = self
             let controller = webView.configuration.userContentController
