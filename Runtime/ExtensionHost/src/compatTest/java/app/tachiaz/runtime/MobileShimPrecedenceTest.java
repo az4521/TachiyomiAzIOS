@@ -1,8 +1,8 @@
 package app.tachiaz.runtime;
 
 /**
- * Proves that the mobile boot shim replaces only SystemClock while the full
- * AndroidCompat API remains visible ahead of the host's test fixtures.
+ * Proves that iOS-native compatibility types come from the mobile boot shim
+ * while the remaining AndroidCompat API stays on the application classpath.
  */
 public final class MobileShimPrecedenceTest {
     private MobileShimPrecedenceTest() {
@@ -24,11 +24,31 @@ public final class MobileShimPrecedenceTest {
             );
         }
 
+        Class<?> bitmap = requireBootShim("android.graphics.Bitmap");
+        Class<?> rectangle = requireBootShim("android.graphics.Rect");
+        Class<?> paint = requireBootShim("android.graphics.Paint");
+        Class<?> canvas = requireBootShim("android.graphics.Canvas");
+        canvas.getMethod(
+            "drawBitmap",
+            bitmap,
+            rectangle,
+            rectangle,
+            paint
+        );
+
         Class<?> userAgentInterceptor = Class.forName(
             "eu.kanade.tachiyomi.network.interceptor.UserAgentInterceptor"
         );
         userAgentInterceptor.getMethod("effectiveUserAgent", String.class);
 
         System.out.println("mobile shim precedence test passed");
+    }
+
+    private static Class<?> requireBootShim(String name) throws Exception {
+        Class<?> type = Class.forName(name);
+        if (type.getClassLoader() != null) {
+            throw new AssertionError(name + " must come from the mobile boot shim");
+        }
+        return type;
     }
 }

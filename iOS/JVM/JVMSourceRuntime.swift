@@ -1860,6 +1860,10 @@ struct TachiyomiXMaterializedImage: Sendable {
 }
 
 final class JVMImageURLProtocol: URLProtocol {
+    // Change this when the Java/native materialization pipeline changes so
+    // Nuke cannot reuse bytes produced by an older compatibility layer.
+    private static let materializerRevision = "2"
+
     private struct Descriptor: Sendable {
         let extensionId: String
         let sourceId: Int64
@@ -1878,6 +1882,7 @@ final class JVMImageURLProtocol: URLProtocol {
         pageURL: String?
     ) -> URLRequest {
         let identity = [
+            materializerRevision,
             extensionId,
             String(sourceId),
             imageURL,
@@ -1899,9 +1904,11 @@ final class JVMImageURLProtocol: URLProtocol {
             pageURL: pageURL
         )
         registryLock.unlock()
-        return URLRequest(
+        var request = URLRequest(
             url: URL(string: "tachiyomiaz-jvm-image://\(token)")!
         )
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        return request
     }
 
     override class func canInit(with request: URLRequest) -> Bool {

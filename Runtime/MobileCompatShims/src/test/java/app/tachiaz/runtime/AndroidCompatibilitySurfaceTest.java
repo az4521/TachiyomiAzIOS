@@ -71,6 +71,15 @@ public final class AndroidCompatibilitySurfaceTest {
         bitmapFactory.getMethod("decodeStream", InputStream.class);
         canvas.getConstructor(bitmap);
         canvas.getMethod("drawBitmap", bitmap, rect, rect, paint);
+        Object rectangle = rect
+            .getConstructor(int.class, int.class, int.class, int.class)
+            .newInstance(10, 20, 50, 80);
+        if (
+            (Integer) rect.getMethod("width").invoke(rectangle) != 40 ||
+            (Integer) rect.getMethod("height").invoke(rectangle) != 60
+        ) {
+            throw new AssertionError("Android Rect geometry is incorrect");
+        }
         staticLayout.getConstructor(
             CharSequence.class,
             textPaint,
