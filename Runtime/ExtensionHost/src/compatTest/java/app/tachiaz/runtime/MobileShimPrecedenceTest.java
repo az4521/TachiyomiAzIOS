@@ -24,6 +24,11 @@ public final class MobileShimPrecedenceTest {
             );
         }
 
+        Class<?> userAgentInterceptor = Class.forName(
+            "eu.kanade.tachiyomi.network.interceptor.UserAgentInterceptor"
+        );
+        userAgentInterceptor.getMethod("effectiveUserAgent", String.class);
+
         System.out.println("mobile shim precedence test passed");
     }
 }

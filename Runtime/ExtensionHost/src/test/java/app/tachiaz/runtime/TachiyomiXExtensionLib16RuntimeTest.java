@@ -1,6 +1,8 @@
 package app.tachiaz.runtime;
 
 import java.io.File;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class TachiyomiXExtensionLib16RuntimeTest {
     private TachiyomiXExtensionLib16RuntimeTest() {
@@ -22,6 +24,24 @@ public final class TachiyomiXExtensionLib16RuntimeTest {
             "{\"operation\":\"loadExtension\",\"extensionId\":\"extlib16\"," +
                 "\"jarPath\":\"" + escapedPath + "\"}"
         ));
+
+        String sources = ExtensionHost.dispatch(
+            "{\"operation\":\"listSources\",\"extensionId\":\"extlib16\"}"
+        );
+        assertSuccess(sources);
+        Matcher sourceId = Pattern.compile("\\\\\"id\\\\\":(-?[0-9]+)")
+            .matcher(sources);
+        if (!sourceId.find()) {
+            throw new AssertionError("Unable to find source id in " + sources);
+        }
+        String webLoginInfo = ExtensionHost.dispatch(
+            "{\"operation\":\"getWebLoginInfo\"," +
+                "\"extensionId\":\"extlib16\"," +
+                "\"sourceId\":\"" + sourceId.group(1) + "\"," +
+                "\"userAgent\":\"TachiyomiAZ-Configured-UA\"}"
+        );
+        assertSuccess(webLoginInfo);
+        assertContains(webLoginInfo, "TachiyomiAZ-Configured-UA");
 
         String response = ExtensionHost.dispatch(
             "{\"operation\":\"getPopularManga\"," +

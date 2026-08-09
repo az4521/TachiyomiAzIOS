@@ -35,7 +35,8 @@ actor JVMSourceRuntime {
     private let fileManager: FileManager
     private var runtime: JVMRuntime?
     private var runtimeStartupTask: Task<JVMRuntime, Error>?
-    private var cloudflareBypassTasks: [String: Task<Void, Error>] = [:]
+    private var cloudflareBypassTasks: [String: Task<String, Error>] = [:]
+    private var cloudflareSessionUserAgents: [String: String] = [:]
     private var preparedImageDirectory = false
 
     private static let maximumExtensionSize: Int64 = 64 * 1_048_576
@@ -526,6 +527,7 @@ actor JVMSourceRuntime {
         {
             await CloudflareHandler.shared.clearWebSession(for: url)
         }
+        cloudflareSessionUserAgents["\(extensionId):\(sourceId)"] = nil
     }
 
     func setWebLoginCookies(
@@ -637,6 +639,7 @@ actor JVMSourceRuntime {
             cookies: cookies,
             userAgent: userAgent
         )
+        cloudflareSessionUserAgents["\(extensionId):\(sourceId)"] = userAgent
     }
 
     private func pagedManga(
@@ -874,11 +877,13 @@ actor JVMSourceRuntime {
             return response
         }
 
-        try await solveCloudflareChallenge(
+        let userAgent = try await solveCloudflareChallenge(
             extensionId: extensionId,
             sourceId: sourceId
         )
-        let retriedResponse = try await rawDispatch(request)
+        var retriedRequest = request
+        retriedRequest.userAgent = userAgent
+        let retriedResponse = try await rawDispatch(retriedRequest)
         logFailure(retriedResponse, request: request)
         return retriedResponse
     }
@@ -898,8 +903,22 @@ actor JVMSourceRuntime {
     }
 
     private func rawDispatch(
-        _ request: ExtensionHostRequest
+        _ originalRequest: ExtensionHostRequest
     ) async throws -> ExtensionHostResponse {
+        var request = originalRequest
+        if
+            request.userAgent == nil,
+            request.extensionId != nil,
+            request.sourceId != nil
+        {
+            let key = "\(request.extensionId!):\(request.sourceId!)"
+            if let sessionUserAgent = cloudflareSessionUserAgents[key] {
+                request.userAgent = sessionUserAgent
+            } else {
+                request.userAgent = await UserAgentProvider.shared
+                    .getExtensionNetworkUserAgent()
+            }
+        }
         let activeRuntime = try await runtimeInstance()
         // JNI attaches each caller to the process-wide VM. Run blocking Java
         // extension calls outside this actor so one slow HTTP request does not
@@ -943,11 +962,10 @@ actor JVMSourceRuntime {
     private func solveCloudflareChallenge(
         extensionId: String,
         sourceId: Int64
-    ) async throws {
+    ) async throws -> String {
         let key = "\(extensionId):\(sourceId)"
         if let existing = cloudflareBypassTasks[key] {
-            try await existing.value
-            return
+            return try await existing.value
         }
         let task = Task {
             try await self.performCloudflareChallenge(
@@ -957,7 +975,9 @@ actor JVMSourceRuntime {
         }
         cloudflareBypassTasks[key] = task
         defer { cloudflareBypassTasks[key] = nil }
-        try await task.value
+        let userAgent = try await task.value
+        cloudflareSessionUserAgents[key] = userAgent
+        return userAgent
     }
 
     private func webLoginInfo(
@@ -987,7 +1007,7 @@ actor JVMSourceRuntime {
     private func performCloudflareChallenge(
         extensionId: String,
         sourceId: Int64
-    ) async throws {
+    ) async throws -> String {
         let info = try await webLoginInfo(
             extensionId: extensionId,
             sourceId: sourceId
@@ -998,12 +1018,14 @@ actor JVMSourceRuntime {
             )
         }
 
-        let userAgent: String
-        if info.userAgent.isEmpty {
-            userAgent = await UserAgentProvider.shared.getUserAgent()
-        } else {
-            userAgent = info.userAgent
-        }
+        // Clearance cookies are bound to the browser fingerprint. Using a
+        // desktop/Android extension user agent inside WKWebView can make a
+        // successfully solved challenge restart forever, so use WebKit's real
+        // user agent and apply that same value to OkHttp before retrying.
+        let webKitUserAgent = await UserAgentProvider.shared.getUserAgent()
+        let userAgent = webKitUserAgent.isEmpty
+            ? info.userAgent
+            : webKitUserAgent
         var request = URLRequest(url: url)
         if !userAgent.isEmpty {
             request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
@@ -1016,6 +1038,7 @@ actor JVMSourceRuntime {
             userAgent: session.userAgent,
             usingRawDispatch: true
         )
+        return session.userAgent
     }
 
     func imageRequest(

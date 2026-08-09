@@ -8,7 +8,7 @@ public struct ExtensionHostRequest: Codable, Sendable {
     public let entryClass: String?
     public let method: String?
     public let argument: String?
-    public let userAgent: String?
+    public var userAgent: String?
     public let query: String?
     public let filterStates: String?
     public let settingKey: String?

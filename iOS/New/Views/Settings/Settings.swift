@@ -609,6 +609,25 @@ extension Settings {
 
     private static let advancedSettings: [Setting] = [
         .init(
+            title: NSLocalizedString("EXTENSION_NETWORK"),
+            value: .group(.init(
+                footer: NSLocalizedString("EXTENSION_USER_AGENT_TEXT"),
+                items: [
+                    .init(
+                        key: UserAgentProvider.extensionNetworkUserAgentKey,
+                        title: NSLocalizedString("DEFAULT_USER_AGENT"),
+                        value: .text(.init(
+                            placeholder: NSLocalizedString("SYSTEM_USER_AGENT"),
+                            autocapitalizationType: 0,
+                            keyboardType: 1,
+                            returnKeyType: 9,
+                            autocorrectionDisabled: true
+                        ))
+                    )
+                ]
+            ))
+        ),
+        .init(
             title: NSLocalizedString("LOGGING"),
             value: .group(.init(items: [
                 .init(

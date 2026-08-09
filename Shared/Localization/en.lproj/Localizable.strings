@@ -39,6 +39,10 @@
 "DOWNLOADING" = "Downloading";
 "DOWNLOAD_QUEUE" = "Download Queue";
 "EXTENSIONS" = "Extensions";
+"EXTENSION_NETWORK" = "Extension Network";
+"DEFAULT_USER_AGENT" = "Default User Agent";
+"SYSTEM_USER_AGENT" = "System User Agent";
+"EXTENSION_USER_AGENT_TEXT" = "Used by TachiyomiX extension network requests unless an extension supplies its own User-Agent. Clear the field to use the iOS WebKit User-Agent. Active Cloudflare sessions use the WebKit User-Agent tied to their clearance cookie.";
 "CANCEL_DOWNLOAD" = "Cancel Download";
 "REMOVE_DOWNLOAD" = "Remove Download";
 "REMOVE_ALL_DOWNLOADS" = "Remove All Downloads";

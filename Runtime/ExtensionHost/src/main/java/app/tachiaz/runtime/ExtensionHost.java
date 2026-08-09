@@ -76,6 +76,7 @@ public final class ExtensionHost {
         String operation,
         Map<String, String> request
     ) throws Exception {
+        applyConfiguredDefaultUserAgent(request);
         switch (operation) {
                 case "ping":
                     return ping();
@@ -1465,6 +1466,7 @@ public final class ExtensionHost {
                 "The extension cookie jar does not expose a clear operation"
             );
         }
+        setForcedUserAgent(client, null);
         return MiniJson.response(true, "cleared", null, null);
     }
 
@@ -1560,6 +1562,7 @@ public final class ExtensionHost {
         String userAgent = defaultValue(request.get("userAgent"), "");
         if (!userAgent.isEmpty()) {
             updateCloudflareUserAgent(client, userAgent);
+            setForcedUserAgent(client, userAgent);
         }
         return MiniJson.response(
             true,
@@ -1574,13 +1577,14 @@ public final class ExtensionHost {
     }
 
     private static String sourceUserAgent(Object source, Object client) {
+        String headerUserAgent = "";
         try {
             Object headers = getter(source, "getHeaders");
             Object value = headers.getClass()
                 .getMethod("get", String.class)
                 .invoke(headers, "User-Agent");
             if (value != null && !String.valueOf(value).isEmpty()) {
-                return String.valueOf(value);
+                headerUserAgent = String.valueOf(value);
             }
         } catch (Throwable ignored) {
             // Some sources do not override headers.
@@ -1592,20 +1596,71 @@ public final class ExtensionHost {
                 )) {
                     continue;
                 }
+                try {
+                    Object value = interceptor.getClass()
+                        .getMethod("effectiveUserAgent", String.class)
+                        .invoke(
+                            interceptor,
+                            headerUserAgent.isEmpty() ? null : headerUserAgent
+                        );
+                    if (value != null && !String.valueOf(value).isEmpty()) {
+                        return String.valueOf(value);
+                    }
+                } catch (NoSuchMethodException ignored) {
+                    // Older compatibility layers expose only the provider.
+                }
                 Object provider = reflectedField(
                     interceptor,
-                    "userAgentProvider"
+                    "defaultUserAgentProvider"
                 );
                 Object value = provider.getClass().getMethod("invoke")
                     .invoke(provider);
-                if (value != null) {
+                if (
+                    headerUserAgent.isEmpty() &&
+                    value != null &&
+                    !String.valueOf(value).isEmpty()
+                ) {
                     return String.valueOf(value);
                 }
             }
         } catch (Throwable ignored) {
             // The WebKit user agent is a safe fallback on the Swift side.
         }
-        return "";
+        return headerUserAgent;
+    }
+
+    private static void applyConfiguredDefaultUserAgent(
+        Map<String, String> request
+    ) throws Exception {
+        String userAgent = defaultValue(request.get("userAgent"), "").trim();
+        if (
+            userAgent.isEmpty() ||
+            request.get("extensionId") == null ||
+            request.get("sourceId") == null
+        ) {
+            return;
+        }
+        Object source = requireSource(request);
+        Object client = getter(source, "getClient");
+        try {
+            Method networkGetter = findMethod(
+                source.getClass(),
+                "getNetwork"
+            );
+            networkGetter.setAccessible(true);
+            Object network = networkGetter.invoke(source);
+            Object flow = reflectedField(network, "userAgent");
+            Class<?> mutableStateFlow = Class.forName(
+                "kotlinx.coroutines.flow.MutableStateFlow",
+                true,
+                source.getClass().getClassLoader()
+            );
+            mutableStateFlow.getMethod("setValue", Object.class)
+                .invoke(flow, userAgent);
+        } catch (Throwable ignored) {
+            // Custom sources may expose a client without NetworkHelper.
+        }
+        updateCloudflareUserAgent(client, userAgent);
     }
 
     private static void updateCloudflareUserAgent(
@@ -1984,6 +2039,29 @@ public final class ExtensionHost {
         appendJsonField(output, "genre", getter(manga, "getGenre"), true);
         appendJsonField(output, "memo", memoJSON(manga), true);
         output.append('}');
+    }
+
+    private static void setForcedUserAgent(Object client, String userAgent) {
+        try {
+            for (Object interceptor : clientInterceptors(client)) {
+                if (!interceptor.getClass().getName().endsWith(
+                    "UserAgentInterceptor"
+                )) {
+                    continue;
+                }
+                if (userAgent == null || userAgent.isEmpty()) {
+                    interceptor.getClass()
+                        .getMethod("clearForcedUserAgent")
+                        .invoke(interceptor);
+                } else {
+                    interceptor.getClass()
+                        .getMethod("forceUserAgent", String.class)
+                        .invoke(interceptor, userAgent);
+                }
+            }
+        } catch (Throwable ignored) {
+            // Older compatibility layers have no clearance-UA pinning hook.
+        }
     }
 
     /**

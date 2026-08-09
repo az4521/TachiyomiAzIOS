@@ -9,8 +9,10 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import kotlinx.coroutines.flow.MutableStateFlow;
+import kotlin.jvm.functions.Function0;
 import suwayomi.tachidesk.server.ServerConfig;
 import suwayomi.tachidesk.server.ServerConfigKt;
+import eu.kanade.tachiyomi.network.interceptor.UserAgentInterceptor;
 
 /** Verifies the Android API descriptors used by Tachiyomi extension libraries. */
 public final class AndroidCompatibilitySurfaceTest {
@@ -198,6 +200,7 @@ public final class AndroidCompatibilitySurfaceTest {
         );
         Class.forName("android.os.Looper").getMethod("getMainLooper");
         assertMobileServerConfig();
+        assertConfigurableUserAgent();
 
         byte[] decoded = (byte[]) Class.forName("android.util.Base64")
             .getMethod("decode", String.class, int.class)
@@ -253,6 +256,45 @@ public final class AndroidCompatibilitySurfaceTest {
             throw new AssertionError(
                 "Unexpected mobile server setting: " + (flow == null ? null : flow.getValue())
             );
+        }
+    }
+
+    private static void assertConfigurableUserAgent() {
+        final String[] configured = { "TachiyomiAZ/First" };
+        UserAgentInterceptor interceptor = new UserAgentInterceptor(
+            new Function0<String>() {
+                @Override
+                public String invoke() {
+                    return configured[0];
+                }
+            }
+        );
+        String first = interceptor.effectiveUserAgent(
+            UserAgentInterceptor.BUILT_IN_DEFAULT
+        );
+        if (!configured[0].equals(first)) {
+            throw new AssertionError("Built-in user agent was not configurable");
+        }
+        configured[0] = "TachiyomiAZ/Second";
+        if (!configured[0].equals(interceptor.effectiveUserAgent(first))) {
+            throw new AssertionError("Cached default user agent was not refreshed");
+        }
+        if (!"Extension/Custom".equals(
+            interceptor.effectiveUserAgent("Extension/Custom")
+        )) {
+            throw new AssertionError("An extension's custom user agent was overwritten");
+        }
+        interceptor.forceUserAgent("WebKit/Clearance");
+        if (!"WebKit/Clearance".equals(
+            interceptor.effectiveUserAgent("Extension/Custom")
+        )) {
+            throw new AssertionError("Cloudflare user agent was not forced");
+        }
+        interceptor.clearForcedUserAgent();
+        if (!"Extension/Custom".equals(
+            interceptor.effectiveUserAgent("Extension/Custom")
+        )) {
+            throw new AssertionError("Cloudflare user-agent force was not cleared");
         }
     }
 

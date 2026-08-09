@@ -114,6 +114,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 "Appearance.customPortraitRows": UIDevice.current.userInterfaceIdiom == .pad ? 5 : 2,
                 "Appearance.customLandscapeRows": UIDevice.current.userInterfaceIdiom == .pad ? 6 : 4,
 
+                UserAgentProvider.extensionNetworkUserAgentKey:
+                    UserAgentProvider.defaultExtensionNetworkUserAgent,
+
                 "Library.sortOption": 2, // lastOpened
                 "Library.sortAscending": false,
                 "Library.listView": false,

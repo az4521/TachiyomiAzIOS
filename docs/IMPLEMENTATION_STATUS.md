@@ -64,6 +64,9 @@ Last updated: 2026-07-31
 - The mobile runtime supplies the Suwayomi `ServerConfigKt`/`ServerConfig`
   ABI used by its Cloudflare interceptor. FlareSolverr is reported as disabled
   so challenges fall through to the app's native WKWebView solver.
+- A persisted Advanced setting controls the extension network client's default
+  user agent. Cached `HttpSource` defaults update in place while user agents
+  explicitly supplied by an extension remain unchanged.
 - AndroidCompat's `WebView` and `CookieManager` are backed by WKWebView and
   `WKHTTPCookieStore` on iOS. Navigation is asynchronous so the Android main
   Looper remains available for coroutine timeouts and polling. Page lifecycle,
@@ -72,8 +75,10 @@ Last updated: 2026-07-31
   fetch interception, history, settings, and cookie mutation cross a reverse
   JNI event channel. WebKit cookies synchronize with `HTTPCookieStorage`, while
   HTML loaded with a base origin is seeded with the matching browser cookies.
-  Cloudflare clearance cookies are also copied into the requesting extension's
-  OkHttp cookie jar before retry. Desktop KCEF/JCEF is not bundled.
+  Cloudflare verification is presented immediately with a real device viewport.
+  Clearance cookies are copied into the requesting extension's OkHttp cookie
+  jar, and that client is pinned to the exact WebKit user agent that issued the
+  cookie before retry. Desktop KCEF/JCEF is not bundled.
 - An iOS-safe `SystemClock` plus a minimal JUL boot shim for OkHttp/Okio,
   removing runtime dependencies on absent `java.logging` and
   `java.management` modules.

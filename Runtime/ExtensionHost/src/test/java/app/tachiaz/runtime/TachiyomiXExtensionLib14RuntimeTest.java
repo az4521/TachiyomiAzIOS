@@ -55,6 +55,15 @@ public final class TachiyomiXExtensionLib14RuntimeTest {
         );
         assertSuccess(webLoginInfo);
         assertContains(webLoginInfo, "https://mangadex.org");
+        String configuredWebLoginInfo = ExtensionHost.dispatch(
+            "{\"operation\":\"getWebLoginInfo\"," +
+                "\"extensionId\":\"extlib14\"," +
+                "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"," +
+                "\"userAgent\":\"TachiyomiAZ-Configured-UA\"}"
+        );
+        assertSuccess(configuredWebLoginInfo);
+        assertContains(configuredWebLoginInfo, "Tachiyomi Mozilla/5.0");
+        assertNotContains(configuredWebLoginInfo, "TachiyomiAZ-Configured-UA");
         assertSuccess(ExtensionHost.dispatch(
             "{\"operation\":\"setWebLoginCookies\"," +
                 "\"extensionId\":\"extlib14\"," +
@@ -64,6 +73,13 @@ public final class TachiyomiXExtensionLib14RuntimeTest {
                 "mangadex.org\\t%2F\\t4102444800000\\ttrue\\t" +
                 "true\\ttrue\"}"
         ));
+        String clearanceWebLoginInfo = ExtensionHost.dispatch(
+            "{\"operation\":\"getWebLoginInfo\"," +
+                "\"extensionId\":\"extlib14\"," +
+                "\"sourceId\":\"" + ENGLISH_SOURCE_ID + "\"}"
+        );
+        assertSuccess(clearanceWebLoginInfo);
+        assertContains(clearanceWebLoginInfo, "TachiyomiAZ-iOS-Test");
         String cookieSummary = ExtensionHost.dispatch(
             "{\"operation\":\"getCookieSummary\"," +
                 "\"extensionId\":\"extlib14\"," +
@@ -239,6 +255,17 @@ public final class TachiyomiXExtensionLib14RuntimeTest {
             throw new AssertionError(
                 "Expected response to contain " +
                     expected +
+                    ", got " +
+                    actual
+            );
+        }
+    }
+
+    private static void assertNotContains(String actual, String unexpected) {
+        if (actual.contains(unexpected)) {
+            throw new AssertionError(
+                "Expected response not to contain " +
+                    unexpected +
                     ", got " +
                     actual
             );

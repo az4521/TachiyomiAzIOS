@@ -150,15 +150,13 @@ actor CloudflareHandler: NSObject {
 
         guard await addWebView(for: request) else { throw HandleError.missingParentView }
 
-        _ = await webView.load(request)
-
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             self.finishContinuation = continuation
-
-            // Managed challenges normally finish without interaction. Keep a
-            // finite deadline so a stalled challenge can never leave the UI
-            // spinning indefinitely.
-            self.scheduleTimeout(after: 45_000_000_000)
+            self.scheduleTimeout(after: 120_000_000_000)
+            Task { @MainActor in
+                guard await self.showPopup(for: request) else { return }
+                self.webView.load(request)
+            }
         }
 
         switch completionReason {
@@ -305,8 +303,8 @@ actor CloudflareHandler: NSObject {
 
     // show captcha sheet view to user
     @MainActor
-    private func showPopup(for request: URLRequest) async {
-        guard !popupShown else { return }
+    private func showPopup(for request: URLRequest) async -> Bool {
+        guard !popupShown else { return true }
 
 #if !os(macOS)
         // Set this before crossing back to the handler actor so delayed
@@ -314,12 +312,10 @@ actor CloudflareHandler: NSObject {
         popupPresentationActive = true
 #endif
 
-        // Interactive challenges need longer, but must still have a deadline.
-        await scheduleTimeout(after: 120_000_000_000)
-
 #if os(macOS)
         // todo
         await finish(reason: .cancelled)
+        return false
 #else
         popupController?.dismiss(animated: true)
         let popup = WebViewViewController(request: request, handler: await proxy(for: request))
@@ -342,65 +338,13 @@ actor CloudflareHandler: NSObject {
 
         guard let parent else {
             await finish(reason: .cancelled)
-            return
+            return false
         }
         parent.present(popup, animated: true)
+        return true
 #endif
     }
 
-    // check if captcha or verify button is shown, and show the popup if it is
-    @MainActor
-    private func checkForCaptcha(
-        for request: URLRequest,
-        includeChallengeFrames: Bool = false
-    ) {
-        guard !popupShown else { return }
-        Task {
-            let found = await isCaptchaPage(
-                includeChallengeFrames: includeChallengeFrames
-            )
-            if found {
-                await showPopup(for: request)
-            }
-        }
-    }
-
-    @MainActor
-    private func isCaptchaPage(
-        includeChallengeFrames: Bool = false
-    ) async -> Bool {
-        let includeChallengeFramesValue = includeChallengeFrames
-            ? "true"
-            : "false"
-        let js = """
-        (() => {
-            const visible = (element) => {
-                if (!element) return false;
-                const style = window.getComputedStyle(element);
-                const rect = element.getBoundingClientRect();
-                return style.display !== 'none'
-                    && style.visibility !== 'hidden'
-                    && Number(style.opacity || 1) !== 0
-                    && rect.width > 0
-                    && rect.height > 0;
-            };
-            const controls = Array.from(document.querySelectorAll(
-                '#challenge-stage input:not([type="hidden"]), '
-                + '#challenge-stage button, .ctp-checkbox-label'
-            ));
-            if (\(includeChallengeFramesValue)) {
-                controls.push(...document.querySelectorAll(
-                    'iframe[src*="challenges.cloudflare.com"], '
-                    + 'iframe[title*="Cloudflare"]'
-                ));
-            }
-            return controls.some(visible) ? 1 : 0;
-        })()
-        """
-        let result = try? await webView.evaluateJavaScript(js)
-        guard let result = result as? Int else { return false }
-        return result == 1
-    }
 }
 
 extension CloudflareHandler {
@@ -453,24 +397,6 @@ extension CloudflareHandler {
     nonisolated func navigated(webView: WKWebView, for request: URLRequest) async {
         guard let url = request.url else { return }
 
-#if !os(macOS)
-        await MainActor.run {
-            if self.popupController == nil {
-                // delay captcha check by 3s (so it loads in)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-                    self?.checkForCaptcha(for: request)
-                }
-                // try again in 5s if the first check didn't catch the captcha (dumb hack)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
-                    self?.checkForCaptcha(
-                        for: request,
-                        includeChallengeFrames: true
-                    )
-                }
-            }
-        }
-#endif
-
         var webViewCookies = await WKWebsiteDataStore.default().httpCookieStore.allCookies()
 
         // check for old (expired) clearance cookie
@@ -497,9 +423,6 @@ extension CloudflareHandler {
         if let statusCode = await self.lastMainFrameStatusCode, blockedStatusCodes.contains(statusCode) {
             return
         }
-        let isCaptcha = await isCaptchaPage(includeChallengeFrames: true)
-        guard !isCaptcha else { return }
-
         await webView.removeFromSuperview()
 #if !os(macOS)
         await self.popupController?.dismiss(animated: true)
