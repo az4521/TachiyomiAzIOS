@@ -60,11 +60,14 @@ Last updated: 2026-07-31
 - Source cookie inspection/clearing and a native WKWebView login flow that
   transfers login and Cloudflare cookies into the extension's OkHttp jar.
 - AndroidCompat's `WebView` and `CookieManager` are backed by WKWebView and
-  `WKHTTPCookieStore` on iOS. Navigation, JavaScript evaluation, callbacks,
-  history, user-agent settings, and cookie mutation are bridged without
-  bundling the desktop KCEF/JCEF runtime; WebKit cookies are synchronized with
-  `HTTPCookieStorage`, while Cloudflare clearance cookies are also copied into
-  the requesting extension's OkHttp cookie jar before retry.
+  `WKHTTPCookieStore` on iOS. Navigation is asynchronous so the Android main
+  Looper remains available for coroutine timeouts and polling. Page lifecycle,
+  modern errors, render termination, console messages, JavaScript evaluation
+  and annotated JavaScript interfaces, main-navigation interception, scripted
+  fetch interception, history, settings, and cookie mutation cross a reverse
+  JNI event channel. WebKit cookies synchronize with `HTTPCookieStorage`, while
+  Cloudflare clearance cookies are also copied into the requesting extension's
+  OkHttp cookie jar before retry. Desktop KCEF/JCEF is not bundled.
 - An iOS-safe `SystemClock` plus a minimal JUL boot shim for OkHttp/Okio,
   removing runtime dependencies on absent `java.logging` and
   `java.management` modules.

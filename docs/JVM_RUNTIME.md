@@ -132,8 +132,12 @@ and persistent cookies to Aidoku's native image pipeline.
 
 On iOS, the AndroidCompat `WebView` provider is replaced after compatibility
 initialization with a bridge to WKWebView. It supports loading URLs/HTML,
-posting data, JavaScript evaluation, navigation callbacks and history, user
-agents, progress callbacks, and the commonly queried page properties. The
+posting data, JavaScript evaluation and annotated JavaScript interfaces,
+asynchronous navigation, main-navigation and scripted-fetch interception,
+modern error/render callbacks, console output, history, user agents, progress
+callbacks, and the commonly queried page properties. The reverse JNI callback
+path attaches WebKit threads to the existing VM and dispatches lifecycle work
+onto AndroidCompat's main Looper without blocking it. The
 Android `CookieManager` singleton uses `WKHTTPCookieStore`; browser cookies are
 mirrored to `HTTPCookieStorage`, and explicit Cloudflare handling additionally
 copies the solved cookies and matching user agent into the extension's OkHttp

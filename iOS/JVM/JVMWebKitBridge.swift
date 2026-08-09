@@ -2,8 +2,17 @@ import Darwin
 import Foundation
 import WebKit
 
-/// Synchronous C entry point used by JNI. JVM extension calls run on utility
-/// threads, while every WebKit operation is forwarded to the main actor.
+@_silgen_name("tachiyomiaz_jvm_webkit_event")
+private func tachiyomiazJVMWebKitEvent(
+    _ handle: Int64,
+    _ event: UnsafePointer<CChar>,
+    _ argument1: UnsafePointer<CChar>,
+    _ argument2: UnsafePointer<CChar>
+) -> UnsafeMutablePointer<CChar>?
+
+/// Synchronous JNI command entry point. Commands that start navigation only
+/// enqueue work in WKWebView; navigation and resource callbacks travel back to
+/// Java through `tachiyomiaz_jvm_webkit_event`.
 @_cdecl("tachiyomiaz_webkit_command")
 func tachiyomiazWebKitCommand(
     _ operationPointer: UnsafePointer<CChar>?,
@@ -38,6 +47,28 @@ private func copiedCString(_ value: String) -> UnsafeMutablePointer<CChar>? {
     value.withCString { strdup($0) }
 }
 
+private func sendJVMWebKitEvent(
+    handle: Int64,
+    event: String,
+    argument1: String = "",
+    argument2: String = ""
+) -> String {
+    event.withCString { eventPointer in
+        argument1.withCString { argument1Pointer in
+            argument2.withCString { argument2Pointer in
+                guard let result = tachiyomiazJVMWebKitEvent(
+                    handle,
+                    eventPointer,
+                    argument1Pointer,
+                    argument2Pointer
+                ) else { return "" }
+                defer { free(result) }
+                return String(cString: result)
+            }
+        }
+    }
+}
+
 private final class JVMWebKitCommandResult: @unchecked Sendable {
     var value = ""
 }
@@ -61,26 +92,19 @@ final class JVMWebKitBridge {
                 configuration.websiteDataStore = argument1 == "true"
                     ? .nonPersistent()
                     : .default()
-                let context = Context(configuration: configuration)
                 let newHandle = nextHandle
                 nextHandle += 1
-                contexts[newHandle] = context
+                contexts[newHandle] = Context(handle: newHandle, configuration: configuration)
                 return String(newHandle)
-            case "cookieSet":
-                return await setCookie(urlString: argument1, header: argument2)
-            case "cookieGet":
-                return await cookies(for: argument1)
-            case "cookieRemoveSession":
-                return await removeCookies(sessionOnly: true)
-            case "cookieRemoveAll":
-                return await removeCookies(sessionOnly: false)
-            case "cookieHas":
-                return String(!(await allCookies()).isEmpty)
+            case "cookieSet": return await setCookie(urlString: argument1, header: argument2)
+            case "cookieGet": return await cookies(for: argument1)
+            case "cookieRemoveSession": return await removeCookies(sessionOnly: true)
+            case "cookieRemoveAll": return await removeCookies(sessionOnly: false)
+            case "cookieHas": return String(!(await allCookies()).isEmpty)
             case "cookieFlush":
                 await copyWebKitCookiesToHTTPStorage(store: .default().httpCookieStore)
                 return "true"
-            default:
-                break
+            default: break
         }
 
         guard let context = contexts[handle] else {
@@ -88,16 +112,20 @@ final class JVMWebKitBridge {
         }
         switch operation {
             case "destroy":
-                context.cancelPending(message: "WebView was destroyed")
-                context.webView.stopLoading()
+                context.destroy()
                 contexts[handle] = nil
                 return "true"
             case "userAgent":
                 context.webView.customUserAgent = argument1
                 return "true"
-            case "javaScript":
-                context.webView.configuration.defaultWebpagePreferences
-                    .allowsContentJavaScript = argument1 == "true"
+            case "settings":
+                await context.applySettings(argument1 ?? "")
+                return "true"
+            case "addJSInterface":
+                context.addJavaScriptInterface(named: argument1 ?? "")
+                return "true"
+            case "removeJSInterface":
+                context.removeJavaScriptInterface(named: argument1 ?? "")
                 return "true"
             case "load":
                 guard let value = argument1, let url = URL(string: value) else {
@@ -108,7 +136,8 @@ final class JVMWebKitBridge {
                 for (key, value) in decodeHeaders(argument2) {
                     request.setValue(value, forHTTPHeaderField: key)
                 }
-                return await context.load(request: request)
+                context.load(request)
+                return "true"
             case "post":
                 guard let value = argument1, let url = URL(string: value) else {
                     return "__ERROR__Invalid WebView URL"
@@ -117,43 +146,36 @@ final class JVMWebKitBridge {
                 var request = URLRequest(url: url)
                 request.httpMethod = "POST"
                 request.httpBody = argument2.flatMap { Data(base64Encoded: $0) }
-                return await context.load(request: request)
+                context.load(request)
+                return "true"
             case "loadHTML":
                 guard
                     let encoded = argument2,
                     let data = Data(base64Encoded: encoded),
                     let html = String(data: data, encoding: .utf8)
-                else {
-                    return "__ERROR__Invalid WebView HTML"
-                }
-                let baseURL = argument1.flatMap(URL.init(string:))
-                return await context.load(html: html, baseURL: baseURL)
+                else { return "__ERROR__Invalid WebView HTML" }
+                context.load(html: html, baseURL: argument1.flatMap(URL.init(string:)))
+                return "true"
             case "evaluate":
                 do {
-                    let value = try await context.webView.evaluateJavaScript(argument1 ?? "")
-                    return Self.jsonString(value)
+                    return Self.jsonString(
+                        try await context.webView.evaluateJavaScript(argument1 ?? "")
+                    )
                 } catch {
-                    return "__ERROR__\(error.localizedDescription)"
+                    return "null"
                 }
-            case "stop":
-                context.webView.stopLoading()
-                context.cancelPending(message: "Navigation stopped")
-                return "true"
-            case "reload":
-                guard let request = context.webView.url.map(URLRequest.init(url:)) else { return "false" }
-                return await context.load(request: request)
-            case "goBack":
-                return await context.navigate(context.webView.goBack())
-            case "goForward":
-                return await context.navigate(context.webView.goForward())
+            case "stop": context.webView.stopLoading(); return "true"
+            case "reload": context.webView.reload(); return "true"
+            case "goBack": context.webView.goBack(); return "true"
+            case "goForward": context.webView.goForward(); return "true"
             case "go":
                 let offset = Int(argument1 ?? "") ?? 0
                 let list = context.webView.backForwardList
                 let item = offset < 0
                     ? list.backList[safe: max(0, list.backList.count + offset)]
                     : list.forwardList[safe: max(0, offset - 1)]
-                let navigation = item.flatMap { context.webView.go(to: $0) }
-                return await context.navigate(navigation)
+                if let item { context.webView.go(to: item) }
+                return String(item != nil)
             case "canGoBack": return String(context.webView.canGoBack)
             case "canGoForward": return String(context.webView.canGoForward)
             case "canGo":
@@ -165,38 +187,28 @@ final class JVMWebKitBridge {
             case "originalUrl": return context.originalURL?.absoluteString ?? ""
             case "title": return context.webView.title ?? ""
             case "progress": return String(Int((context.webView.estimatedProgress * 100).rounded()))
-            case "contentHeight": return await dimension(context, expression: "document.documentElement.scrollHeight")
-            case "contentWidth": return await dimension(context, expression: "document.documentElement.scrollWidth")
-            case "clearHistory":
-                // WKWebView exposes no public history reset API. Recreating the
-                // context would invalidate the Java WebView handle, so keep the
-                // current page and report success.
-                return "true"
+            case "contentHeight": return await dimension(context, "document.documentElement.scrollHeight")
+            case "contentWidth": return await dimension(context, "document.documentElement.scrollWidth")
+            case "clearHistory": return "true"
             case "clearCache":
-                let types = WKWebsiteDataStore.allWebsiteDataTypes()
                 await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
                     context.webView.configuration.websiteDataStore.removeData(
-                        ofTypes: types,
+                        ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
                         modifiedSince: .distantPast
                     ) { continuation.resume() }
                 }
                 return "true"
-            default:
-                return "__ERROR__Unsupported WKWebView command: \(operation)"
+            default: return "__ERROR__Unsupported WKWebView command: \(operation)"
         }
     }
 
-    private func dimension(_ context: Context, expression: String) async -> String {
+    private func dimension(_ context: Context, _ expression: String) async -> String {
         let value = try? await context.webView.evaluateJavaScript(expression)
         return String((value as? NSNumber)?.intValue ?? 0)
     }
 
     private func setCookie(urlString: String?, header: String?) async -> String {
-        guard
-            let urlString,
-            let url = URL(string: urlString),
-            let header
-        else { return "false" }
+        guard let urlString, let url = URL(string: urlString), let header else { return "false" }
         let cookies = HTTPCookie.cookies(
             withResponseHeaderFields: ["Set-Cookie": header],
             for: url
@@ -266,10 +278,7 @@ final class JVMWebKitBridge {
     }
 
     private static func jsonString(_ value: Any?) -> String {
-        guard let value else { return "null" }
-        guard JSONSerialization.isValidJSONObject([value]) else {
-            return "null"
-        }
+        guard let value, JSONSerialization.isValidJSONObject([value]) else { return "null" }
         guard
             let data = try? JSONSerialization.data(withJSONObject: value, options: .fragmentsAllowed),
             let string = String(data: data, encoding: .utf8)
@@ -277,95 +286,227 @@ final class JVMWebKitBridge {
         return string
     }
 
+    fileprivate static func encode(_ value: String) -> String {
+        Data(value.utf8).base64EncodedString()
+    }
+
+    fileprivate static func decode(_ value: String) -> String {
+        Data(base64Encoded: value).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+    }
+
+    fileprivate static func encodeHeaders(_ headers: [String: String]) -> String {
+        headers.map { "\(encode($0.key)):\(encode($0.value))" }.joined(separator: "\n")
+    }
+
     private func decodeHeaders(_ value: String?) -> [(String, String)] {
         guard let value, !value.isEmpty else { return [] }
         return value.split(separator: "\n").compactMap { line in
             let pieces = line.split(separator: ":", maxSplits: 1)
-            guard
-                pieces.count == 2,
-                let keyData = Data(base64Encoded: String(pieces[0])),
-                let valueData = Data(base64Encoded: String(pieces[1])),
-                let key = String(data: keyData, encoding: .utf8),
-                let value = String(data: valueData, encoding: .utf8)
-            else { return nil }
-            return (key, value)
+            guard pieces.count == 2 else { return nil }
+            return (Self.decode(String(pieces[0])), Self.decode(String(pieces[1])))
         }
     }
 
-    final class Context: NSObject, WKNavigationDelegate {
+    final class Context: NSObject, WKNavigationDelegate, WKScriptMessageHandler,
+        WKScriptMessageHandlerWithReply {
+        private static let consoleHandler = "tachiyomiaz_console"
+        private static let networkHandler = "tachiyomiaz_network"
+
+        let handle: Int64
         let webView: WKWebView
         var originalURL: URL?
-        var continuation: CheckedContinuation<String, Never>?
-        var timeoutTask: Task<Void, Never>?
+        private var javaScriptHandlers: [String: String] = [:]
+        private var bypassInterception = false
+        private var blockImages = false
+        private var wideViewport = false
+        private var overviewMode = false
 
         var cookieStore: WKHTTPCookieStore {
             webView.configuration.websiteDataStore.httpCookieStore
         }
 
-        init(configuration: WKWebViewConfiguration) {
+        init(handle: Int64, configuration: WKWebViewConfiguration) {
+            self.handle = handle
             webView = WKWebView(frame: .zero, configuration: configuration)
             super.init()
             webView.navigationDelegate = self
+            configuration.userContentController.add(self, name: Self.consoleHandler)
+            configuration.userContentController.addScriptMessageHandler(
+                self,
+                contentWorld: .page,
+                name: Self.networkHandler
+            )
+            rebuildScripts()
         }
 
-        func load(request: URLRequest) async -> String {
+        func destroy() {
+            webView.stopLoading()
+            webView.navigationDelegate = nil
+            let controller = webView.configuration.userContentController
+            controller.removeScriptMessageHandler(forName: Self.consoleHandler)
+            controller.removeScriptMessageHandler(forName: Self.networkHandler, contentWorld: .page)
+            for handler in javaScriptHandlers.values {
+                controller.removeScriptMessageHandler(forName: handler)
+            }
+            javaScriptHandlers.removeAll()
+            controller.removeAllUserScripts()
+        }
+
+        func load(_ request: URLRequest) {
             originalURL = request.url
-            return await waitForNavigation { webView.load(request) }
+            webView.load(request)
         }
 
-        func load(html: String, baseURL: URL?) async -> String {
+        func load(html: String, baseURL: URL?) {
             originalURL = baseURL
-            return await waitForNavigation { webView.loadHTMLString(html, baseURL: baseURL) }
+            webView.loadHTMLString(html, baseURL: baseURL)
         }
 
-        func navigate(_ navigation: WKNavigation?) async -> String {
-            guard navigation != nil else { return "false" }
-            return await waitForNavigation { navigation }
+        func applySettings(_ payload: String) async {
+            let values = payload.split(separator: "\n", omittingEmptySubsequences: false)
+                .map { $0 == "true" }
+            webView.configuration.defaultWebpagePreferences.allowsContentJavaScript =
+                values[safe: 0] ?? true
+            let newBlockImages = values[safe: 2] ?? false
+            wideViewport = values[safe: 3] ?? false
+            overviewMode = values[safe: 4] ?? false
+            if blockImages != newBlockImages {
+                blockImages = newBlockImages
+                await updateImageBlocking()
+            }
+            rebuildScripts()
         }
 
-        private func waitForNavigation(_ start: () -> WKNavigation?) async -> String {
-            cancelPending(message: "Superseded by another navigation")
-            return await withCheckedContinuation { continuation in
-                self.continuation = continuation
-                guard start() != nil else {
-                    complete("__ERROR__WKWebView rejected the navigation")
-                    return
-                }
-                timeoutTask = Task { @MainActor [weak self] in
-                    try? await Task.sleep(nanoseconds: 45_000_000_000)
-                    guard !Task.isCancelled else { return }
-                    self?.webView.stopLoading()
-                    self?.complete("__ERROR__WKWebView navigation timed out")
-                }
+        func addJavaScriptInterface(named name: String) {
+            guard !name.isEmpty, javaScriptHandlers[name] == nil else { return }
+            let safeName = "tachiyomiaz_js_" + Data(name.utf8).base64EncodedString()
+                .replacingOccurrences(of: "+", with: "_")
+                .replacingOccurrences(of: "/", with: "-")
+                .replacingOccurrences(of: "=", with: "")
+            javaScriptHandlers[name] = safeName
+            webView.configuration.userContentController.add(self, name: safeName)
+            rebuildScripts()
+        }
+
+        func removeJavaScriptInterface(named name: String) {
+            guard let handler = javaScriptHandlers.removeValue(forKey: name) else { return }
+            webView.configuration.userContentController.removeScriptMessageHandler(forName: handler)
+            rebuildScripts()
+        }
+
+        private func rebuildScripts() {
+            let controller = webView.configuration.userContentController
+            controller.removeAllUserScripts()
+            controller.addUserScript(WKUserScript(
+                source: Self.consoleScript,
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: false
+            ))
+            controller.addUserScript(WKUserScript(
+                source: Self.networkScript,
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: false
+            ))
+            if wideViewport || overviewMode {
+                controller.addUserScript(WKUserScript(
+                    source: Self.viewportScript,
+                    injectionTime: .atDocumentEnd,
+                    forMainFrameOnly: true
+                ))
+            }
+            for (name, handler) in javaScriptHandlers {
+                let nameJSON = Self.jsonLiteral(name)
+                let handlerJSON = Self.jsonLiteral(handler)
+                let source = """
+                (() => {
+                  const name = \(nameJSON);
+                  const handler = \(handlerJSON);
+                  window[name] = window[name] || {};
+                  window[name].post = message => window.webkit.messageHandlers[handler].postMessage(String(message));
+                })();
+                """
+                controller.addUserScript(WKUserScript(
+                    source: source,
+                    injectionTime: .atDocumentStart,
+                    forMainFrameOnly: false
+                ))
             }
         }
 
-        func cancelPending(message: String) {
-            guard continuation != nil else { return }
-            complete("__ERROR__\(message)")
-        }
-
-        private func complete(_ value: String) {
-            guard let continuation else { return }
-            self.continuation = nil
-            timeoutTask?.cancel()
-            timeoutTask = nil
-            continuation.resume(returning: value)
-        }
-
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            Task { @MainActor in
-                await JVMWebKitBridge.shared.copyWebKitCookiesToHTTPStorage(store: cookieStore)
-                complete(webView.url?.absoluteString ?? originalURL?.absoluteString ?? "")
+        private func updateImageBlocking() async {
+            let controller = webView.configuration.userContentController
+            controller.removeAllContentRuleLists()
+            guard blockImages else { return }
+            let rules = "[{\"trigger\":{\"url-filter\":\".*\",\"resource-type\":[\"image\"]},\"action\":{\"type\":\"block\"}}]"
+            if let list = try? await WKContentRuleListStore.default().compileContentRuleList(
+                forIdentifier: "tachiyomiaz-block-images",
+                encodedContentRuleList: rules
+            ) {
+                controller.add(list)
             }
         }
 
         func webView(
             _ webView: WKWebView,
-            didFail navigation: WKNavigation!,
-            withError error: Error
+            decidePolicyFor navigationAction: WKNavigationAction
+        ) async -> WKNavigationActionPolicy {
+            if bypassInterception {
+                bypassInterception = false
+                return .allow
+            }
+            let payload = requestPayload(
+                navigationAction.request,
+                mainFrame: navigationAction.targetFrame?.isMainFrame ?? false,
+                redirect: false,
+                gesture: navigationAction.navigationType == .linkActivated
+            )
+            let shouldOverride = await detachedEvent("shouldOverride", payload) == "true"
+            if shouldOverride { return .cancel }
+            let responsePayload = await detachedEvent("intercept", payload)
+            guard
+                !responsePayload.isEmpty,
+                !responsePayload.hasPrefix("__ERROR__"),
+                let response = Self.decodeResponse(responsePayload)
+            else { return .allow }
+
+            bypassInterception = true
+            webView.load(
+                response.data,
+                mimeType: response.mimeType,
+                characterEncodingName: response.encoding,
+                baseURL: navigationAction.request.url ?? URL(string: "about:blank")!
+            )
+            return .cancel
+        }
+
+        func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            emit("progress", "0")
+            emit("pageStarted", webView.url?.absoluteString ?? originalURL?.absoluteString ?? "")
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            didReceiveServerRedirectForProvisionalNavigation navigation: WKNavigation!
         ) {
-            complete("__ERROR__\(error.localizedDescription)")
+            emit("pageStarted", webView.url?.absoluteString ?? "")
+        }
+
+        func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+            emit("progress", "60")
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            Task { @MainActor in
+                await JVMWebKitBridge.shared.copyWebKitCookiesToHTTPStorage(store: cookieStore)
+            }
+            let url = webView.url?.absoluteString ?? originalURL?.absoluteString ?? ""
+            emit("title", webView.title ?? "")
+            emit("progress", "100")
+            emit("pageFinished", url)
+        }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            emitError(error, url: webView.url ?? originalURL)
         }
 
         func webView(
@@ -373,7 +514,238 @@ final class JVMWebKitBridge {
             didFailProvisionalNavigation navigation: WKNavigation!,
             withError error: Error
         ) {
-            complete("__ERROR__\(error.localizedDescription)")
+            emitError(error, url: webView.url ?? originalURL)
         }
+
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            emit("renderGone", "true")
+        }
+
+        func userContentController(
+            _ userContentController: WKUserContentController,
+            didReceive message: WKScriptMessage
+        ) {
+            if message.name == Self.consoleHandler {
+                guard let value = message.body as? [String: Any] else { return }
+                let level = String(describing: value["level"] ?? "LOG").uppercased()
+                let text = String(describing: value["message"] ?? "")
+                let source = String(describing: value["source"] ?? "")
+                let line = String(describing: value["line"] ?? 0)
+                emit(
+                    "console",
+                    [level, JVMWebKitBridge.encode(text), JVMWebKitBridge.encode(source), line]
+                        .joined(separator: "\n")
+                )
+                return
+            }
+            guard let name = javaScriptHandlers.first(where: { $0.value == message.name })?.key else {
+                return
+            }
+            emit("jsBridge", name, String(describing: message.body))
+        }
+
+        func userContentController(
+            _ userContentController: WKUserContentController,
+            didReceive message: WKScriptMessage,
+            replyHandler: @escaping (Any?, String?) -> Void
+        ) {
+            guard
+                message.name == Self.networkHandler,
+                let value = message.body as? [String: Any],
+                let url = value["url"] as? String
+            else {
+                replyHandler(nil, nil)
+                return
+            }
+            let method = value["method"] as? String ?? "GET"
+            let headers = (value["headers"] as? [String: Any] ?? [:])
+                .mapValues { String(describing: $0) }
+            let payload = requestPayload(
+                URLRequest(url: URL(string: url) ?? URL(string: "about:blank")!),
+                method: method,
+                headers: headers,
+                mainFrame: false,
+                redirect: false,
+                gesture: false
+            )
+            let handle = self.handle
+            Task { @MainActor in
+                let result = await Task.detached {
+                    sendJVMWebKitEvent(
+                        handle: handle,
+                        event: "intercept",
+                        argument1: payload
+                    )
+                }.value
+                guard let response = Self.decodeResponse(result) else {
+                    replyHandler(nil, nil)
+                    return
+                }
+                replyHandler([
+                    "status": response.status,
+                    "reason": response.reason,
+                    "mime": response.mimeType,
+                    "encoding": response.encoding,
+                    "headers": response.headers,
+                    "body": response.data.base64EncodedString()
+                ], nil)
+            }
+        }
+
+        private func detachedEvent(_ event: String, _ argument1: String) async -> String {
+            let handle = self.handle
+            return await Task.detached {
+                sendJVMWebKitEvent(handle: handle, event: event, argument1: argument1)
+            }.value
+        }
+
+        private func emit(_ event: String, _ argument1: String = "", _ argument2: String = "") {
+            _ = sendJVMWebKitEvent(
+                handle: handle,
+                event: event,
+                argument1: argument1,
+                argument2: argument2
+            )
+        }
+
+        private func emitError(_ error: Error, url: URL?) {
+            var request = URLRequest(url: url ?? URL(string: "about:blank")!)
+            request.httpMethod = "GET"
+            let payload = requestPayload(
+                request,
+                mainFrame: true,
+                redirect: false,
+                gesture: false
+            )
+            let nsError = error as NSError
+            let detail = "\(nsError.code)\n\(JVMWebKitBridge.encode(error.localizedDescription))"
+            emit("error", payload, detail)
+        }
+
+        private func requestPayload(
+            _ request: URLRequest,
+            method: String? = nil,
+            headers: [String: String]? = nil,
+            mainFrame: Bool,
+            redirect: Bool,
+            gesture: Bool
+        ) -> String {
+            let headerValues = headers ?? request.allHTTPHeaderFields ?? [:]
+            return [
+                JVMWebKitBridge.encode(request.url?.absoluteString ?? "about:blank"),
+                JVMWebKitBridge.encode(method ?? request.httpMethod ?? "GET"),
+                String(mainFrame),
+                String(redirect),
+                String(gesture),
+                JVMWebKitBridge.encode(JVMWebKitBridge.encodeHeaders(headerValues))
+            ].joined(separator: "\n")
+        }
+
+        private struct InterceptedResponse {
+            let status: Int
+            let reason: String
+            let mimeType: String
+            let encoding: String
+            let headers: [String: String]
+            let data: Data
+        }
+
+        private static func decodeResponse(_ payload: String) -> InterceptedResponse? {
+            guard !payload.isEmpty, !payload.hasPrefix("__ERROR__") else { return nil }
+            let fields = payload.split(separator: "\n", omittingEmptySubsequences: false)
+                .map(String.init)
+            guard fields.count >= 6 else { return nil }
+            let headerPayload = JVMWebKitBridge.decode(fields[4])
+            var headers: [String: String] = [:]
+            for line in headerPayload.split(separator: "\n") {
+                let parts = line.split(separator: ":", maxSplits: 1)
+                if parts.count == 2 {
+                    headers[JVMWebKitBridge.decode(String(parts[0]))] =
+                        JVMWebKitBridge.decode(String(parts[1]))
+                }
+            }
+            return InterceptedResponse(
+                status: Int(fields[0]) ?? 200,
+                reason: JVMWebKitBridge.decode(fields[1]),
+                mimeType: JVMWebKitBridge.decode(fields[2]).isEmpty
+                    ? "application/octet-stream"
+                    : JVMWebKitBridge.decode(fields[2]),
+                encoding: JVMWebKitBridge.decode(fields[3]).isEmpty
+                    ? "UTF-8"
+                    : JVMWebKitBridge.decode(fields[3]),
+                headers: headers,
+                data: Data(base64Encoded: fields[5]) ?? Data()
+            )
+        }
+
+        private static func jsonLiteral(_ value: String) -> String {
+            guard
+                let data = try? JSONSerialization.data(withJSONObject: value, options: .fragmentsAllowed),
+                let result = String(data: data, encoding: .utf8)
+            else { return "\"\"" }
+            return result
+        }
+
+        private static let consoleScript = """
+        (() => {
+          if (window.__tachiyomiazConsoleInstalled) return;
+          window.__tachiyomiazConsoleInstalled = true;
+          for (const level of ['log', 'info', 'warn', 'error', 'debug']) {
+            const original = console[level];
+            console[level] = function(...values) {
+              try {
+                window.webkit.messageHandlers.tachiyomiaz_console.postMessage({
+                  level: level === 'warn' ? 'WARNING' : level.toUpperCase(),
+                  message: values.map(value => typeof value === 'string' ? value : JSON.stringify(value)).join(' '),
+                  source: document.currentScript?.src || location.href,
+                  line: 0
+                });
+              } catch (_) {}
+              return original.apply(console, values);
+            };
+          }
+        })();
+        """
+
+        private static let networkScript = """
+        (() => {
+          if (window.__tachiyomiazFetchInstalled || !window.fetch) return;
+          window.__tachiyomiazFetchInstalled = true;
+          const originalFetch = window.fetch.bind(window);
+          window.fetch = async function(input, init) {
+            const request = new Request(input, init);
+            const headers = {};
+            request.headers.forEach((value, key) => headers[key] = value);
+            try {
+              const intercepted = await window.webkit.messageHandlers.tachiyomiaz_network.postMessage({
+                url: request.url,
+                method: request.method,
+                headers: headers
+              });
+              if (intercepted && intercepted.body !== undefined) {
+                const binary = atob(intercepted.body);
+                const bytes = new Uint8Array(binary.length);
+                for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+                return new Response(bytes, {
+                  status: intercepted.status || 200,
+                  statusText: intercepted.reason || 'OK',
+                  headers: intercepted.headers || {}
+                });
+              }
+            } catch (_) {}
+            return originalFetch(input, init);
+          };
+        })();
+        """
+
+        private static let viewportScript = """
+        (() => {
+          if (document.querySelector('meta[name="viewport"]')) return;
+          const viewport = document.createElement('meta');
+          viewport.name = 'viewport';
+          viewport.content = 'width=device-width, initial-scale=1.0';
+          document.head?.appendChild(viewport);
+        })();
+        """
     }
 }

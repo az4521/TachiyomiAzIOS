@@ -1,13 +1,24 @@
 package app.tachiaz.compat;
 
 import android.graphics.Bitmap;
+import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
+import android.webkit.ConsoleMessage;
 import android.webkit.CookieManager;
+import android.webkit.IOSRenderProcessGoneDetail;
+import android.webkit.IOSWebResourceError;
+import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.WebViewProvider;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -16,21 +27,33 @@ import java.net.CookieHandler;
 import java.net.HttpCookie;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import xyz.nulldev.androidcompat.CallableArgument;
 import xyz.nulldev.androidcompat.webkit.KcefWebSettings;
 
-/**
- * Replaces Suwayomi's desktop KCEF backend with the WKWebView backend exposed
- * by the iOS app. AndroidCompat's public android.webkit classes stay intact,
- * so extensions continue to call the same API they use under Mihon.
- */
+/** AndroidCompat WebView provider backed by the app's native WKWebView. */
 public final class IOSWebViewProviderFactory
     implements CallableArgument<WebView, WebViewProvider> {
+
+    private static final Map<Long, Provider> PROVIDERS = new ConcurrentHashMap<>();
+    private static final ExecutorService CALLBACK_EXECUTOR =
+        Executors.newCachedThreadPool(runnable -> {
+            Thread thread = new Thread(runnable, "tachiyomiaz-webkit-callback");
+            thread.setDaemon(true);
+            return thread;
+        });
 
     public static void install() throws Exception {
         WebView.setProviderFactory(new IOSWebViewProviderFactory());
@@ -39,19 +62,37 @@ public final class IOSWebViewProviderFactory
         singleton.set(null, new IOSCookieManager());
     }
 
+    /** Entry point called from the reverse JNI bridge. */
+    public static String dispatchEvent(
+        long handle,
+        String event,
+        String argument1,
+        String argument2
+    ) {
+        Provider provider = PROVIDERS.get(handle);
+        if (provider == null) return "";
+        try {
+            return provider.event(event, argument1, argument2);
+        } catch (Throwable error) {
+            return "__ERROR__" + error.getClass().getName() + ": " + error.getMessage();
+        }
+    }
+
     @Override
     public WebViewProvider call(WebView view) {
-        InvocationHandler handler = new Provider(view);
+        Provider provider = new Provider(view);
         return (WebViewProvider) Proxy.newProxyInstance(
             WebViewProvider.class.getClassLoader(),
             new Class<?>[] {WebViewProvider.class},
-            handler
+            provider
         );
     }
 
     private static final class Provider implements InvocationHandler {
         private final WebView view;
         private final WebSettings settings = new KcefWebSettings();
+        private final Handler mainHandler = new Handler(Looper.getMainLooper());
+        private final Map<String, Object> javascriptInterfaces = new ConcurrentHashMap<>();
         private long handle;
         private WebViewClient webViewClient = new WebViewClient();
         private WebChromeClient webChromeClient;
@@ -68,6 +109,7 @@ public final class IOSWebViewProviderFactory
                     error
                 );
             }
+            PROVIDERS.put(handle, this);
         }
 
         @Override
@@ -76,27 +118,43 @@ public final class IOSWebViewProviderFactory
             Object[] args = arguments == null ? new Object[0] : arguments;
             if (name.equals("toString")) return "IOSWebViewProvider(" + handle + ")";
             if (name.equals("hashCode")) return System.identityHashCode(this);
-            if (name.equals("equals")) return proxy == args[0];
+            if (name.equals("equals")) return args.length == 1 && proxy == args[0];
 
             switch (name) {
-                case "init":
-                    return null;
+                case "init": return null;
                 case "destroy":
                     if (handle != 0) {
-                        command("destroy", handle, null, null);
+                        long oldHandle = handle;
+                        PROVIDERS.remove(oldHandle);
                         handle = 0;
+                        command("destroy", oldHandle, null, null);
                     }
+                    javascriptInterfaces.clear();
                     return null;
                 case "loadUrl":
-                    loadUrl((String) args[0], args.length > 1 ? castHeaders(args[1]) : null);
+                    applySettings();
+                    command(
+                        "load",
+                        handle,
+                        (String) args[0],
+                        encodeHeaders(args.length > 1 ? castHeaders(args[1]) : null)
+                    );
                     return null;
                 case "postUrl":
-                    loadPost((String) args[0], (byte[]) args[1]);
+                    applySettings();
+                    command(
+                        "post",
+                        handle,
+                        (String) args[0],
+                        Base64.getEncoder().encodeToString((byte[]) args[1])
+                    );
                     return null;
                 case "loadData":
+                    applySettings();
                     loadData(null, (String) args[0], (String) args[2]);
                     return null;
                 case "loadDataWithBaseURL":
+                    applySettings();
                     loadData((String) args[0], (String) args[1], (String) args[3]);
                     return null;
                 case "evaluateJavaScript":
@@ -107,12 +165,17 @@ public final class IOSWebViewProviderFactory
                         callback.onReceiveValue(result);
                     }
                     return null;
+                case "addJavascriptInterface":
+                    addJavascriptInterface(args[0], (String) args[1]);
+                    return null;
+                case "removeJavascriptInterface":
+                    javascriptInterfaces.remove((String) args[0]);
+                    return run("removeJSInterface", (String) args[0]);
                 case "stopLoading": return run("stop");
                 case "reload": return run("reload");
                 case "goBack": return run("goBack");
                 case "goForward": return run("goForward");
-                case "goBackOrForward":
-                    return run("go", Integer.toString((Integer) args[0]));
+                case "goBackOrForward": return run("go", Integer.toString((Integer) args[0]));
                 case "canGoBack": return bool(command("canGoBack", handle, null, null));
                 case "canGoForward": return bool(command("canGoForward", handle, null, null));
                 case "canGoBackOrForward":
@@ -142,86 +205,155 @@ public final class IOSWebViewProviderFactory
                     }
                     return null;
                 case "getViewDelegate":
-                case "getScrollDelegate":
-                    return defaultProxy(method.getReturnType());
+                case "getScrollDelegate": return defaultProxy(method.getReturnType());
                 case "zoomBy":
                 case "zoomIn":
                 case "zoomOut": return false;
                 case "getScale": return 1.0f;
                 case "getRendererRequestedPriority": return 0;
                 case "getRendererPriorityWaivedWhenNotVisible": return false;
-                default:
-                    return defaultValue(method.getReturnType());
+                default: return defaultValue(method.getReturnType());
             }
         }
 
-        private void loadUrl(String url, Map<String, String> headers) {
-            if (webViewClient.shouldOverrideUrlLoading(view, url)) return;
-            start(url);
-            String result = command("load", handle, url, encodeHeaders(headers));
-            finish(url, result);
+        String event(String event, String argument1, String argument2) throws Exception {
+            switch (event) {
+                case "shouldOverride":
+                    return Boolean.toString(callOnMain(() -> shouldOverride(decodeRequest(argument1))));
+                case "intercept": {
+                    Future<String> future = CALLBACK_EXECUTOR.submit(() ->
+                        encodeResponse(intercept(decodeRequest(argument1)))
+                    );
+                    return future.get();
+                }
+                case "pageStarted":
+                    postMain(() -> webViewClient.onPageStarted(view, argument1, (Bitmap) null));
+                    return "";
+                case "pageFinished":
+                    postMain(() -> webViewClient.onPageFinished(view, argument1));
+                    return "";
+                case "progress":
+                    postMain(() -> {
+                        if (webChromeClient != null) {
+                            webChromeClient.onProgressChanged(view, integer(argument1));
+                        }
+                    });
+                    return "";
+                case "title":
+                    postMain(() -> {
+                        if (webChromeClient != null) webChromeClient.onReceivedTitle(view, argument1);
+                    });
+                    return "";
+                case "console":
+                    postMain(() -> dispatchConsole(argument1));
+                    return "";
+                case "error":
+                    postMain(() -> dispatchError(argument1, argument2));
+                    return "";
+                case "renderGone":
+                    postMain(() -> webViewClient.onRenderProcessGone(
+                        view,
+                        new IOSRenderProcessGoneDetail("true".equals(argument1), 0)
+                    ));
+                    return "";
+                case "jsBridge":
+                    CALLBACK_EXECUTOR.execute(() -> dispatchJavascript(argument1, argument2));
+                    return "";
+                default: return "";
+            }
         }
 
-        private void loadPost(String url, byte[] data) {
-            if (webViewClient.shouldOverrideUrlLoading(view, url)) return;
-            start(url);
-            String body = Base64.getEncoder().encodeToString(data);
-            finish(url, command("post", handle, url, body));
+        private boolean shouldOverride(WebResourceRequest request) {
+            if (overrides(webViewClient, "shouldOverrideUrlLoading", WebView.class, WebResourceRequest.class)) {
+                return webViewClient.shouldOverrideUrlLoading(view, request);
+            }
+            return webViewClient.shouldOverrideUrlLoading(view, request.getUrl().toString());
+        }
+
+        private WebResourceResponse intercept(WebResourceRequest request) {
+            if (overrides(
+                webViewClient,
+                "shouldInterceptRequest",
+                WebView.class,
+                WebResourceRequest.class
+            )) {
+                return webViewClient.shouldInterceptRequest(view, request);
+            }
+            return webViewClient.shouldInterceptRequest(view, request.getUrl().toString());
+        }
+
+        private void dispatchError(String requestPayload, String errorPayload) {
+            WebResourceRequest request = decodeRequest(requestPayload);
+            String[] fields = errorPayload.split("\\n", -1);
+            int code = fields.length > 0 ? integer(fields[0]) : WebViewClient.ERROR_UNKNOWN;
+            String description = fields.length > 1 ? decode(fields[1]) : "Unknown WebKit error";
+            IOSWebResourceError error = new IOSWebResourceError(code, description);
+            webViewClient.onReceivedError(view, request, error);
+            if (!overrides(webViewClient, "onReceivedError", WebView.class, WebResourceRequest.class, android.webkit.WebResourceError.class)) {
+                webViewClient.onReceivedError(view, code, description, request.getUrl().toString());
+            }
+        }
+
+        private void dispatchConsole(String payload) {
+            if (webChromeClient == null) return;
+            String[] fields = payload.split("\\n", -1);
+            if (fields.length < 4) return;
+            ConsoleMessage.MessageLevel level;
+            try {
+                level = ConsoleMessage.MessageLevel.valueOf(fields[0]);
+            } catch (RuntimeException ignored) {
+                level = ConsoleMessage.MessageLevel.LOG;
+            }
+            webChromeClient.onConsoleMessage(new ConsoleMessage(
+                decode(fields[1]),
+                decode(fields[2]),
+                integer(fields[3]),
+                level
+            ));
+        }
+
+        private void addJavascriptInterface(Object object, String name) {
+            if (object == null || name == null || name.isEmpty()) return;
+            javascriptInterfaces.put(name, object);
+            command("addJSInterface", handle, name, null);
+        }
+
+        private void dispatchJavascript(String name, String message) {
+            Object target = javascriptInterfaces.get(name);
+            if (target == null) return;
+            for (Method method : target.getClass().getMethods()) {
+                if (
+                    method.getParameterTypes().length == 1 &&
+                    method.getParameterTypes()[0] == String.class &&
+                    method.isAnnotationPresent(JavascriptInterface.class)
+                ) {
+                    try {
+                        method.setAccessible(true);
+                        method.invoke(target, message);
+                    } catch (Throwable error) {
+                        throw new RuntimeException("JavaScript interface callback failed", error);
+                    }
+                    return;
+                }
+            }
         }
 
         private void loadData(String baseUrl, String data, String encoding) {
-            String url = baseUrl == null ? "about:blank" : baseUrl;
-            start(url);
             String encoded = "base64".equalsIgnoreCase(encoding)
                 ? data
                 : Base64.getEncoder().encodeToString(data.getBytes(StandardCharsets.UTF_8));
-            finish(url, command("loadHTML", handle, baseUrl, encoded));
-        }
-
-        private void start(String url) {
-            applySettings();
-            if (webChromeClient != null) {
-                webChromeClient.onProgressChanged(view, 0);
-            }
-            webViewClient.onPageStarted(view, url, (Bitmap) null);
-        }
-
-        private void finish(String requestedUrl, String result) {
-            if (result != null && result.startsWith("__ERROR__")) {
-                webViewClient.onReceivedError(
-                    view,
-                    -1,
-                    result.substring("__ERROR__".length()),
-                    requestedUrl
-                );
-                if (webChromeClient != null) {
-                    webChromeClient.onProgressChanged(view, 100);
-                }
-                return;
-            }
-            String finalUrl = result == null || result.isEmpty() ? requestedUrl : result;
-            webViewClient.onPageCommitVisible(view, finalUrl);
-            webViewClient.onPageFinished(view, finalUrl);
-            if (webChromeClient != null) {
-                webChromeClient.onReceivedTitle(
-                    view,
-                    emptyToNull(command("title", handle, null, null))
-                );
-                webChromeClient.onProgressChanged(view, 100);
-            }
+            command("loadHTML", handle, baseUrl, encoded);
         }
 
         private void applySettings() {
             String userAgent = settings.getUserAgentString();
-            if (userAgent != null && !userAgent.isEmpty()) {
-                command("userAgent", handle, userAgent, null);
-            }
-            command(
-                "javaScript",
-                handle,
-                Boolean.toString(settings.getJavaScriptEnabled()),
-                null
-            );
+            command("userAgent", handle, userAgent, null);
+            String flags = Boolean.toString(settings.getJavaScriptEnabled()) + "\n" +
+                Boolean.toString(settings.getDomStorageEnabled()) + "\n" +
+                Boolean.toString(settings.getBlockNetworkImage()) + "\n" +
+                Boolean.toString(settings.getUseWideViewPort()) + "\n" +
+                Boolean.toString(settings.getLoadWithOverviewMode());
+            command("settings", handle, flags, null);
         }
 
         private Object run(String operation) {
@@ -234,30 +366,125 @@ public final class IOSWebViewProviderFactory
             return null;
         }
 
-        @SuppressWarnings("unchecked")
-        private static Map<String, String> castHeaders(Object value) {
-            return value == null ? Collections.<String, String>emptyMap() : (Map<String, String>) value;
+        private void postMain(Runnable runnable) {
+            mainHandler.post(runnable);
         }
 
-        private static String encodeHeaders(Map<String, String> headers) {
-            if (headers == null || headers.isEmpty()) return "";
-            StringBuilder output = new StringBuilder();
-            Base64.Encoder encoder = Base64.getEncoder();
-            for (Map.Entry<String, String> entry : headers.entrySet()) {
-                if (output.length() > 0) output.append('\n');
-                output.append(encoder.encodeToString(entry.getKey().getBytes(StandardCharsets.UTF_8)));
-                output.append(':');
-                output.append(encoder.encodeToString(entry.getValue().getBytes(StandardCharsets.UTF_8)));
+        private <T> T callOnMain(Callable<T> callable) throws Exception {
+            if (mainHandler.getLooper().isCurrentThread()) return callable.call();
+            FutureTask<T> task = new FutureTask<>(callable);
+            mainHandler.post(task);
+            try {
+                return task.get();
+            } catch (ExecutionException error) {
+                Throwable cause = error.getCause();
+                if (cause instanceof Exception) throw (Exception) cause;
+                throw error;
             }
-            return output.toString();
+        }
+    }
+
+    private static final class Request implements WebResourceRequest {
+        private final Uri url;
+        private final String method;
+        private final boolean mainFrame;
+        private final boolean redirect;
+        private final boolean gesture;
+        private final Map<String, String> headers;
+
+        Request(String payload) {
+            String[] fields = payload.split("\\n", -1);
+            url = Uri.parse(fields.length > 0 ? decode(fields[0]) : "about:blank");
+            method = fields.length > 1 ? decode(fields[1]) : "GET";
+            mainFrame = fields.length > 2 && bool(fields[2]);
+            redirect = fields.length > 3 && bool(fields[3]);
+            gesture = fields.length > 4 && bool(fields[4]);
+            headers = fields.length > 5 ? decodeHeaders(decode(fields[5])) : Collections.emptyMap();
         }
 
-        private static Object defaultProxy(Class<?> type) {
-            return Proxy.newProxyInstance(
-                type.getClassLoader(),
-                new Class<?>[] {type},
-                (proxy, method, args) -> defaultValue(method.getReturnType())
-            );
+        @Override public Uri getUrl() { return url; }
+        @Override public boolean isForMainFrame() { return mainFrame; }
+        @Override public boolean isRedirect() { return redirect; }
+        @Override public boolean hasGesture() { return gesture; }
+        @Override public String getMethod() { return method; }
+        @Override public Map<String, String> getRequestHeaders() { return headers; }
+    }
+
+    private static WebResourceRequest decodeRequest(String payload) {
+        return new Request(payload == null ? "" : payload);
+    }
+
+    private static String encodeResponse(WebResourceResponse response) throws Exception {
+        if (response == null) return "";
+        byte[] body = readAll(response.getData());
+        return response.getStatusCode() + "\n" +
+            encode(nullToEmpty(response.getReasonPhrase())) + "\n" +
+            encode(nullToEmpty(response.getMimeType())) + "\n" +
+            encode(nullToEmpty(response.getEncoding())) + "\n" +
+            encode(encodeHeaders(response.getResponseHeaders())) + "\n" +
+            Base64.getEncoder().encodeToString(body);
+    }
+
+    private static byte[] readAll(InputStream input) throws Exception {
+        if (input == null) return new byte[0];
+        try (InputStream stream = input; ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[16 * 1024];
+            int count;
+            int total = 0;
+            while ((count = stream.read(buffer)) >= 0) {
+                total += count;
+                if (total > 64 * 1024 * 1024) {
+                    throw new IllegalStateException("Intercepted WebView response exceeds 64 MiB");
+                }
+                output.write(buffer, 0, count);
+            }
+            return output.toByteArray();
+        }
+    }
+
+    private static boolean overrides(Object target, String name, Class<?>... arguments) {
+        try {
+            return target.getClass().getMethod(name, arguments).getDeclaringClass() != WebViewClient.class;
+        } catch (NoSuchMethodException ignored) {
+            return false;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, String> castHeaders(Object value) {
+        return value == null ? Collections.emptyMap() : (Map<String, String>) value;
+    }
+
+    private static String encodeHeaders(Map<String, String> headers) {
+        if (headers == null || headers.isEmpty()) return "";
+        StringBuilder output = new StringBuilder();
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            if (output.length() > 0) output.append('\n');
+            output.append(encode(entry.getKey())).append(':').append(encode(entry.getValue()));
+        }
+        return output.toString();
+    }
+
+    private static Map<String, String> decodeHeaders(String value) {
+        if (value == null || value.isEmpty()) return Collections.emptyMap();
+        Map<String, String> output = new LinkedHashMap<>();
+        for (String line : value.split("\\n")) {
+            int separator = line.indexOf(':');
+            if (separator <= 0) continue;
+            output.put(decode(line.substring(0, separator)), decode(line.substring(separator + 1)));
+        }
+        return output;
+    }
+
+    private static String encode(String value) {
+        return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String decode(String value) {
+        try {
+            return new String(Base64.getDecoder().decode(value), StandardCharsets.UTF_8);
+        } catch (RuntimeException ignored) {
+            return "";
         }
     }
 
@@ -272,9 +499,7 @@ public final class IOSWebViewProviderFactory
             javaCookies = handler instanceof java.net.CookieManager
                 ? (java.net.CookieManager) handler
                 : new java.net.CookieManager();
-            if (!(handler instanceof java.net.CookieManager)) {
-                CookieHandler.setDefault(javaCookies);
-            }
+            if (!(handler instanceof java.net.CookieManager)) CookieHandler.setDefault(javaCookies);
         }
 
         @Override public void setAcceptCookie(boolean accept) { acceptCookies = accept; }
@@ -282,10 +507,7 @@ public final class IOSWebViewProviderFactory
         @Override public void setAcceptThirdPartyCookies(WebView view, boolean accept) {
             acceptThirdPartyCookies = accept;
         }
-        @Override public boolean acceptThirdPartyCookies(WebView view) {
-            return acceptThirdPartyCookies;
-        }
-
+        @Override public boolean acceptThirdPartyCookies(WebView view) { return acceptThirdPartyCookies; }
         @Override public void setCookie(String url, String value) {
             if (!acceptCookies || value == null) return;
             command("cookieSet", 0, url, value);
@@ -294,23 +516,16 @@ public final class IOSWebViewProviderFactory
                 for (HttpCookie cookie : HttpCookie.parse(value)) {
                     javaCookies.getCookieStore().add(uri, cookie);
                 }
-            } catch (RuntimeException ignored) {
-                // WebKit remains the authoritative browser cookie store.
-            }
+            } catch (RuntimeException ignored) {}
         }
-
         @Override public void setCookie(String url, String value, ValueCallback<Boolean> callback) {
             setCookie(url, value);
             if (callback != null) callback.onReceiveValue(true);
         }
-
         @Override public String getCookie(String url) {
             return emptyToNull(command("cookieGet", 0, url, null));
         }
-
-        @Deprecated @Override public void removeSessionCookie() {
-            removeSessionCookies(null);
-        }
+        @Deprecated @Override public void removeSessionCookie() { removeSessionCookies(null); }
         @Override public void removeSessionCookies(ValueCallback<Boolean> callback) {
             boolean removed = bool(command("cookieRemoveSession", 0, null, null));
             removeJavaSessionCookies();
@@ -323,40 +538,25 @@ public final class IOSWebViewProviderFactory
             javaCookies.getCookieStore().removeAll();
             if (callback != null) callback.onReceiveValue(removed);
         }
-        @Override public boolean hasCookies() {
-            return bool(command("cookieHas", 0, null, null));
-        }
+        @Override public boolean hasCookies() { return bool(command("cookieHas", 0, null, null)); }
         @Override public void flush() { command("cookieFlush", 0, null, null); }
         @Override public boolean allowFileSchemeCookiesImpl() { return acceptFileCookies; }
-        @Override public void setAcceptFileSchemeCookiesImpl(boolean accept) {
-            acceptFileCookies = accept;
-        }
+        @Override public void setAcceptFileSchemeCookiesImpl(boolean accept) { acceptFileCookies = accept; }
 
         private static URI normalizedUri(String value) {
             return URI.create(value.startsWith("http") ? value : "http://" + value);
         }
 
         private void removeJavaSessionCookies() {
-            List<URI> uris = new ArrayList<>(javaCookies.getCookieStore().getURIs());
-            for (URI uri : uris) {
-                List<HttpCookie> cookies = new ArrayList<>(
-                    javaCookies.getCookieStore().get(uri)
-                );
-                for (HttpCookie cookie : cookies) {
-                    if (cookie.getMaxAge() < 0) {
-                        javaCookies.getCookieStore().remove(uri, cookie);
-                    }
+            for (URI uri : new ArrayList<>(javaCookies.getCookieStore().getURIs())) {
+                for (HttpCookie cookie : new ArrayList<>(javaCookies.getCookieStore().get(uri))) {
+                    if (cookie.getMaxAge() < 0) javaCookies.getCookieStore().remove(uri, cookie);
                 }
             }
         }
     }
 
-    private static String command(
-        String operation,
-        long handle,
-        String argument1,
-        String argument2
-    ) {
+    private static String command(String operation, long handle, String argument1, String argument2) {
         String result = NativeBridge.webkitCommand(operation, handle, argument1, argument2);
         if (result != null && result.startsWith("__UNAVAILABLE__")) {
             throw new UnsupportedOperationException(result.substring("__UNAVAILABLE__".length()));
@@ -370,6 +570,14 @@ public final class IOSWebViewProviderFactory
     }
     private static String emptyToNull(String value) {
         return value == null || value.isEmpty() ? null : value;
+    }
+    private static String nullToEmpty(String value) { return value == null ? "" : value; }
+    private static Object defaultProxy(Class<?> type) {
+        return Proxy.newProxyInstance(
+            type.getClassLoader(),
+            new Class<?>[] {type},
+            (proxy, method, args) -> defaultValue(method.getReturnType())
+        );
     }
     private static Object defaultValue(Class<?> type) {
         if (!type.isPrimitive() || type == Void.TYPE) return null;

@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <new>
+#include <string>
 #include <vector>
 
 #if defined(__APPLE__)
@@ -26,6 +27,10 @@ extern "C" char *tachiyomiaz_webkit_command(
 namespace {
 
 #if defined(__APPLE__)
+JavaVM *mobile_vm = nullptr;
+jclass mobile_bridge_type = nullptr;
+jmethodID mobile_webkit_event_method = nullptr;
+
 struct NativeBitmap {
     size_t width;
     size_t height;
@@ -852,6 +857,86 @@ const JNINativeMethod methods[] = {
 
 } // namespace
 
+#if defined(__APPLE__)
+extern "C" char *tachiyomiaz_jvm_webkit_event(
+    int64_t handle,
+    const char *event,
+    const char *argument1,
+    const char *argument2
+) {
+    if (
+        mobile_vm == nullptr || mobile_bridge_type == nullptr ||
+        mobile_webkit_event_method == nullptr
+    ) {
+        return strdup("");
+    }
+
+    JNIEnv *environment = nullptr;
+    bool attached = false;
+    const jint get_result = mobile_vm->GetEnv(
+        reinterpret_cast<void **>(&environment),
+        JNI_VERSION_1_8
+    );
+    if (get_result == JNI_EDETACHED) {
+        if (
+            mobile_vm->AttachCurrentThread(
+                reinterpret_cast<void **>(&environment),
+                nullptr
+            ) != JNI_OK
+        ) {
+            return strdup("");
+        }
+        attached = true;
+    } else if (get_result != JNI_OK) {
+        return strdup("");
+    }
+
+    jstring java_event = environment->NewStringUTF(event == nullptr ? "" : event);
+    jstring java_argument1 = environment->NewStringUTF(
+        argument1 == nullptr ? "" : argument1
+    );
+    jstring java_argument2 = environment->NewStringUTF(
+        argument2 == nullptr ? "" : argument2
+    );
+    jobject result = nullptr;
+    if (
+        java_event != nullptr && java_argument1 != nullptr &&
+        java_argument2 != nullptr
+    ) {
+        result = environment->CallStaticObjectMethod(
+            mobile_bridge_type,
+            mobile_webkit_event_method,
+            static_cast<jlong>(handle),
+            java_event,
+            java_argument1,
+            java_argument2
+        );
+    }
+
+    std::string output;
+    if (environment->ExceptionCheck()) {
+        environment->ExceptionDescribe();
+        environment->ExceptionClear();
+    } else if (result != nullptr) {
+        const char *utf8 = environment->GetStringUTFChars(
+            static_cast<jstring>(result),
+            nullptr
+        );
+        if (utf8 != nullptr) {
+            output = utf8;
+            environment->ReleaseStringUTFChars(static_cast<jstring>(result), utf8);
+        }
+    }
+
+    if (result != nullptr) environment->DeleteLocalRef(result);
+    if (java_event != nullptr) environment->DeleteLocalRef(java_event);
+    if (java_argument1 != nullptr) environment->DeleteLocalRef(java_argument1);
+    if (java_argument2 != nullptr) environment->DeleteLocalRef(java_argument2);
+    if (attached) mobile_vm->DetachCurrentThread();
+    return strdup(output.c_str());
+}
+#endif
+
 bool tjr_register_mobile_natives(
     JNIEnv *environment,
     std::string &error
@@ -861,6 +946,23 @@ bool tjr_register_mobile_natives(
     if (type == nullptr) {
         environment->ExceptionClear();
         error = "Unable to load the mobile Android native bridge";
+        return false;
+    }
+    if (environment->GetJavaVM(&mobile_vm) != JNI_OK) {
+        environment->DeleteLocalRef(type);
+        error = "Unable to retain the Java VM for WebKit callbacks";
+        return false;
+    }
+    mobile_bridge_type = static_cast<jclass>(environment->NewGlobalRef(type));
+    mobile_webkit_event_method = environment->GetStaticMethodID(
+        type,
+        "dispatchWebKitEvent",
+        "(JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"
+    );
+    if (mobile_bridge_type == nullptr || mobile_webkit_event_method == nullptr) {
+        environment->ExceptionClear();
+        environment->DeleteLocalRef(type);
+        error = "Unable to register the WebKit callback dispatcher";
         return false;
     }
     const jint result = environment->RegisterNatives(

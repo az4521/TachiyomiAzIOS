@@ -4,6 +4,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import android.webkit.JavascriptInterface;
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -125,6 +126,20 @@ public final class AndroidCompatibilitySurfaceTest {
             String.class,
             String.class
         );
+        Object missingEventResult = nativeBridgeType.getMethod(
+            "dispatchWebKitEvent",
+            long.class,
+            String.class,
+            String.class,
+            String.class
+        ).invoke(null, 9_999L, "pageFinished", "https://example.invalid", "");
+        if (!"".equals(missingEventResult)) {
+            throw new AssertionError("Unknown WebView callbacks must be ignored safely");
+        }
+        if (!JavascriptTarget.class.getMethod("post", String.class)
+            .isAnnotationPresent(JavascriptInterface.class)) {
+            throw new AssertionError("JavaScript interface annotations are not visible at runtime");
+        }
         Class<?> webViewFactoryType = Class.forName(
             "app.tachiaz.compat.IOSWebViewProviderFactory"
         );
@@ -133,6 +148,24 @@ public final class AndroidCompatibilitySurfaceTest {
             .invoke(null);
         if (!cookieManager.getClass().getName().contains("IOSCookieManager")) {
             throw new AssertionError("iOS CookieManager provider was not installed");
+        }
+        Class<?> webResourceError = Class.forName(
+            "android.webkit.IOSWebResourceError"
+        );
+        Object nativeError = webResourceError
+            .getConstructor(int.class, CharSequence.class)
+            .newInstance(-2, "host lookup failed");
+        if ((Integer) webResourceError.getMethod("getErrorCode").invoke(nativeError) != -2) {
+            throw new AssertionError("iOS WebResourceError lost its error code");
+        }
+        Class<?> renderGone = Class.forName(
+            "android.webkit.IOSRenderProcessGoneDetail"
+        );
+        Object renderDetail = renderGone
+            .getConstructor(boolean.class, int.class)
+            .newInstance(true, 0);
+        if (!(Boolean) renderGone.getMethod("didCrash").invoke(renderDetail)) {
+            throw new AssertionError("iOS render-process failure was not preserved");
         }
         Class<?> activityManagerType = Class.forName(
             "android.app.ActivityManager"
@@ -193,5 +226,11 @@ public final class AndroidCompatibilitySurfaceTest {
         ).invoke(null, java.util.Locale.ENGLISH);
 
         System.out.println("Android compatibility surface test passed");
+    }
+
+    public static final class JavascriptTarget {
+        @JavascriptInterface
+        public void post(String message) {
+        }
     }
 }

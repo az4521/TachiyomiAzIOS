@@ -88,4 +88,19 @@ public final class NativeBridge {
         String argument1,
         String argument2
     );
+
+    /** Called by WKWebView through JNI for asynchronous Android callbacks. */
+    public static String dispatchWebKitEvent(
+        long handle,
+        String event,
+        String argument1,
+        String argument2
+    ) {
+        return IOSWebViewProviderFactory.dispatchEvent(
+            handle,
+            event,
+            argument1,
+            argument2
+        );
+    }
 }
