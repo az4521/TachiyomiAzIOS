@@ -835,7 +835,7 @@ extension ReaderPagedViewController: ReaderReaderDelegate {
     func loadChapter(startPage: Int, isChapterChange: Bool = true) async {
         guard let chapter else { return }
         await viewModel.loadPages(chapter: chapter)
-        delegate?.setPages(viewModel.pages)
+        delegate?.setPages(viewModel.pages, error: viewModel.pageLoadError)
         if !viewModel.pages.isEmpty {
             await MainActor.run {
                 if !isChapterChange, let key = splitPageCacheKey {

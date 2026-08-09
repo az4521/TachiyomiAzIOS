@@ -469,7 +469,7 @@ extension ReaderTextViewController {
         self.chapter = chapter
 
         await viewModel.loadPages(chapter: chapter)
-        delegate?.setPages(viewModel.pages)
+        delegate?.setPages(viewModel.pages, error: viewModel.pageLoadError)
 
         await MainActor.run {
             previousChapter = delegate?.getPreviousChapter()

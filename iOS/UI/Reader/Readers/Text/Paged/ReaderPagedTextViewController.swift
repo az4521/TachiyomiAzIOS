@@ -461,6 +461,7 @@ class ReaderPagedTextViewController: BaseObservingViewController {
         await viewModel.loadPages(chapter: chapter)
 
         guard !viewModel.pages.isEmpty else {
+            delegate?.setPages([], error: viewModel.pageLoadError)
             isLoadingChapter = false
             return
         }

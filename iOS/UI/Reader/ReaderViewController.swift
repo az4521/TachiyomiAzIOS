@@ -489,12 +489,30 @@ class ReaderViewController: BaseObservingViewController {
         navigationItem.setTitle(upper: volume, lower: title)
     }
 
-    func showLoadFailAlert() {
+    func showLoadFailAlert(error: Error? = nil) {
+        var message = NSLocalizedString("FAILED_CHAPTER_LOAD_INFO", comment: "")
+        var errorDetail: String?
+        if let error {
+            let detail = error.localizedDescription
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !detail.isEmpty, detail != message {
+                errorDetail = detail
+                message += "\n\n" + detail
+            }
+        }
         let alert = UIAlertController(
             title: NSLocalizedString("FAILED_CHAPTER_LOAD", comment: ""),
-            message: NSLocalizedString("FAILED_CHAPTER_LOAD_INFO", comment: ""),
+            message: message,
             preferredStyle: .alert
         )
+        if let errorDetail {
+            alert.addAction(UIAlertAction(
+                title: NSLocalizedString("COPY", comment: ""),
+                style: .default
+            ) { _ in
+                UIPasteboard.general.string = errorDetail
+            })
+        }
         alert.addAction(UIAlertAction(title: NSLocalizedString("OK", comment: ""), style: .cancel))
         present(alert, animated: true)
     }
@@ -837,7 +855,7 @@ extension ReaderViewController: ReaderHoldingDelegate {
         }
     }
 
-    func setPages(_ pages: [Page]) {
+    func setPages(_ pages: [Page], error: Error? = nil) {
 
         // If already in a text reader with text pages, just update toolbar - don't trigger any switches
         if (reader is ReaderPagedTextViewController || reader is ReaderTextViewController)
@@ -852,7 +870,7 @@ extension ReaderViewController: ReaderHoldingDelegate {
         activityIndicator.stopAnimating()
         if pages.isEmpty {
             // no pages, show error
-            showLoadFailAlert()
+            showLoadFailAlert(error: error)
         } else if pages.count == 1 && pages[0].isTextPage {
             // single text page, should switch to text reader
             if !(reader is ReaderPagedTextViewController) && !(reader is ReaderTextViewController) {

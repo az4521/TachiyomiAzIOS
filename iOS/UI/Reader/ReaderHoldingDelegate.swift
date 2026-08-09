@@ -19,8 +19,14 @@ protocol ReaderHoldingDelegate: AnyObject {
 
     func setCurrentPage(_ page: Int, position: Double?)
     func setCurrentPages(_ pages: ClosedRange<Int>)
-    func setPages(_ pages: [Page])
+    func setPages(_ pages: [Page], error: Error?)
     func displayPage(_ page: Int) // show page on toolbar but don't set it as current page
     func setSliderOffset(_ offset: CGFloat)
     func setCompleted()
+}
+
+extension ReaderHoldingDelegate {
+    func setPages(_ pages: [Page]) {
+        setPages(pages, error: nil)
+    }
 }

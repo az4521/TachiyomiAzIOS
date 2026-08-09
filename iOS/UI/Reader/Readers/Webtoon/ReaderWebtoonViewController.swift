@@ -609,7 +609,7 @@ extension ReaderWebtoonViewController: ReaderReaderDelegate {
 
         Task {
             await viewModel.loadPages(chapter: chapter)
-            delegate?.setPages(viewModel.pages)
+            delegate?.setPages(viewModel.pages, error: viewModel.pageLoadError)
             if viewModel.pages.isEmpty {
                 pages = []
                 await collectionNode.reloadData()
