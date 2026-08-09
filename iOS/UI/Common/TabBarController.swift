@@ -323,6 +323,15 @@ class TabBarController: UITabBarController {
         )
         edgePan.edges = .left
         view.addGestureRecognizer(edgePan)
+
+        let closeSwipe = UISwipeGestureRecognizer(
+            target: self,
+            action: #selector(handleDrawerCloseSwipe)
+        )
+        closeSwipe.direction = .left
+        // Attach this to the drawer itself. A recognizer on the backdrop only
+        // receives gestures that begin outside the drawer's bounds.
+        drawerView.addGestureRecognizer(closeSwipe)
         updateDrawerSelection()
     }
 
@@ -418,6 +427,11 @@ class TabBarController: UITabBarController {
         if gesture.state == .recognized {
             openDrawer()
         }
+    }
+
+    @objc private func handleDrawerCloseSwipe(_ gesture: UISwipeGestureRecognizer) {
+        guard gesture.state == .recognized else { return }
+        closeDrawer()
     }
 
     private func updateDrawerSelection() {
