@@ -27,7 +27,7 @@ class WebViewViewController: BaseViewController, WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse) async -> WKNavigationResponsePolicy {
-        handler?.handle(response: navigationResponse)
+        await handler?.handle(response: navigationResponse)
         return .allow
     }
 
