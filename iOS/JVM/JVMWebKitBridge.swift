@@ -336,8 +336,9 @@ final class JVMWebKitBridge {
             webView = WKWebView(frame: .zero, configuration: configuration)
             super.init()
             webView.navigationDelegate = self
-            configuration.userContentController.add(self, name: Self.consoleHandler)
-            configuration.userContentController.addScriptMessageHandler(
+            let controller = webView.configuration.userContentController
+            controller.add(self, name: Self.consoleHandler)
+            controller.addScriptMessageHandler(
                 self,
                 contentWorld: .page,
                 name: Self.networkHandler

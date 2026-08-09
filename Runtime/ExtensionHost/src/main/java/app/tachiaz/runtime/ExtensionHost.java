@@ -1029,6 +1029,7 @@ public final class ExtensionHost {
             String.class,
             defaultValue(request.get("mangaTitle"), "")
         );
+        restoreMemo(manga, request.get("mangaMemo"));
 
         Object update = invokeSuspend(
             source,
@@ -1078,6 +1079,7 @@ public final class ExtensionHost {
             String.class,
             defaultValue(request.get("chapterName"), "")
         );
+        restoreMemo(chapter, request.get("chapterMemo"));
         Object pages = invokeSuspend(
             source,
             "getPageList",
@@ -1952,6 +1954,7 @@ public final class ExtensionHost {
                 getter(chapter, "getDate_upload"),
                 true
             );
+            appendJsonField(output, "memo", memoJSON(chapter), true);
             output.append('}');
         }
         output.append("]}");
@@ -1979,7 +1982,48 @@ public final class ExtensionHost {
             true
         );
         appendJsonField(output, "genre", getter(manga, "getGenre"), true);
+        appendJsonField(output, "memo", memoJSON(manga), true);
         output.append('}');
+    }
+
+    /**
+     * Extension-lib 1.6 memo is an opaque JsonObject. Keep its serialized JSON
+     * intact instead of attempting to understand or flatten extension-owned
+     * state. Older extension libraries simply have no getMemo/setMemo methods.
+     */
+    private static String memoJSON(Object value) throws Exception {
+        try {
+            Object memo = getter(value, "getMemo");
+            return memo == null ? null : memo.toString();
+        } catch (NoSuchMethodException ignored) {
+            return null;
+        }
+    }
+
+    private static void restoreMemo(Object value, String json) throws Exception {
+        if (json == null || json.trim().isEmpty()) return;
+        Method setter = null;
+        for (Method candidate : value.getClass().getMethods()) {
+            if (candidate.getName().equals("setMemo") && candidate.getParameterCount() == 1) {
+                setter = candidate;
+                break;
+            }
+        }
+        if (setter == null) return;
+
+        ClassLoader loader = value.getClass().getClassLoader();
+        Class<?> jsonType = Class.forName(
+            "kotlinx.serialization.json.Json",
+            true,
+            loader
+        );
+        Object parser = jsonType.getField("Default").get(null);
+        Object memo = jsonType.getMethod("parseToJsonElement", String.class)
+            .invoke(parser, json);
+        if (!setter.getParameterTypes()[0].isInstance(memo)) {
+            throw new IllegalArgumentException("Extension memo must be a JSON object");
+        }
+        setter.invoke(value, memo);
     }
 
     @SuppressWarnings("unchecked")

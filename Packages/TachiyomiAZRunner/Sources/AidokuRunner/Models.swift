@@ -63,6 +63,8 @@ public struct Chapter: Sendable, Hashable, Codable, Identifiable {
     public var language: String?
     public var thumbnail: String?
     public var locked: Bool
+    /// Opaque extension-owned JSON state that must survive persistence.
+    public var memo: String?
     public var id: String { key }
 
     public init(
@@ -75,7 +77,8 @@ public struct Chapter: Sendable, Hashable, Codable, Identifiable {
         url: URL? = nil,
         language: String? = nil,
         thumbnail: String? = nil,
-        locked: Bool = false
+        locked: Bool = false,
+        memo: String? = nil
     ) {
         self.key = key
         self.title = title
@@ -87,6 +90,7 @@ public struct Chapter: Sendable, Hashable, Codable, Identifiable {
         self.language = language
         self.thumbnail = thumbnail
         self.locked = locked
+        self.memo = memo
     }
 }
 
@@ -106,6 +110,8 @@ public struct Manga: Sendable, Hashable, Codable {
     public var updateStrategy: UpdateStrategy
     public var nextUpdateTime: Int?
     public var chapters: [Chapter]?
+    /// Opaque extension-owned JSON state that must survive persistence.
+    public var memo: String?
 
     public init(
         sourceKey: String,
@@ -122,7 +128,8 @@ public struct Manga: Sendable, Hashable, Codable {
         viewer: Viewer = .unknown,
         updateStrategy: UpdateStrategy = .always,
         nextUpdateTime: Int? = nil,
-        chapters: [Chapter]? = nil
+        chapters: [Chapter]? = nil,
+        memo: String? = nil
     ) {
         self.sourceKey = sourceKey
         self.key = key
@@ -139,6 +146,7 @@ public struct Manga: Sendable, Hashable, Codable {
         self.updateStrategy = updateStrategy
         self.nextUpdateTime = nextUpdateTime
         self.chapters = chapters
+        self.memo = memo
     }
 
     public func copy(from other: Self) -> Self {
@@ -157,7 +165,8 @@ public struct Manga: Sendable, Hashable, Codable {
             viewer: other.viewer,
             updateStrategy: other.updateStrategy,
             nextUpdateTime: other.nextUpdateTime,
-            chapters: other.chapters ?? chapters
+            chapters: other.chapters ?? chapters,
+            memo: other.memo ?? memo
         )
     }
 

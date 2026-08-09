@@ -51,6 +51,8 @@ Last updated: 2026-07-31
   repository data formats themselves are intentionally unsupported.
 - Dynamic Mihon filter discovery and state application for text, checkbox,
   tri-state, select, grouped, and sort filters.
+- Opaque extension `memo` JSON round-trips for manga and chapters and is
+  persisted in Core Data across app launches.
 - AndroidX extension preference discovery and persisted editing for switches,
   text, single-select, and multi-select values.
 - Native reader image requests reconstructed through each extension's
@@ -66,6 +68,7 @@ Last updated: 2026-07-31
   and annotated JavaScript interfaces, main-navigation interception, scripted
   fetch interception, history, settings, and cookie mutation cross a reverse
   JNI event channel. WebKit cookies synchronize with `HTTPCookieStorage`, while
+  HTML loaded with a base origin is seeded with the matching browser cookies.
   Cloudflare clearance cookies are also copied into the requesting extension's
   OkHttp cookie jar before retry. Desktop KCEF/JCEF is not bundled.
 - An iOS-safe `SystemClock` plus a minimal JUL boot shim for OkHttp/Okio,

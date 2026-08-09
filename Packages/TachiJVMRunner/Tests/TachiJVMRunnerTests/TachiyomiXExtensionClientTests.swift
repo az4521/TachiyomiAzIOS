@@ -15,7 +15,8 @@ func testMangaPageDecodesFromExtensionHostPayload() throws {
           "author": null,
           "status": 0,
           "description": null,
-          "genre": null
+          "genre": null,
+          "memo": "{\\\"slug\\\":\\\"nano-machine\\\"}"
         }
       ],
       "hasNextPage": true
@@ -29,6 +30,7 @@ func testMangaPageDecodesFromExtensionHostPayload() throws {
 
     XCTAssertEqual(page.mangas.count, 1)
     XCTAssertEqual(page.mangas[0].title, "Nano Machine")
+    XCTAssertEqual(page.mangas[0].memo, "{\"slug\":\"nano-machine\"}")
     XCTAssertTrue(page.hasNextPage)
 }
 
@@ -72,7 +74,8 @@ func testMangaUpdateAndPagesDecodeFromExtensionHostPayloads() throws {
         "author": "Author",
         "status": 1,
         "description": "Description",
-        "genre": "Action"
+        "genre": "Action",
+        "memo": "{\\\"slug\\\":\\\"example\\\"}"
       },
       "chapters": [
         {
@@ -80,7 +83,8 @@ func testMangaUpdateAndPagesDecodeFromExtensionHostPayloads() throws {
           "name": "Chapter 1",
           "chapterNumber": 1.0,
           "scanlator": "Group",
-          "dateUpload": 1700000000000
+          "dateUpload": 1700000000000,
+          "memo": "{\\\"mangaId\\\":\\\"example\\\"}"
         }
       ]
     }
@@ -106,7 +110,9 @@ func testMangaUpdateAndPagesDecodeFromExtensionHostPayloads() throws {
     )
 
     XCTAssertEqual(update.manga.title, "Example")
+    XCTAssertEqual(update.manga.memo, "{\"slug\":\"example\"}")
     XCTAssertEqual(update.chapters[0].chapterNumber, 1)
+    XCTAssertEqual(update.chapters[0].memo, "{\"mangaId\":\"example\"}")
     XCTAssertEqual(update.chapters[0].dateUpload, 1_700_000_000_000)
     XCTAssertEqual(pages[0].imageURL, "https://uploads.example/page-1.jpg")
 }

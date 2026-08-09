@@ -103,6 +103,9 @@ public class MangaObject: NSManagedObject {
             neverUpdate = manga.updateStrategy == .never
         }
         nextUpdateTime = manga.nextUpdateTime.flatMap { Date(timeIntervalSince1970: TimeInterval($0)) }
+        if let incomingMemo = manga.memo {
+            memo = incomingMemo
+        }
     }
 
     func toManga() -> Manga {
@@ -157,7 +160,8 @@ public class MangaObject: NSManagedObject {
             viewer: viewer,
             updateStrategy: neverUpdate ? .never : .always,
             nextUpdateTime: nextUpdateTime.flatMap { Int($0.timeIntervalSince1970) },
-            chapters: nil
+            chapters: nil,
+            memo: memo
         )
     }
 }
@@ -177,6 +181,7 @@ extension MangaObject {
     @NSManaged public var tags: [String]?
     @NSManaged public var cover: String?
     @NSManaged public var url: String?
+    @NSManaged public var memo: String?
 
     @NSManaged public var status: Int16
     @NSManaged public var nsfw: Int16

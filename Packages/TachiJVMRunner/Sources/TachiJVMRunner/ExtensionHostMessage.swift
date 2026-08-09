@@ -16,8 +16,10 @@ public struct ExtensionHostRequest: Codable, Sendable {
     public let settingValue: String?
     public let mangaURL: String?
     public let mangaTitle: String?
+    public let mangaMemo: String?
     public let chapterURL: String?
     public let chapterName: String?
+    public let chapterMemo: String?
     public let imageURL: String?
     public let pageURL: String?
     public let destinationPath: String?
@@ -38,8 +40,10 @@ public struct ExtensionHostRequest: Codable, Sendable {
         settingValue: String? = nil,
         mangaURL: String? = nil,
         mangaTitle: String? = nil,
+        mangaMemo: String? = nil,
         chapterURL: String? = nil,
         chapterName: String? = nil,
+        chapterMemo: String? = nil,
         imageURL: String? = nil,
         pageURL: String? = nil,
         destinationPath: String? = nil
@@ -59,8 +63,10 @@ public struct ExtensionHostRequest: Codable, Sendable {
         self.settingValue = settingValue
         self.mangaURL = mangaURL
         self.mangaTitle = mangaTitle
+        self.mangaMemo = mangaMemo
         self.chapterURL = chapterURL
         self.chapterName = chapterName
+        self.chapterMemo = chapterMemo
         self.imageURL = imageURL
         self.pageURL = pageURL
         self.destinationPath = destinationPath

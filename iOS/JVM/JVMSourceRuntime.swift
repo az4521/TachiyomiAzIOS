@@ -764,7 +764,8 @@ actor JVMSourceRuntime {
         extensionId: String,
         sourceId: Int64? = nil,
         mangaURL: String,
-        mangaTitle: String
+        mangaTitle: String,
+        mangaMemo: String? = nil
     ) async throws -> TachiyomiXMangaUpdate {
         let response = try await dispatch(
             .init(
@@ -772,7 +773,8 @@ actor JVMSourceRuntime {
                 extensionId: extensionId,
                 sourceId: sourceId.map(String.init),
                 mangaURL: mangaURL,
-                mangaTitle: mangaTitle
+                mangaTitle: mangaTitle,
+                mangaMemo: mangaMemo
             )
         )
         try requireSuccess(response)
@@ -783,7 +785,8 @@ actor JVMSourceRuntime {
         extensionId: String,
         sourceId: Int64? = nil,
         chapterURL: String,
-        chapterName: String
+        chapterName: String,
+        chapterMemo: String? = nil
     ) async throws -> [TachiyomiXPage] {
         let response = try await dispatch(
             .init(
@@ -791,7 +794,8 @@ actor JVMSourceRuntime {
                 extensionId: extensionId,
                 sourceId: sourceId.map(String.init),
                 chapterURL: chapterURL,
-                chapterName: chapterName
+                chapterName: chapterName,
+                chapterMemo: chapterMemo
             )
         )
         try requireSuccess(response)
@@ -1459,7 +1463,8 @@ actor TachiyomiXSourceRunner: AidokuRunner.Runner {
             extensionId: extensionId,
             sourceId: descriptor.id,
             mangaURL: manga.key,
-            mangaTitle: manga.title
+            mangaTitle: manga.title,
+            mangaMemo: manga.memo
         )
         var updated = manga
         if needsDetails {
@@ -1481,7 +1486,8 @@ actor TachiyomiXSourceRunner: AidokuRunner.Runner {
             extensionId: extensionId,
             sourceId: descriptor.id,
             chapterURL: chapter.key,
-            chapterName: chapter.title ?? ""
+            chapterName: chapter.title ?? "",
+            chapterMemo: chapter.memo
         )
         return try pages.map { try $0.intoAidoku }
     }
@@ -1687,7 +1693,8 @@ private extension TachiyomiXManga {
             tags: genre?
                 .split(separator: ",")
                 .map { $0.trimmingCharacters(in: .whitespaces) } ?? [],
-            status: publishingStatus
+            status: publishingStatus,
+            memo: memo
         )
     }
 }
@@ -1704,7 +1711,8 @@ private extension TachiyomiXChapter {
             scanlators: scanlator.flatMap {
                 $0.isEmpty ? nil : [$0]
             },
-            url: URL(string: url)
+            url: URL(string: url),
+            memo: memo
         )
     }
 }

@@ -33,6 +33,9 @@ public class ChapterObject: NSManagedObject {
         dateUploaded = chapter.dateUploaded
         thumbnail = chapter.thumbnail
         locked = chapter.locked
+        if let incomingMemo = chapter.memo {
+            memo = incomingMemo
+        }
         if let sourceOrder {
             self.sourceOrder = Int16(sourceOrder)
         }
@@ -67,7 +70,8 @@ public class ChapterObject: NSManagedObject {
             url: url.flatMap({ URL(string: $0) }),
             language: lang,
             thumbnail: thumbnail,
-            locked: locked
+            locked: locked,
+            memo: memo
         )
     }
 }
@@ -90,6 +94,7 @@ extension ChapterObject {
     @NSManaged public var dateUploaded: Date?
     @NSManaged public var thumbnail: String?
     @NSManaged public var locked: Bool
+    @NSManaged public var memo: String?
     @NSManaged public var bookmarked: Bool
     @NSManaged public var sourceOrder: Int16
 

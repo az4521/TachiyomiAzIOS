@@ -9,6 +9,8 @@ public struct TachiyomiXManga: Codable, Sendable, Equatable {
     public let status: Int
     public let description: String?
     public let genre: String?
+    /// Opaque JSON object owned by the extension library.
+    public let memo: String?
 }
 
 public struct TachiyomiXMangaPage: Codable, Sendable, Equatable {
@@ -22,6 +24,8 @@ public struct TachiyomiXChapter: Codable, Sendable, Equatable {
     public let chapterNumber: Float?
     public let scanlator: String?
     public let dateUpload: Int64
+    /// Opaque JSON object owned by the extension library.
+    public let memo: String?
 }
 
 public struct TachiyomiXMangaUpdate: Codable, Sendable, Equatable {
@@ -196,7 +200,8 @@ public extension JVMRuntime {
         extensionId: String,
         sourceId: Int64? = nil,
         mangaURL: String,
-        mangaTitle: String
+        mangaTitle: String,
+        mangaMemo: String? = nil
     ) throws -> TachiyomiXMangaUpdate {
         let response = try checkedDispatch(
             ExtensionHostRequest(
@@ -204,7 +209,8 @@ public extension JVMRuntime {
                 extensionId: extensionId,
                 sourceId: sourceId.map(String.init),
                 mangaURL: mangaURL,
-                mangaTitle: mangaTitle
+                mangaTitle: mangaTitle,
+                mangaMemo: mangaMemo
             )
         )
         return try decodeResult(response, as: TachiyomiXMangaUpdate.self)
@@ -214,7 +220,8 @@ public extension JVMRuntime {
         extensionId: String,
         sourceId: Int64? = nil,
         chapterURL: String,
-        chapterName: String
+        chapterName: String,
+        chapterMemo: String? = nil
     ) throws -> [TachiyomiXPage] {
         let response = try checkedDispatch(
             ExtensionHostRequest(
@@ -222,7 +229,8 @@ public extension JVMRuntime {
                 extensionId: extensionId,
                 sourceId: sourceId.map(String.init),
                 chapterURL: chapterURL,
-                chapterName: chapterName
+                chapterName: chapterName,
+                chapterMemo: chapterMemo
             )
         )
         return try decodeResult(response, as: [TachiyomiXPage].self)
