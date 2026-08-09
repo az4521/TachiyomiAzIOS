@@ -191,7 +191,11 @@ extension LibraryViewModel {
 
     // swiftlint:disable:next cyclomatic_complexity
     @discardableResult
-    func loadLibrary() async -> Bool {
+    func loadLibrary(refreshBadges: Bool = true) async -> Bool {
+        let previousInfo = Dictionary(
+            (manga + pinnedManga).map { ($0.identifier, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
         let previouslyHadUncategorizedManga = hasUncategorizedManga
         hasUncategorizedManga = await CoreDataManager.shared.container.performBackgroundTask { @Sendable context in
             let request = LibraryMangaObject.fetchRequest()
@@ -370,8 +374,21 @@ extension LibraryViewModel {
         self.sourceKeys = sourceKeys.sorted()
         self.actuallyEmpty = actuallyEmpty
 
-        await fetchUnreads(skipSortCheck: true)
-        await fetchDownloadCounts()
+        if refreshBadges {
+            await fetchUnreads(skipSortCheck: true)
+            await fetchDownloadCounts()
+        } else {
+            for index in self.manga.indices {
+                guard let previous = previousInfo[self.manga[index].identifier] else { continue }
+                self.manga[index].unread = previous.unread
+                self.manga[index].downloads = previous.downloads
+            }
+            for index in self.pinnedManga.indices {
+                guard let previous = previousInfo[self.pinnedManga[index].identifier] else { continue }
+                self.pinnedManga[index].unread = previous.unread
+                self.pinnedManga[index].downloads = previous.downloads
+            }
+        }
 
         if !unappliedFilters.isEmpty {
             let filter: (MangaInfo) -> Bool = { info in

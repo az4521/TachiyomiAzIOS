@@ -347,7 +347,7 @@ class LibraryViewController: OldMangaCollectionViewController {
         addObserver(forName: .updateMangaCategories) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                let categoryAvailabilityChanged = await self.viewModel.loadLibrary()
+                let categoryAvailabilityChanged = await self.viewModel.loadLibrary(refreshBadges: false)
                 if categoryAvailabilityChanged {
                     self.collectionView.collectionViewLayout = self.makeCollectionViewLayout()
                 }

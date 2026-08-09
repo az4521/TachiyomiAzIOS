@@ -72,6 +72,8 @@ extension CoreDataManager {
         mangaId: String,
         sourceOrder: Int,
         mangaObject: MangaObject? = nil,
+        historyObject: HistoryObject? = nil,
+        lookupHistory: Bool = true,
         context: NSManagedObjectContext? = nil
     ) -> ChapterObject? {
         let context = context ?? self.context
@@ -90,12 +92,15 @@ extension CoreDataManager {
             sourceOrder: sourceOrder
         )
         object.manga = mangaObject
-        object.history = getHistory(
-            sourceId: sourceId,
-            mangaId: mangaId,
-            chapterId: chapter.id,
-            context: context
-        )
+        object.history = historyObject
+        if lookupHistory, historyObject == nil {
+            object.history = getHistory(
+                sourceId: sourceId,
+                mangaId: mangaId,
+                chapterId: chapter.id,
+                context: context
+            )
+        }
         return object
     }
 
@@ -130,51 +135,67 @@ extension CoreDataManager {
         context: NSManagedObjectContext? = nil
     ) -> [ChapterObject] {
         let context = context ?? self.context
-        var newChapters = Array(chapters.enumerated())
-
         guard let manga = self.getManga(sourceId: sourceId, mangaId: mangaId, context: context) else { return [] }
+
+        // Index incoming chapters once. Extensions with thousands of chapters
+        // otherwise turn the existing first(where:)/removeAll loop into O(n²).
+        var incomingById: [String: (offset: Int, chapter: AidokuRunner.Chapter)] = [:]
+        var incomingOrder: [String] = []
+        incomingById.reserveCapacity(chapters.count)
+        incomingOrder.reserveCapacity(chapters.count)
+        for (offset, chapter) in chapters.enumerated() where incomingById[chapter.id] == nil {
+            incomingById[chapter.id] = (offset, chapter)
+            incomingOrder.append(chapter.id)
+        }
 
         // update existing chapter objects
         let chapterObjects = getChapters(sourceId: sourceId, mangaId: mangaId, context: context)
-        var chapterIds: Set<String> = Set()
+        var handledChapterIds = Set<String>()
+        handledChapterIds.reserveCapacity(chapterObjects.count)
         for object in chapterObjects {
-            if let newChapter = newChapters.first(where: { $0.element.id == object.id }) {
-                let (inserted, _) = chapterIds.insert(object.id)
-                if !inserted {
-                    context.delete(object) // remove duplicates
-                }
-                let becameUnlocked = object.locked && !newChapter.element.locked
-                if becameUnlocked {
-                    context.delete(object) // treat unlocked chapters as new ones
-                } else {
-                    object.load(
-                        from: newChapter.element,
-                        sourceId: sourceId,
-                        mangaId: mangaId,
-                        sourceOrder: newChapter.offset
-                    )
-                    object.manga = manga
-                    newChapters.removeAll { $0.element.id == object.id }
-                }
-            } else {
+            guard
+                let incoming = incomingById[object.id],
+                handledChapterIds.insert(object.id).inserted
+            else {
                 context.delete(object)
+                continue
+            }
+
+            if object.locked && !incoming.chapter.locked {
+                // Treat newly unlocked chapters as new so update tracking sees them.
+                context.delete(object)
+            } else {
+                object.load(
+                    from: incoming.chapter,
+                    sourceId: sourceId,
+                    mangaId: mangaId,
+                    sourceOrder: incoming.offset
+                )
+                object.manga = manga
+                incomingById[incoming.chapter.id] = nil
             }
         }
 
-        // create new chapter objects
+        // Fetch all history relationships once instead of once per new chapter.
+        let historyByChapter = Dictionary(
+            getHistoryForManga(sourceId: sourceId, mangaId: mangaId, context: context)
+                .map { ($0.chapterId, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        // Create remaining chapters without issuing per-chapter existence queries.
         var newChaptersCreated = [ChapterObject]()
-        for (offset, chapter) in newChapters where !hasChapter(
-            sourceId: sourceId,
-            mangaId: mangaId,
-            chapterId: chapter.id,
-            context: context
-        ) {
+        newChaptersCreated.reserveCapacity(incomingById.count)
+        for chapterId in incomingOrder {
+            guard let incoming = incomingById[chapterId] else { continue }
             if let chapterObject = createChapter(
-                chapter,
+                incoming.chapter,
                 sourceId: sourceId,
                 mangaId: mangaId,
-                sourceOrder: offset,
+                sourceOrder: incoming.offset,
                 mangaObject: manga,
+                historyObject: historyByChapter[chapterId],
+                lookupHistory: false,
                 context: context
             ) {
                 newChaptersCreated.append(chapterObject)

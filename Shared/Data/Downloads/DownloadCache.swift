@@ -110,6 +110,39 @@ extension DownloadCache {
         }
         return mangaDirectory.subdirectories.contains { !$0.value.url.lastPathComponent.hasPrefix(".tmp") }
     }
+
+    func downloadStatuses(
+        for identifier: MangaIdentifier,
+        chapterKeys: [String]
+    ) -> [String: DownloadStatus] {
+        if !loaded { load() }
+        guard
+            let sourceDirectory = rootDirectory.subdirectories[identifier.sourceKey.directoryName],
+            let mangaDirectory = sourceDirectory.subdirectories[identifier.mangaKey.directoryName]
+        else {
+            return [:]
+        }
+
+        let keysByDirectoryName = Dictionary(
+            chapterKeys.map { ($0.directoryName, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let queuedKeysByDirectoryName = Dictionary(
+            chapterKeys.map { (".tmp_\($0)".directoryName, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var statuses: [String: DownloadStatus] = [:]
+        for (directoryName, directory) in mangaDirectory.subdirectories {
+            if directory.url.lastPathComponent.hasPrefix(".tmp_") {
+                if let chapterKey = queuedKeysByDirectoryName[directoryName] {
+                    statuses[chapterKey] = .queued
+                }
+            } else if let chapterKey = keysByDirectoryName[directoryName] {
+                statuses[chapterKey] = .finished
+            }
+        }
+        return statuses
+    }
 }
 
 // MARK: Directory Provider

@@ -310,6 +310,25 @@ extension DownloadManager {
         await queue.isPaused()
     }
 
+    func getDownloadStatuses(
+        for manga: MangaIdentifier,
+        chapterKeys: [String]
+    ) async -> [String: DownloadStatus] {
+        var statuses = await cache.downloadStatuses(
+            for: manga,
+            chapterKeys: chapterKeys
+        )
+
+        let globalQueue = await queue.queue
+        let queuedDownloads = globalQueue.values.joined().filter {
+            $0.mangaIdentifier == manga
+        }
+        for download in queuedDownloads {
+            statuses[download.chapterIdentifier.chapterKey] = download.status
+        }
+        return statuses
+    }
+
     func getDownloadQueue() async -> [String: [Download]] {
         await queue.queue
     }

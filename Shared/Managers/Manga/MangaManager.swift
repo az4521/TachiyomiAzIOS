@@ -36,7 +36,8 @@ actor MangaManager {
         manga: AidokuRunner.Manga,
         chapters: [AidokuRunner.Chapter],
         readingHistory: [String: (page: Int, date: Int)],
-        sortAscending: Bool
+        sortAscending: Bool,
+        downloadStatuses: [String: DownloadStatus]? = nil
     ) -> AidokuRunner.Chapter? {
         let resumeLastOpened = UserDefaults.standard.bool(forKey: "Library.resumeLastOpenedChapter")
 
@@ -53,8 +54,17 @@ actor MangaManager {
             else { continue }
 
             if chapter.locked {
-                let identifier = ChapterIdentifier(sourceKey: manga.sourceKey, mangaKey: manga.key, chapterKey: chapter.key)
-                let isDownloaded = DownloadManager.shared.getDownloadStatus(for: identifier) == .finished
+                let isDownloaded = if let downloadStatuses {
+                    downloadStatuses[chapter.key] == .finished
+                } else {
+                    DownloadManager.shared.getDownloadStatus(
+                        for: .init(
+                            sourceKey: manga.sourceKey,
+                            mangaKey: manga.key,
+                            chapterKey: chapter.key
+                        )
+                    ) == .finished
+                }
                 guard isDownloaded else { continue }
             }
 
@@ -70,8 +80,17 @@ actor MangaManager {
         let sorted = sortAscending ? chapters : chapters.reversed()
 
         return sorted.first(where: { chapter in
-            let identifier = ChapterIdentifier(sourceKey: manga.sourceKey, mangaKey: manga.key, chapterKey: chapter.key)
-            let isDownloaded = DownloadManager.shared.getDownloadStatus(for: identifier) == .finished
+            let isDownloaded = if let downloadStatuses {
+                downloadStatuses[chapter.key] == .finished
+            } else {
+                DownloadManager.shared.getDownloadStatus(
+                    for: .init(
+                        sourceKey: manga.sourceKey,
+                        mangaKey: manga.key,
+                        chapterKey: chapter.key
+                    )
+                ) == .finished
+            }
             let isUnlocked = !chapter.locked || isDownloaded
             let history = readingHistory[chapter.id]
             let isCompleted = history?.page ?? 0 == -1

@@ -342,18 +342,14 @@ extension MangaView.ViewModel {
 
             var newManga = self.manga
             newManga.chapters = chapters
-            withAnimation {
-                self.manga = newManga
-                self.chapters = filteredChapters()
-            }
+            self.manga = newManga
+            self.chapters = filteredChapters()
         } else if let source {
             // load new data from source
             await source.partialMangaPublisher?.sink { @Sendable newManga in
                 Task { @MainActor in
-                    withAnimation {
-                        self.manga = self.manga.copy(from: newManga)
-                        self.chapters = self.filteredChapters()
-                    }
+                    self.manga = self.manga.copy(from: newManga)
+                    self.chapters = self.filteredChapters()
                 }
             }
             do {
@@ -362,10 +358,8 @@ extension MangaView.ViewModel {
                     needsDetails: true,
                     needsChapters: true
                 )
-                withAnimation {
-                    manga = newManga
-                    chapters = filteredChapters()
-                }
+                manga = newManga
+                chapters = filteredChapters()
             } catch {
                 withAnimation {
                     self.manga.chapters = []
@@ -383,9 +377,12 @@ extension MangaView.ViewModel {
     }
 
     func fetchDownloadedChapters() async {
+        let knownChapterDirectories = Set(
+            (manga.chapters ?? chapters).map { $0.key.directoryName }
+        )
         let downloadedChapters = await DownloadManager.shared.getDownloadedChapters(for: manga.identifier)
             .filter { chapter in
-                !(manga.chapters ?? chapters).contains(where: { $0.key.directoryName == chapter.chapterId.directoryName })
+                !knownChapterDirectories.contains(chapter.chapterId.directoryName)
             }
             .map { $0.toChapter() }
             .sorted { (lhs: AidokuRunner.Chapter, rhs: AidokuRunner.Chapter) in
@@ -538,10 +535,8 @@ extension MangaView.ViewModel {
 
             await loadHistory()
 
-            withAnimation {
-                manga = newManga
-                chapters = filteredChapters()
-            }
+            manga = newManga
+            chapters = filteredChapters()
 
             // ensure downloaded chapters are in the correct section if they were added/removed from the main list
             await fetchDownloadedChapters()
@@ -560,14 +555,14 @@ extension MangaView.ViewModel {
     }
 
     private func loadDownloadStatus() async {
-        for chapter in chapters {
-            downloadStatus[chapter.key] = DownloadManager.shared.getDownloadStatus(
-                for: .init(sourceKey: manga.sourceKey, mangaKey: manga.key, chapterKey: chapter.key)
-            )
-        }
+        var statuses = await DownloadManager.shared.getDownloadStatuses(
+            for: manga.identifier,
+            chapterKeys: chapters.map(\.key)
+        )
         for chapter in otherDownloadedChapters {
-            downloadStatus[chapter.key] = .finished
+            statuses[chapter.key] = .finished
         }
+        downloadStatus = statuses
     }
 
     private func loadBookmarked() async {
@@ -859,7 +854,8 @@ extension MangaView.ViewModel {
             manga: manga,
             chapters: chapters,
             readingHistory: readingHistory,
-            sortAscending: chapterSortAscending
+            sortAscending: chapterSortAscending,
+            downloadStatuses: downloadStatus
         )
 
         if let chapter {
