@@ -9,6 +9,7 @@ public final class StaticLayout extends Layout {
     private final int[] lineEnds;
     private final int lineHeight;
     private final int descent;
+    private final Alignment alignment;
 
     @Deprecated
     public StaticLayout(
@@ -55,6 +56,7 @@ public final class StaticLayout extends Layout {
         );
         this.value = source.subSequence(start, end).toString();
         this.paint = paint;
+        this.alignment = alignment;
         int[] measured = NativeBridge.textLineEnds(
             value,
             width,
@@ -90,11 +92,18 @@ public final class StaticLayout extends Layout {
                 visibleEnd--;
             }
             if (visibleEnd > start) {
+                float x = 0;
+                if (alignment != Alignment.ALIGN_NORMAL) {
+                    float lineWidth = paint.measureText(value, start, visibleEnd);
+                    x = alignment == Alignment.ALIGN_CENTER
+                        ? (getWidth() - lineWidth) / 2
+                        : getWidth() - lineWidth;
+                }
                 canvas.drawText(
                     value,
                     start,
                     visibleEnd,
-                    0,
+                    x,
                     getLineBaseline(line),
                     paint
                 );

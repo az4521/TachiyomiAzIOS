@@ -58,7 +58,13 @@ public final class NativeBridge {
         int destinationLeft,
         int destinationTop,
         int destinationRight,
-        int destinationBottom
+        int destinationBottom,
+        float scaleX,
+        float skewY,
+        float skewX,
+        float scaleY,
+        float translateX,
+        float translateY
     );
     public static native void canvasDrawText(
         long handle,
@@ -67,8 +73,17 @@ public final class NativeBridge {
         float baseline,
         float size,
         int color,
-        boolean bold
+        boolean bold,
+        int style,
+        float strokeWidth,
+        float scaleX,
+        float skewY,
+        float skewX,
+        float scaleY,
+        float translateX,
+        float translateY
     );
+    public static native float textMeasure(String text, float size, boolean bold);
     public static native float[] textFontMetrics(float size, boolean bold);
     public static native int[] textLineEnds(
         String text,

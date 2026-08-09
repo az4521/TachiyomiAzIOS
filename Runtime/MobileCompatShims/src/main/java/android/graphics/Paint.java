@@ -192,6 +192,25 @@ public class Paint {
         return Math.max(1, textSize / 14);
     }
 
+    public float measureText(String text) {
+        if (text == null) {
+            throw new NullPointerException("text");
+        }
+        return NativeBridge.textMeasure(text, textSize, typeface.isBold());
+    }
+
+    public float measureText(String text, int start, int end) {
+        return measureText(text.substring(start, end));
+    }
+
+    public float measureText(CharSequence text, int start, int end) {
+        return measureText(text.subSequence(start, end).toString());
+    }
+
+    public float measureText(char[] text, int index, int count) {
+        return measureText(new String(text, index, count));
+    }
+
     private float[] fontMetrics() {
         return NativeBridge.textFontMetrics(textSize, typeface.isBold());
     }

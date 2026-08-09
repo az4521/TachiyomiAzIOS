@@ -71,6 +71,19 @@ public final class AndroidCompatibilitySurfaceTest {
         bitmapFactory.getMethod("decodeStream", InputStream.class);
         canvas.getConstructor(bitmap);
         canvas.getMethod("drawBitmap", bitmap, rect, rect, paint);
+        canvas.getMethod("drawText", String.class, float.class, float.class, paint);
+        canvas.getMethod("translate", float.class, float.class);
+        canvas.getMethod("scale", float.class, float.class);
+        canvas.getMethod("scale", float.class, float.class, float.class, float.class);
+        canvas.getMethod("rotate", float.class);
+        canvas.getMethod("rotate", float.class, float.class, float.class);
+        canvas.getMethod("skew", float.class, float.class);
+        canvas.getMethod("getWidth");
+        canvas.getMethod("getHeight");
+        canvas.getMethod("save");
+        canvas.getMethod("restore");
+        canvas.getMethod("restoreToCount", int.class);
+        paint.getMethod("measureText", String.class);
         Object rectangle = rect
             .getConstructor(int.class, int.class, int.class, int.class)
             .newInstance(10, 20, 50, 80);
@@ -79,6 +92,41 @@ public final class AndroidCompatibilitySurfaceTest {
             (Integer) rect.getMethod("height").invoke(rectangle) != 60
         ) {
             throw new AssertionError("Android Rect geometry is incorrect");
+        }
+        java.lang.reflect.Constructor<?> bitmapConstructor = bitmap
+            .getDeclaredConstructor(
+                long.class,
+                int.class,
+                int.class,
+                bitmapConfig
+            );
+        bitmapConstructor.setAccessible(true);
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        Object argb8888 = Enum.valueOf(
+            (Class<? extends Enum>) bitmapConfig,
+            "ARGB_8888"
+        );
+        Object fakeBitmap = bitmapConstructor.newInstance(1L, 100, 50, argb8888);
+        Object canvasInstance = canvas.getConstructor(bitmap).newInstance(fakeBitmap);
+        if ((Integer) canvas.getMethod("getSaveCount").invoke(canvasInstance) != 1) {
+            throw new AssertionError("Canvas must begin with one save frame");
+        }
+        int saved = (Integer) canvas.getMethod("save").invoke(canvasInstance);
+        canvas.getMethod("translate", float.class, float.class)
+            .invoke(canvasInstance, 10f, 20f);
+        Object clip = rect.getConstructor().newInstance();
+        canvas.getMethod("getClipBounds", rect).invoke(canvasInstance, clip);
+        if (
+            rect.getField("left").getInt(clip) != -10 ||
+            rect.getField("top").getInt(clip) != -20 ||
+            rect.getField("right").getInt(clip) != 90 ||
+            rect.getField("bottom").getInt(clip) != 30
+        ) {
+            throw new AssertionError("Canvas translation was not reflected in its clip");
+        }
+        canvas.getMethod("restoreToCount", int.class).invoke(canvasInstance, saved);
+        if ((Integer) canvas.getMethod("getSaveCount").invoke(canvasInstance) != 1) {
+            throw new AssertionError("Canvas save/restore did not balance");
         }
         staticLayout.getConstructor(
             CharSequence.class,

@@ -166,7 +166,9 @@ CFAttributedStringRef attributed_text(
     CFStringRef text,
     float size,
     bool bold,
-    int32_t color
+    int32_t color,
+    int style = 0,
+    float stroke_width = 0
 ) {
     CTFontRef font = create_font(size, bold);
     const CGFloat alpha = static_cast<CGFloat>((color >> 24) & 0xff) / 255.0;
@@ -177,13 +179,36 @@ CFAttributedStringRef attributed_text(
     const CGFloat components[] = {red, green, blue, alpha};
     CGColorRef foreground = CGColorCreate(color_space, components);
     CGColorSpaceRelease(color_space);
-    const void *keys[] = {kCTFontAttributeName, kCTForegroundColorAttributeName};
-    const void *values[] = {font, foreground};
+    const void *keys[] = {
+        kCTFontAttributeName,
+        kCTForegroundColorAttributeName,
+        kCTStrokeColorAttributeName,
+        kCTStrokeWidthAttributeName,
+    };
+    const void *values[] = {font, foreground, foreground, nullptr};
+    CFNumberRef stroke = nullptr;
+    CFIndex attribute_count = 2;
+    if (style == 1 || style == 2) {
+        // Core Text expresses glyph stroke width as a percentage of font size.
+        // Positive values stroke only; negative values fill and stroke.
+        CGFloat percentage =
+            (std::max(0.0f, stroke_width) / std::max(1.0f, size)) * 100.0f;
+        if (style == 2) {
+            percentage = -percentage;
+        }
+        stroke = CFNumberCreate(
+            kCFAllocatorDefault,
+            kCFNumberCGFloatType,
+            &percentage
+        );
+        values[3] = stroke;
+        attribute_count = 4;
+    }
     CFDictionaryRef attributes = CFDictionaryCreate(
         kCFAllocatorDefault,
         keys,
         values,
-        2,
+        attribute_count,
         &kCFTypeDictionaryKeyCallBacks,
         &kCFTypeDictionaryValueCallBacks
     );
@@ -193,6 +218,9 @@ CFAttributedStringRef attributed_text(
         attributes
     );
     CFRelease(attributes);
+    if (stroke != nullptr) {
+        CFRelease(stroke);
+    }
     CGColorRelease(foreground);
     CFRelease(font);
     return result;
@@ -511,7 +539,8 @@ void JNICALL canvas_draw_bitmap(
     JNIEnv *, jclass, jlong destination_handle, jlong source_handle,
     jint source_left, jint source_top, jint source_right, jint source_bottom,
     jint destination_left, jint destination_top,
-    jint destination_right, jint destination_bottom
+    jint destination_right, jint destination_bottom,
+    jfloat a, jfloat b, jfloat c, jfloat d, jfloat tx, jfloat ty
 ) {
     NativeBitmap *destination = bitmap(destination_handle);
     NativeBitmap *source = bitmap(source_handle);
@@ -526,18 +555,68 @@ void JNICALL canvas_draw_bitmap(
     ) {
         return;
     }
-    for (int y = 0; y < destination_height; ++y) {
-        const int output_y = destination_top + y;
-        if (output_y < 0 || output_y >= static_cast<int>(destination->height)) {
-            continue;
-        }
-        const int input_y = source_top + ((y * source_height) / destination_height);
-        for (int x = 0; x < destination_width; ++x) {
-            const int output_x = destination_left + x;
-            if (output_x < 0 || output_x >= static_cast<int>(destination->width)) {
+    const float determinant = (a * d) - (b * c);
+    if (std::abs(determinant) < 1.0e-8f) {
+        return;
+    }
+    const auto transformed_x = [=](float x, float y) {
+        return (a * x) + (c * y) + tx;
+    };
+    const auto transformed_y = [=](float x, float y) {
+        return (b * x) + (d * y) + ty;
+    };
+    const float x1 = transformed_x(destination_left, destination_top);
+    const float y1 = transformed_y(destination_left, destination_top);
+    const float x2 = transformed_x(destination_right, destination_top);
+    const float y2 = transformed_y(destination_right, destination_top);
+    const float x3 = transformed_x(destination_left, destination_bottom);
+    const float y3 = transformed_y(destination_left, destination_bottom);
+    const float x4 = transformed_x(destination_right, destination_bottom);
+    const float y4 = transformed_y(destination_right, destination_bottom);
+    const int first_x = std::max(
+        0,
+        static_cast<int>(std::floor(std::min({x1, x2, x3, x4})))
+    );
+    const int last_x = std::min(
+        static_cast<int>(destination->width),
+        static_cast<int>(std::ceil(std::max({x1, x2, x3, x4})))
+    );
+    const int first_y = std::max(
+        0,
+        static_cast<int>(std::floor(std::min({y1, y2, y3, y4})))
+    );
+    const int last_y = std::min(
+        static_cast<int>(destination->height),
+        static_cast<int>(std::ceil(std::max({y1, y2, y3, y4})))
+    );
+    const std::vector<uint8_t> source_copy = destination == source
+        ? source->pixels
+        : std::vector<uint8_t>();
+    const uint8_t *source_pixels = source_copy.empty()
+        ? source->pixels.data()
+        : source_copy.data();
+    for (int output_y = first_y; output_y < last_y; ++output_y) {
+        for (int output_x = first_x; output_x < last_x; ++output_x) {
+            const float transformed_dx = (output_x + 0.5f) - tx;
+            const float transformed_dy = (output_y + 0.5f) - ty;
+            const float local_x =
+                ((d * transformed_dx) - (c * transformed_dy)) / determinant;
+            const float local_y =
+                ((a * transformed_dy) - (b * transformed_dx)) / determinant;
+            if (
+                local_x < destination_left || local_x >= destination_right ||
+                local_y < destination_top || local_y >= destination_bottom
+            ) {
                 continue;
             }
-            const int input_x = source_left + ((x * source_width) / destination_width);
+            const int input_x = source_left + static_cast<int>(
+                ((local_x - destination_left) * source_width) /
+                destination_width
+            );
+            const int input_y = source_top + static_cast<int>(
+                ((local_y - destination_top) * source_height) /
+                destination_height
+            );
             if (
                 input_x < 0 || input_y < 0 ||
                 input_x >= static_cast<int>(source->width) ||
@@ -548,7 +627,7 @@ void JNICALL canvas_draw_bitmap(
             std::memcpy(
                 destination->pixels.data() +
                     (output_y * destination->bytes_per_row) + (output_x * 4),
-                source->pixels.data() +
+                source_pixels +
                     (input_y * source->bytes_per_row) + (input_x * 4),
                 4
             );
@@ -565,7 +644,15 @@ void JNICALL canvas_draw_text(
     jfloat baseline,
     jfloat size,
     jint color,
-    jboolean bold
+    jboolean bold,
+    jint style,
+    jfloat stroke_width,
+    jfloat a,
+    jfloat b,
+    jfloat c,
+    jfloat d,
+    jfloat tx,
+    jfloat ty
 ) {
     NativeBitmap *target = bitmap(value);
     CFStringRef string = cf_string(environment, text);
@@ -577,7 +664,9 @@ void JNICALL canvas_draw_text(
         string,
         size,
         bold == JNI_TRUE,
-        color
+        color,
+        style,
+        stroke_width
     );
     CTLineRef line = CTLineCreateWithAttributedString(attributed);
     CGContextRef context = CGBitmapContextCreate(
@@ -589,12 +678,54 @@ void JNICALL canvas_draw_text(
         target->color_space,
         kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big
     );
-    CGContextSetTextPosition(context, x, target->height - baseline);
+    CGContextSaveGState(context);
+    const CGFloat height = static_cast<CGFloat>(target->height);
+    const CGAffineTransform transform = CGAffineTransformMake(
+        a,
+        -b,
+        -c,
+        d,
+        (c * height) + tx,
+        (height * (1 - d)) - ty
+    );
+    CGContextConcatCTM(context, transform);
+    CGContextSetTextPosition(context, x, height - baseline);
     CTLineDraw(line, context);
+    CGContextRestoreGState(context);
     CGContextRelease(context);
     CFRelease(line);
     CFRelease(attributed);
     CFRelease(string);
+}
+
+jfloat JNICALL text_measure(
+    JNIEnv *environment,
+    jclass,
+    jstring text,
+    jfloat size,
+    jboolean bold
+) {
+    CFStringRef string = cf_string(environment, text);
+    if (string == nullptr) {
+        return 0;
+    }
+    CFAttributedStringRef attributed = attributed_text(
+        string,
+        size,
+        bold == JNI_TRUE,
+        0xff000000
+    );
+    CTLineRef line = CTLineCreateWithAttributedString(attributed);
+    const double width = CTLineGetTypographicBounds(
+        line,
+        nullptr,
+        nullptr,
+        nullptr
+    );
+    CFRelease(line);
+    CFRelease(attributed);
+    CFRelease(string);
+    return static_cast<jfloat>(width);
 }
 
 jfloatArray JNICALL text_font_metrics(
@@ -844,8 +975,9 @@ const JNINativeMethod methods[] = {
     {const_cast<char *>("bitmapSetPixel"), const_cast<char *>("(JIII)V"), reinterpret_cast<void *>(&bitmap_set_pixel)},
     {const_cast<char *>("bitmapGetPixels"), const_cast<char *>("(J[IIIIIII)V"), reinterpret_cast<void *>(&bitmap_get_pixels)},
     {const_cast<char *>("bitmapSetPixels"), const_cast<char *>("(J[IIIIIII)V"), reinterpret_cast<void *>(&bitmap_set_pixels)},
-    {const_cast<char *>("canvasDrawBitmap"), const_cast<char *>("(JJIIIIIIII)V"), reinterpret_cast<void *>(&canvas_draw_bitmap)},
-    {const_cast<char *>("canvasDrawText"), const_cast<char *>("(JLjava/lang/String;FFFIZ)V"), reinterpret_cast<void *>(&canvas_draw_text)},
+    {const_cast<char *>("canvasDrawBitmap"), const_cast<char *>("(JJIIIIIIIIFFFFFF)V"), reinterpret_cast<void *>(&canvas_draw_bitmap)},
+    {const_cast<char *>("canvasDrawText"), const_cast<char *>("(JLjava/lang/String;FFFIZIFFFFFFF)V"), reinterpret_cast<void *>(&canvas_draw_text)},
+    {const_cast<char *>("textMeasure"), const_cast<char *>("(Ljava/lang/String;FZ)F"), reinterpret_cast<void *>(&text_measure)},
     {const_cast<char *>("textFontMetrics"), const_cast<char *>("(FZ)[F"), reinterpret_cast<void *>(&text_font_metrics)},
     {const_cast<char *>("textLineEnds"), const_cast<char *>("(Ljava/lang/String;FFZ)[I"), reinterpret_cast<void *>(&text_line_ends)},
     {const_cast<char *>("javascriptCreate"), const_cast<char *>("()J"), reinterpret_cast<void *>(&javascript_create)},
