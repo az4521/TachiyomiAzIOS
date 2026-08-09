@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <new>
 #include <vector>
@@ -13,6 +14,13 @@
 #include <CoreText/CoreText.h>
 #include <ImageIO/ImageIO.h>
 #include <JavaScriptCore/JavaScriptCore.h>
+
+extern "C" char *tachiyomiaz_webkit_command(
+    const char *operation,
+    int64_t handle,
+    const char *argument1,
+    const char *argument2
+) __attribute__((weak_import));
 #endif
 
 namespace {
@@ -759,6 +767,67 @@ void JNICALL javascript_close(JNIEnv *, jclass, jlong value) {
     }
 }
 
+jstring JNICALL webkit_command(
+    JNIEnv *environment,
+    jclass,
+    jstring operation,
+    jlong value,
+    jstring argument1,
+    jstring argument2
+) {
+    if (tachiyomiaz_webkit_command == nullptr) {
+        return environment->NewStringUTF(
+            "__UNAVAILABLE__WKWebView bridge is not installed"
+        );
+    }
+    const char *operation_utf8 = operation == nullptr
+        ? ""
+        : environment->GetStringUTFChars(operation, nullptr);
+    const char *argument1_utf8 = argument1 == nullptr
+        ? nullptr
+        : environment->GetStringUTFChars(argument1, nullptr);
+    const char *argument2_utf8 = argument2 == nullptr
+        ? nullptr
+        : environment->GetStringUTFChars(argument2, nullptr);
+    if (
+        operation_utf8 == nullptr ||
+        (argument1 != nullptr && argument1_utf8 == nullptr) ||
+        (argument2 != nullptr && argument2_utf8 == nullptr)
+    ) {
+        if (operation != nullptr && operation_utf8 != nullptr) {
+            environment->ReleaseStringUTFChars(operation, operation_utf8);
+        }
+        if (argument1 != nullptr && argument1_utf8 != nullptr) {
+            environment->ReleaseStringUTFChars(argument1, argument1_utf8);
+        }
+        if (argument2 != nullptr && argument2_utf8 != nullptr) {
+            environment->ReleaseStringUTFChars(argument2, argument2_utf8);
+        }
+        return nullptr;
+    }
+    char *result = tachiyomiaz_webkit_command(
+        operation_utf8,
+        static_cast<int64_t>(value),
+        argument1_utf8,
+        argument2_utf8
+    );
+    if (operation != nullptr) {
+        environment->ReleaseStringUTFChars(operation, operation_utf8);
+    }
+    if (argument1 != nullptr) {
+        environment->ReleaseStringUTFChars(argument1, argument1_utf8);
+    }
+    if (argument2 != nullptr) {
+        environment->ReleaseStringUTFChars(argument2, argument2_utf8);
+    }
+    if (result == nullptr) {
+        return nullptr;
+    }
+    jstring output = environment->NewStringUTF(result);
+    std::free(result);
+    return output;
+}
+
 const JNINativeMethod methods[] = {
     {const_cast<char *>("bitmapCreate"), const_cast<char *>("(II)[J"), reinterpret_cast<void *>(&bitmap_create)},
     {const_cast<char *>("bitmapDecode"), const_cast<char *>("([BII)[J"), reinterpret_cast<void *>(&bitmap_decode)},
@@ -777,6 +846,7 @@ const JNINativeMethod methods[] = {
     {const_cast<char *>("javascriptCreate"), const_cast<char *>("()J"), reinterpret_cast<void *>(&javascript_create)},
     {const_cast<char *>("javascriptEvaluate"), const_cast<char *>("(JLjava/lang/String;)Ljava/lang/Object;"), reinterpret_cast<void *>(&javascript_evaluate)},
     {const_cast<char *>("javascriptClose"), const_cast<char *>("(J)V"), reinterpret_cast<void *>(&javascript_close)},
+    {const_cast<char *>("webkitCommand"), const_cast<char *>("(Ljava/lang/String;JLjava/lang/String;Ljava/lang/String;)Ljava/lang/String;"), reinterpret_cast<void *>(&webkit_command)},
 };
 #endif
 

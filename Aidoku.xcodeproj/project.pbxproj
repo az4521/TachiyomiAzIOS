@@ -11,6 +11,7 @@
 		A12200000000000000000001 /* OpenJDK.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A12200000000000000000002 /* OpenJDK.xcframework */; };
 		A12100000000000000000003 /* JVMExtensionManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12100000000000000000001 /* JVMExtensionManifest.swift */; };
 		A12100000000000000000004 /* JVMSourceRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12100000000000000000002 /* JVMSourceRuntime.swift */; };
+		F12400000000000000000002 /* JVMWebKitBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F12400000000000000000001 /* JVMWebKitBridge.swift */; };
 		A12100000000000000000007 /* MihonBackupImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12100000000000000000006 /* MihonBackupImporter.swift */; };
 		A12100000000000000000009 /* TachibkBackupCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12100000000000000000008 /* TachibkBackupCodec.swift */; };
 		A12300000000000000000002 /* TachiyomiXJarRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12300000000000000000001 /* TachiyomiXJarRepository.swift */; };
@@ -620,6 +621,7 @@
 		A12200000000000000000002 /* OpenJDK.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Vendor/OpenJDK/OpenJDK.xcframework; sourceTree = SOURCE_ROOT; };
 		A12100000000000000000001 /* JVMExtensionManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JVMExtensionManifest.swift; sourceTree = "<group>"; };
 		A12100000000000000000002 /* JVMSourceRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JVMSourceRuntime.swift; sourceTree = "<group>"; };
+		F12400000000000000000001 /* JVMWebKitBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JVMWebKitBridge.swift; sourceTree = "<group>"; };
 		A12100000000000000000006 /* MihonBackupImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MihonBackupImporter.swift; sourceTree = "<group>"; };
 		A12100000000000000000008 /* TachibkBackupCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TachibkBackupCodec.swift; sourceTree = "<group>"; };
 		A12300000000000000000001 /* TachiyomiXJarRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TachiyomiXJarRepository.swift; sourceTree = "<group>"; };
@@ -1458,6 +1460,7 @@
 			children = (
 				A12100000000000000000001 /* JVMExtensionManifest.swift */,
 				A12100000000000000000002 /* JVMSourceRuntime.swift */,
+				F12400000000000000000001 /* JVMWebKitBridge.swift */,
 				A12100000000000000000006 /* MihonBackupImporter.swift */,
 				A12100000000000000000008 /* TachibkBackupCodec.swift */,
 				A12300000000000000000001 /* TachiyomiXJarRepository.swift */,
@@ -2663,6 +2666,7 @@
 			files = (
 				A12100000000000000000003 /* JVMExtensionManifest.swift in Sources */,
 				A12100000000000000000004 /* JVMSourceRuntime.swift in Sources */,
+				F12400000000000000000002 /* JVMWebKitBridge.swift in Sources */,
 				A12100000000000000000007 /* MihonBackupImporter.swift in Sources */,
 				A12100000000000000000009 /* TachibkBackupCodec.swift in Sources */,
 				A12300000000000000000002 /* TachiyomiXJarRepository.swift in Sources */,

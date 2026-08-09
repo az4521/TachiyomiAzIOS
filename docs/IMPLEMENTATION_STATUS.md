@@ -57,8 +57,14 @@ Last updated: 2026-07-31
   `imageRequest`, including source headers and persistent Java cookies.
 - JVM home and temporary paths explicitly rooted inside the app container so
   AndroidCompat preferences and cookies persist on simulator and device.
-- Source cookie inspection/clearing and an Aidoku WKWebView login flow that
+- Source cookie inspection/clearing and a native WKWebView login flow that
   transfers login and Cloudflare cookies into the extension's OkHttp jar.
+- AndroidCompat's `WebView` and `CookieManager` are backed by WKWebView and
+  `WKHTTPCookieStore` on iOS. Navigation, JavaScript evaluation, callbacks,
+  history, user-agent settings, and cookie mutation are bridged without
+  bundling the desktop KCEF/JCEF runtime; WebKit cookies are synchronized with
+  `HTTPCookieStorage`, while Cloudflare clearance cookies are also copied into
+  the requesting extension's OkHttp cookie jar before retry.
 - An iOS-safe `SystemClock` plus a minimal JUL boot shim for OkHttp/Okio,
   removing runtime dependencies on absent `java.logging` and
   `java.management` modules.
@@ -114,8 +120,8 @@ rejected by the local compatibility layer.
 1. Run the configured Xcode build for an arm64 iOS Simulator on
    a macOS host. This workspace has no Xcode or iOS SDK.
 2. Continue expanding the extension fixture matrix to catch uncommon Android
-   graphics/resource assumptions. JavaScript/login challenges use the native
-   WKWebView flow; desktop CEF is deliberately excluded.
+   graphics/resource assumptions. Android WebView calls and JavaScript/login
+   challenges use native WKWebView; desktop CEF is deliberately excluded.
 
 The requested extension-lib 1.4 and 1.6 fixtures pass. Physical arm64
 device validation and a broader compatibility corpus remain desirable, but

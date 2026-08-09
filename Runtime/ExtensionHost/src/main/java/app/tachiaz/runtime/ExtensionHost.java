@@ -334,6 +334,15 @@ public final class ExtensionHost {
             ).getDeclaredConstructor().newInstance();
             initializer.getClass().getMethod("init").invoke(initializer);
 
+            // AndroidCompat normally installs its desktop KCEF provider. The
+            // mobile shim replaces that provider with the app's WKWebView
+            // implementation and a CookieManager backed by WebKit.
+            Class.forName(
+                "app.tachiaz.compat.IOSWebViewProviderFactory",
+                true,
+                loader
+            ).getMethod("install").invoke(null);
+
             Object androidCompat = Class.forName(
                 "xyz.nulldev.androidcompat.AndroidCompat",
                 true,

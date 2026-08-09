@@ -80,4 +80,12 @@ public final class NativeBridge {
     public static native long javascriptCreate();
     public static native Object javascriptEvaluate(long handle, String script);
     public static native void javascriptClose(long handle);
+
+    /** Commands implemented by the app's WKWebView bridge on iOS. */
+    public static native String webkitCommand(
+        String operation,
+        long handle,
+        String argument1,
+        String argument2
+    );
 }

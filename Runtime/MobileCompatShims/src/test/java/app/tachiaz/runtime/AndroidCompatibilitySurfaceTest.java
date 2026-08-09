@@ -115,6 +115,25 @@ public final class AndroidCompatibilitySurfaceTest {
             "android.webkit.CookieManager"
         );
         cookieManagerType.getMethod("getInstance");
+        Class<?> nativeBridgeType = Class.forName(
+            "app.tachiaz.compat.NativeBridge"
+        );
+        nativeBridgeType.getMethod(
+            "webkitCommand",
+            String.class,
+            long.class,
+            String.class,
+            String.class
+        );
+        Class<?> webViewFactoryType = Class.forName(
+            "app.tachiaz.compat.IOSWebViewProviderFactory"
+        );
+        webViewFactoryType.getMethod("install").invoke(null);
+        Object cookieManager = cookieManagerType.getMethod("getInstance")
+            .invoke(null);
+        if (!cookieManager.getClass().getName().contains("IOSCookieManager")) {
+            throw new AssertionError("iOS CookieManager provider was not installed");
+        }
         Class<?> activityManagerType = Class.forName(
             "android.app.ActivityManager"
         );
