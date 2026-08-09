@@ -44,7 +44,61 @@ struct SettingsAboutView: View {
                     value: .link(.init(url: "https://ko-fi.com/az4521", external: true))
                 ))
             }
+
+            Section {
+                NavigationLink {
+                    SettingsCreditsView()
+                } label: {
+                    Text(NSLocalizedString(
+                        "CREDITS",
+                        value: "Credits",
+                        comment: "About page credits link"
+                    ))
+                }
+            }
         }
         .navigationTitle(NSLocalizedString("ABOUT"))
+    }
+}
+
+private struct SettingsCreditsView: View {
+    private struct Credit: Identifiable {
+        let name: String
+        let repository: String
+
+        var id: String { repository }
+        var url: URL? { URL(string: "https://github.com/\(repository)") }
+    }
+
+    private let credits = [
+        Credit(name: "Aidoku", repository: "Aidoku/Aidoku"),
+        Credit(name: "Suwayomi", repository: "Suwayomi/Suwayomi-Server"),
+        Credit(name: "TachiyomiX", repository: "mihonapp/tachiyomix")
+    ]
+
+    var body: some View {
+        List(credits) { credit in
+            if let url = credit.url {
+                Link(destination: url) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(credit.name)
+                                .foregroundStyle(.primary)
+                            Text("github.com/\(credit.repository)")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "arrow.up.right.square")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .navigationTitle(NSLocalizedString(
+            "CREDITS",
+            value: "Credits",
+            comment: "Credits page title"
+        ))
     }
 }

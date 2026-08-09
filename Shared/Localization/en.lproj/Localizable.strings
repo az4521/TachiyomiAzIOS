@@ -442,6 +442,7 @@
 "AUTH_TO_ENABLE" = "Authenticate to enable.";
 "AUTH_TO_DISABLE" = "Authenticate to disable.";
 "ABOUT" = "About";
+"CREDITS" = "Credits";
 "GITHUB_REPO" = "GitHub Repository";
 "DISCORD_SERVER" = "Discord Server";
 "SUPPPORT_DEVELOPMENT" = "Support Development";
