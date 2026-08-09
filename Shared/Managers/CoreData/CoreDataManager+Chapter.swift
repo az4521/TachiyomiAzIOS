@@ -267,6 +267,75 @@ extension CoreDataManager {
         return (try? context.count(for: request)) ?? 0
     }
 
+    /// Count unread chapters for the complete library in one grouped store
+    /// query. Titles with per-manga language or scanlator filters are uncommon
+    /// and are corrected individually after the grouped query.
+    func libraryUnreadCounts(
+        context: NSManagedObjectContext
+    ) -> [MangaIdentifier: Int] {
+        let libraryRequest = LibraryMangaObject.fetchRequest()
+        libraryRequest.predicate = NSPredicate(format: "manga != nil")
+        libraryRequest.relationshipKeyPathsForPrefetching = ["manga"]
+        guard let library = try? context.fetch(libraryRequest) else {
+            return [:]
+        }
+
+        let mangaByIdentifier = Dictionary(
+            library.compactMap { $0.manga }.map { ($0.identifier, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var counts = Dictionary(
+            uniqueKeysWithValues: mangaByIdentifier.keys.map { ($0, 0) }
+        )
+
+        let count = NSExpressionDescription()
+        count.name = "unreadCount"
+        count.expression = NSExpression(
+            forFunction: "count:",
+            arguments: [NSExpression(forKeyPath: "id")]
+        )
+        count.expressionResultType = .integer64AttributeType
+
+        let request = NSFetchRequest<NSDictionary>(entityName: "Chapter")
+        request.resultType = .dictionaryResultType
+        request.propertiesToFetch = ["sourceId", "mangaId", count]
+        request.propertiesToGroupBy = ["sourceId", "mangaId"]
+        request.predicate = NSPredicate(
+            format: "locked == false AND (history == nil OR history.completed == false)"
+        )
+        if let rows = try? context.fetch(request) {
+            for row in rows {
+                guard
+                    let sourceId = row["sourceId"] as? String,
+                    let mangaId = row["mangaId"] as? String,
+                    let value = row["unreadCount"] as? NSNumber
+                else {
+                    continue
+                }
+                let identifier = MangaIdentifier(
+                    sourceKey: sourceId,
+                    mangaKey: mangaId
+                )
+                if mangaByIdentifier[identifier] != nil {
+                    counts[identifier] = value.intValue
+                }
+            }
+        }
+
+        for (identifier, manga) in mangaByIdentifier where
+            manga.langFilter != nil || !(manga.scanlatorFilter?.isEmpty ?? true)
+        {
+            counts[identifier] = unreadCount(
+                sourceId: identifier.sourceKey,
+                mangaId: identifier.mangaKey,
+                lang: manga.langFilter,
+                scanlators: manga.scanlatorFilter,
+                context: context
+            )
+        }
+        return counts
+    }
+
     /// Get the number of read chapters for a manga.
     func readCount(
         sourceId: String,

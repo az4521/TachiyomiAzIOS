@@ -209,25 +209,32 @@ bool start_ios_jvm_output_capture() {
     if (ios_jvm_output_fd < 0) {
         return false;
     }
+    // If launchd supplied closed stdio descriptors, open() may reuse 1 or 2.
+    // Move the capture file out of the stdio range before recording which
+    // original descriptors exist, otherwise dup() would save the log file as
+    // though it were the app's original stdout/stderr.
+    if (ios_jvm_output_fd <= STDERR_FILENO) {
+        const int relocated_fd = fcntl(
+            ios_jvm_output_fd,
+            F_DUPFD_CLOEXEC,
+            STDERR_FILENO + 1
+        );
+        close(ios_jvm_output_fd);
+        ios_jvm_output_fd = relocated_fd;
+        if (ios_jvm_output_fd < 0) {
+            return false;
+        }
+    }
 
     ios_jvm_saved_stdout = dup(STDOUT_FILENO);
     ios_jvm_saved_stderr = dup(STDERR_FILENO);
-    if (ios_jvm_saved_stdout < 0 || ios_jvm_saved_stderr < 0) {
-        if (ios_jvm_saved_stdout >= 0) {
-            close(ios_jvm_saved_stdout);
-            ios_jvm_saved_stdout = -1;
-        }
-        if (ios_jvm_saved_stderr >= 0) {
-            close(ios_jvm_saved_stderr);
-            ios_jvm_saved_stderr = -1;
-        }
-        close(ios_jvm_output_fd);
-        ios_jvm_output_fd = -1;
-        return false;
-    }
+    // Distribution builds may launch with stdout and stderr already closed.
+    // That is not a capture failure: dup2 below can attach the log file to
+    // those descriptor numbers. A negative saved descriptor simply means it
+    // must be closed, rather than restored, when initialization completes.
     if (dup2(ios_jvm_output_fd, STDOUT_FILENO) < 0) {
-        close(ios_jvm_saved_stdout);
-        close(ios_jvm_saved_stderr);
+        if (ios_jvm_saved_stdout >= 0) close(ios_jvm_saved_stdout);
+        if (ios_jvm_saved_stderr >= 0) close(ios_jvm_saved_stderr);
         close(ios_jvm_output_fd);
         ios_jvm_saved_stdout = -1;
         ios_jvm_saved_stderr = -1;
@@ -235,9 +242,13 @@ bool start_ios_jvm_output_capture() {
         return false;
     }
     if (dup2(ios_jvm_output_fd, STDERR_FILENO) < 0) {
-        dup2(ios_jvm_saved_stdout, STDOUT_FILENO);
-        close(ios_jvm_saved_stdout);
-        close(ios_jvm_saved_stderr);
+        if (ios_jvm_saved_stdout >= 0) {
+            dup2(ios_jvm_saved_stdout, STDOUT_FILENO);
+            close(ios_jvm_saved_stdout);
+        } else {
+            close(STDOUT_FILENO);
+        }
+        if (ios_jvm_saved_stderr >= 0) close(ios_jvm_saved_stderr);
         close(ios_jvm_output_fd);
         ios_jvm_saved_stdout = -1;
         ios_jvm_saved_stderr = -1;
@@ -257,11 +268,15 @@ void stop_ios_jvm_output_capture(bool report_output) {
         dup2(ios_jvm_saved_stdout, STDOUT_FILENO);
         close(ios_jvm_saved_stdout);
         ios_jvm_saved_stdout = -1;
+    } else {
+        close(STDOUT_FILENO);
     }
     if (ios_jvm_saved_stderr >= 0) {
         dup2(ios_jvm_saved_stderr, STDERR_FILENO);
         close(ios_jvm_saved_stderr);
         ios_jvm_saved_stderr = -1;
+    } else {
+        close(STDERR_FILENO);
     }
     if (report_output) {
         log_ios_jvm_output("JNI_CreateJavaVM returned after emitting output");
@@ -672,7 +687,9 @@ TJRRuntime *tjr_runtime_create(
         std::string("-Djava.library.path=") + frameworks_directory,
         "-Djava.awt.headless=true",
         "-Xrs",
-        "-Xmx192m",
+        "-Xms16m",
+        "-Xmx128m",
+        "-Xss512k",
 #if TARGET_OS_IPHONE
         // Desktop HotSpot reserves a 1 GiB compressed class space by
         // default. iOS refuses a single reservation that large even though
@@ -680,6 +697,8 @@ TJRRuntime *tjr_runtime_create(
         // UseCompressedClassPointers as obsolete, so size the reservation
         // explicitly instead of attempting to disable compressed pointers.
         "-XX:CompressedClassSpaceSize=64m",
+        "-XX:InitialCodeCacheSize=4m",
+        "-XX:ReservedCodeCacheSize=32m",
         "-XX:+DisplayVMOutputToStderr",
 #endif
     };

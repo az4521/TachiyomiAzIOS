@@ -151,13 +151,6 @@ class LibraryViewModel {
     var isInUncategorizedCategory: Bool {
         currentCategory?.isEmpty ?? false
     }
-    var categorySwitchRequiresFreshBadges: Bool {
-        pinType == .unread ||
-            sortMethod == .unreadChapters ||
-            effectiveFilters.contains {
-                $0.type == .hasUnread || $0.type == .downloaded
-            }
-    }
     private(set) var hasUncategorizedManga = false
     private(set) var actuallyEmpty = true
 
@@ -169,6 +162,21 @@ class LibraryViewModel {
         } else {
             self.filters = []
         }
+        unreadBadgeCache = LibraryBadgeCache.load(.unread)
+        downloadBadgeCache = LibraryBadgeCache.load(.downloaded)
+    }
+
+    private func saveUnreadBadgeCache() {
+        LibraryBadgeCache.save(unreadBadgeCache, kind: .unread)
+    }
+
+    private func saveDownloadBadgeCache() {
+        LibraryBadgeCache.save(downloadBadgeCache, kind: .downloaded)
+    }
+
+    func reloadPersistedBadgeCaches() {
+        unreadBadgeCache = LibraryBadgeCache.load(.unread)
+        downloadBadgeCache = LibraryBadgeCache.load(.downloaded)
     }
 }
 
@@ -225,7 +233,7 @@ extension LibraryViewModel {
     // swiftlint:disable:next cyclomatic_complexity
     @discardableResult
     func loadLibrary(
-        refreshBadges: Bool = true,
+        refreshBadges: Bool = false,
         refreshCategoryAvailability: Bool = true
     ) async -> Bool {
         let previousInfo = Dictionary(
@@ -561,6 +569,12 @@ extension LibraryViewModel {
                 }
             }
         }
+        for item in manga {
+            if let count = unreadCounts[item.hashValue] {
+                unreadBadgeCache[item.identifier] = count
+            }
+        }
+        saveUnreadBadgeCache()
         if pinType == .unread {
             await loadLibrary()
         } else if sortMethod == .unreadChapters {
@@ -600,27 +614,18 @@ extension LibraryViewModel {
             !onlyUncached || unreadBadgeCache[$0.identifier] == nil
         }
 
-        // Reuse one context. Creating a context and issuing multiple fetches
-        // for every title made a category change scale with library size.
+        // Use one grouped store query. Issuing multiple Core Data requests for
+        // every title makes a history refresh scale with the number of manga.
         let unreadCounts = await CoreDataManager.shared.container
             .performBackgroundTask { @Sendable context in
-            var unreadCounts: [MangaIdentifier: Int] = [:]
-            for manga in currentManga {
-                let filters = CoreDataManager.shared.getMangaChapterFilters(
-                    sourceId: manga.sourceId,
-                    mangaId: manga.mangaId,
+                let allCounts = CoreDataManager.shared.libraryUnreadCounts(
                     context: context
                 )
-                unreadCounts[manga.identifier] =
-                    CoreDataManager.shared.unreadCount(
-                        sourceId: manga.sourceId,
-                        mangaId: manga.mangaId,
-                        lang: filters.language,
-                        scanlators: filters.scanlators,
-                        context: context
-                    )
-            }
-            return unreadCounts
+                return Dictionary(
+                    uniqueKeysWithValues: currentManga.map {
+                        ($0.identifier, allCounts[$0.identifier] ?? 0)
+                    }
+                )
         }
 
         for manga in currentManga {
@@ -628,6 +633,7 @@ extension LibraryViewModel {
                 unreadBadgeCache[manga.identifier] = count
             }
         }
+        saveUnreadBadgeCache()
 
         // set unread counts
         for (i, manga) in self.manga.enumerated() {
@@ -661,6 +667,7 @@ extension LibraryViewModel {
             )
         }
         unreadBadgeCache[identifier] = unreadCount
+        saveUnreadBadgeCache()
         var didUpdate = false
         if let index = self.manga.firstIndex(where: { $0.identifier == identifier }) {
             if self.manga[index].unread != unreadCount {
@@ -702,6 +709,7 @@ extension LibraryViewModel {
         for (identifier, count) in downloadCounts {
             downloadBadgeCache[identifier] = count
         }
+        saveDownloadBadgeCache()
         for (i, manga) in self.pinnedManga.enumerated() {
             if let count = downloadCounts[manga.identifier] {
                 self.pinnedManga[i].downloads = count

@@ -318,6 +318,14 @@ extension BackupManager {
         }
     }
 
+    private func cacheRestoredUnreadBadges() async {
+        let counts = await CoreDataManager.shared.container
+            .performBackgroundTask { context in
+                CoreDataManager.shared.libraryUnreadCounts(context: context)
+            }
+        LibraryBadgeCache.save(counts, kind: .unread)
+    }
+
     @discardableResult
     // swiftlint:disable:next function_body_length
     private func mergeMihonBackup(_ backup: Backup) async -> Bool {
@@ -536,7 +544,11 @@ extension BackupManager {
                 }
             }
 
-        NotificationCenter.default.post(name: .updateHistory, object: nil)
+        if errorMessage == nil {
+            await cacheRestoredUnreadBadges()
+        }
+
+        NotificationCenter.default.post(name: .updateHistory, object: "backupRestore")
         NotificationCenter.default.post(name: .updateTrackers, object: nil)
         NotificationCenter.default.post(name: .updateCategories, object: nil)
         NotificationCenter.default.post(name: .updateLibrary, object: nil)
@@ -901,7 +913,11 @@ extension BackupManager {
             backupError = error
         }
 
-        NotificationCenter.default.post(name: .updateHistory, object: nil)
+        if backupError == nil {
+            await cacheRestoredUnreadBadges()
+        }
+
+        NotificationCenter.default.post(name: .updateHistory, object: "backupRestore")
         NotificationCenter.default.post(name: .updateTrackers, object: nil)
         NotificationCenter.default.post(name: .updateCategories, object: nil)
         NotificationCenter.default.post(name: .updateLibrary, object: nil)

@@ -158,7 +158,8 @@ public struct JVMRuntimeConfiguration: Sendable {
                 "-Xbootclasspath/a:\(mobileShimsURL.path)",
                 "-Duser.home=\(jvmHome.path)",
                 "-Duser.dir=\(jvmHome.path)",
-                "-Djava.io.tmpdir=\(FileManager.default.temporaryDirectory.path)"
+                "-Djava.io.tmpdir=\(FileManager.default.temporaryDirectory.path)",
+                "-XX:ErrorFile=\(jvmHome.appendingPathComponent("hs_err_pid%p.log").path)"
             ] + additionalOptions
         )
     }

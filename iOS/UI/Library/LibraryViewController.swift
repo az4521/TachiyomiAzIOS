@@ -233,12 +233,24 @@ class LibraryViewController: OldMangaCollectionViewController {
             await viewModel.refreshCategories(skipDataLoad: true)
             updateNavbarItems()
 
+            // Categories are independent of the library contents. Publish the
+            // tab strip immediately instead of making it wait for a large
+            // library fetch and badge calculation.
+            collectionView.collectionViewLayout = self.makeCollectionViewLayout()
+            var initialSnapshot = NSDiffableDataSourceSnapshot<Section, MangaInfo>()
+            initialSnapshot.appendSections([.regular])
+            dataSource.apply(initialSnapshot, animatingDifferences: false)
+            collectionView.layoutIfNeeded()
+            updateHeaderCategories()
+            updateHeaderLockIcons()
+
             // load library
-            await viewModel.loadLibrary()
+            await viewModel.loadLibrary(refreshBadges: false)
             // refresh header after category availability is known
             collectionView.collectionViewLayout = self.makeCollectionViewLayout()
             updateEmptyStack()
             updateLockState()
+            updateDataSource(animatingDifferences: false)
             collectionView.layoutIfNeeded()
             updateHeaderCategories()
             updateHeaderLockIcons()
@@ -421,9 +433,15 @@ class LibraryViewController: OldMangaCollectionViewController {
         }
 
         // update history
-        addObserver(forName: .updateHistory) { [weak self] _ in
+        addObserver(forName: .updateHistory) { [weak self] notification in
             guard let self else { return }
             Task { @MainActor in
+                if notification.object as? String == "backupRestore" {
+                    self.viewModel.reloadPersistedBadgeCaches()
+                    await self.viewModel.loadLibrary(refreshBadges: false)
+                    self.updateDataSource(animatingDifferences: false)
+                    return
+                }
                 await self.viewModel.fetchUnreads()
                 if self.viewModel.pinType != .unread {
                     await self.viewModel.loadLibrary()
@@ -1217,28 +1235,12 @@ extension LibraryViewController: LibraryCategorySelectionHeaderDelegate {
             updateToolbar()
             updateNavbarItems()
 
-            let requiresFreshBadges =
-                viewModel.categorySwitchRequiresFreshBadges
             await viewModel.loadLibrary(
-                refreshBadges: requiresFreshBadges,
+                refreshBadges: false,
                 refreshCategoryAvailability: false
             )
             updateEmptyStack()
             updateDataSource(animatingDifferences: false)
-
-            guard !requiresFreshBadges else { return }
-            let selectedCategory = viewModel.currentCategory
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                let refreshed = await viewModel.refreshUncachedBadges()
-                guard
-                    refreshed,
-                    viewModel.currentCategory == selectedCategory
-                else {
-                    return
-                }
-                updateDataSource(animatingDifferences: false)
-            }
         }
     }
 }
