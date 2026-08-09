@@ -239,7 +239,7 @@ class LibraryViewController: OldMangaCollectionViewController {
             collectionView.collectionViewLayout = self.makeCollectionViewLayout()
             var initialSnapshot = NSDiffableDataSourceSnapshot<Section, MangaInfo>()
             initialSnapshot.appendSections([.regular])
-            dataSource.apply(initialSnapshot, animatingDifferences: false)
+            await dataSource.apply(initialSnapshot, animatingDifferences: false)
             collectionView.layoutIfNeeded()
             updateHeaderCategories()
             updateHeaderLockIcons()
