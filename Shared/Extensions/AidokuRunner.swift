@@ -83,7 +83,24 @@ extension AidokuRunner.Source {
         do {
             result = try await getImageRequest(url: url.absoluteString, context: context)
         } catch {
-            result = .init(url: url)
+            LogManager.logger.error(
+                "Image request preparation failed for \(key): " +
+                    error.localizedDescription
+            )
+            // A source that advertises image-request support may use its
+            // request path for decryption, descrambling, or authentication.
+            // Falling back to the original URL silently bypasses all of that
+            // work and can display the encrypted source image as if it were
+            // the final page.
+            if features.providesImageRequests {
+                result = .init(
+                    url: URL(
+                        string: "tachiyomiaz-image-request-failed://\(UUID().uuidString)"
+                    )!
+                )
+            } else {
+                result = .init(url: url)
+            }
         }
         return await Self.modify(url: url, request: result)
     }

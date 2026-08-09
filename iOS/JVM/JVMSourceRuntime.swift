@@ -1613,11 +1613,19 @@ actor TachiyomiXSourceRunner: AidokuRunner.Runner {
         url: String,
         context: AidokuRunner.PageContext?
     ) async throws -> URLRequest {
-        JVMImageURLProtocol.request(
+        let pageURL = context?["mihonPageURL"]
+        let image = try await JVMSourceRuntime.shared.materializeImage(
             extensionId: extensionId,
             sourceId: descriptor.id,
             imageURL: url,
-            pageURL: context?["mihonPageURL"]
+            pageURL: pageURL
+        )
+        return JVMImageURLProtocol.request(
+            extensionId: extensionId,
+            sourceId: descriptor.id,
+            imageURL: url,
+            pageURL: pageURL,
+            preparedImage: image
         )
     }
 }
@@ -1866,7 +1874,7 @@ struct TachiyomiXMaterializedImage: Sendable {
 final class JVMImageURLProtocol: URLProtocol {
     // Change this when the Java/native materialization pipeline changes so
     // Nuke cannot reuse bytes produced by an older compatibility layer.
-    private static let materializerRevision = "3"
+    private static let materializerRevision = "4"
     // Nightly builds receive a unique CFBundleVersion. Including it prevents
     // future native/JVM image-pipeline fixes from being hidden by an image
     // materialized by an older installed build, even if the manual revision
@@ -1880,6 +1888,7 @@ final class JVMImageURLProtocol: URLProtocol {
         let sourceId: Int64
         let imageURL: String
         let pageURL: String?
+        let preparedImage: TachiyomiXMaterializedImage?
     }
 
     private static let registryLock = NSLock()
@@ -1890,7 +1899,8 @@ final class JVMImageURLProtocol: URLProtocol {
         extensionId: String,
         sourceId: Int64,
         imageURL: String,
-        pageURL: String?
+        pageURL: String?,
+        preparedImage: TachiyomiXMaterializedImage? = nil
     ) -> URLRequest {
         let identity = [
             materializerRevision,
@@ -1913,7 +1923,8 @@ final class JVMImageURLProtocol: URLProtocol {
             extensionId: extensionId,
             sourceId: sourceId,
             imageURL: imageURL,
-            pageURL: pageURL
+            pageURL: pageURL,
+            preparedImage: preparedImage
         )
         registryLock.unlock()
         var request = URLRequest(
@@ -1947,12 +1958,22 @@ final class JVMImageURLProtocol: URLProtocol {
         loadingTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let image = try await JVMSourceRuntime.shared.materializeImage(
-                    extensionId: descriptor.extensionId,
-                    sourceId: descriptor.sourceId,
-                    imageURL: descriptor.imageURL,
-                    pageURL: descriptor.pageURL
-                )
+                let image: TachiyomiXMaterializedImage
+                if
+                    let preparedImage = descriptor.preparedImage,
+                    FileManager.default.fileExists(
+                        atPath: preparedImage.fileURL.path
+                    )
+                {
+                    image = preparedImage
+                } else {
+                    image = try await JVMSourceRuntime.shared.materializeImage(
+                        extensionId: descriptor.extensionId,
+                        sourceId: descriptor.sourceId,
+                        imageURL: descriptor.imageURL,
+                        pageURL: descriptor.pageURL
+                    )
+                }
                 defer {
                     try? FileManager.default.removeItem(at: image.fileURL)
                 }
