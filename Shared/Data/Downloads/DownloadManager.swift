@@ -300,6 +300,8 @@ extension DownloadManager {
     /// Remove all downloads.
     func deleteAll() async {
         await cache.removeAll()
+        invalidateDownloadedMangaCache()
+        NotificationCenter.default.post(name: .downloadsRemoved, object: nil)
     }
 }
 

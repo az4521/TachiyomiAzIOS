@@ -713,6 +713,17 @@ extension LibraryViewModel {
         }
     }
 
+    func clearDownloadCounts() {
+        downloadBadgeCache.removeAll()
+        saveDownloadBadgeCache()
+        for index in pinnedManga.indices {
+            pinnedManga[index].downloads = 0
+        }
+        for index in manga.indices {
+            manga[index].downloads = 0
+        }
+    }
+
     @MainActor
     func sortLibrary() async {
         switch sortMethod {

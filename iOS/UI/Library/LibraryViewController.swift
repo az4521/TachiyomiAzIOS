@@ -297,6 +297,11 @@ class LibraryViewController: OldMangaCollectionViewController {
 
         let updateDownloadCounts: (Notification) -> Void = { [weak self] notification in
             guard let self else { return }
+            if notification.name == .downloadsRemoved, notification.object == nil {
+                self.viewModel.clearDownloadCounts()
+                self.updateDataSource()
+                return
+            }
             if let id = notification.object as? ChapterIdentifier {
                 Task {
                     await self.viewModel.fetchDownloadCounts(for: id.mangaIdentifier)
