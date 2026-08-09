@@ -61,6 +61,9 @@ Last updated: 2026-07-31
   AndroidCompat preferences and cookies persist on simulator and device.
 - Source cookie inspection/clearing and a native WKWebView login flow that
   transfers login and Cloudflare cookies into the extension's OkHttp jar.
+- The mobile runtime supplies the Suwayomi `ServerConfigKt`/`ServerConfig`
+  ABI used by its Cloudflare interceptor. FlareSolverr is reported as disabled
+  so challenges fall through to the app's native WKWebView solver.
 - AndroidCompat's `WebView` and `CookieManager` are backed by WKWebView and
   `WKHTTPCookieStore` on iOS. Navigation is asynchronous so the Android main
   Looper remains available for coroutine timeouts and polling. Page lifecycle,

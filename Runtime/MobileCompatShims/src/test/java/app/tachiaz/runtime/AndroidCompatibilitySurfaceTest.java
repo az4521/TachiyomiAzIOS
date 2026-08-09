@@ -8,6 +8,9 @@ import android.webkit.JavascriptInterface;
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import kotlinx.coroutines.flow.MutableStateFlow;
+import suwayomi.tachidesk.server.ServerConfig;
+import suwayomi.tachidesk.server.ServerConfigKt;
 
 /** Verifies the Android API descriptors used by Tachiyomi extension libraries. */
 public final class AndroidCompatibilitySurfaceTest {
@@ -194,6 +197,7 @@ public final class AndroidCompatibilitySurfaceTest {
             int.class
         );
         Class.forName("android.os.Looper").getMethod("getMainLooper");
+        assertMobileServerConfig();
 
         byte[] decoded = (byte[]) Class.forName("android.util.Base64")
             .getMethod("decode", String.class, int.class)
@@ -226,6 +230,30 @@ public final class AndroidCompatibilitySurfaceTest {
         ).invoke(null, java.util.Locale.ENGLISH);
 
         System.out.println("Android compatibility surface test passed");
+    }
+
+    private static void assertMobileServerConfig() {
+        ServerConfig config = ServerConfigKt.getServerConfig();
+        if (config == null || config != ServerConfigKt.getServerConfig()) {
+            throw new AssertionError("Mobile server configuration is not a singleton");
+        }
+        assertFlowValue(config.getFlareSolverrEnabled(), Boolean.FALSE);
+        assertFlowValue(config.getFlareSolverrAsResponseFallback(), Boolean.FALSE);
+        assertFlowValue(config.getFlareSolverrTimeout(), 60);
+        assertFlowValue(config.getFlareSolverrUrl(), "");
+        assertFlowValue(config.getFlareSolverrSessionName(), "tachiyomiaz");
+        assertFlowValue(config.getFlareSolverrSessionTtl(), 15);
+    }
+
+    private static void assertFlowValue(
+        MutableStateFlow<?> flow,
+        Object expected
+    ) {
+        if (flow == null || !expected.equals(flow.getValue())) {
+            throw new AssertionError(
+                "Unexpected mobile server setting: " + (flow == null ? null : flow.getValue())
+            );
+        }
     }
 
     public static final class JavascriptTarget {
