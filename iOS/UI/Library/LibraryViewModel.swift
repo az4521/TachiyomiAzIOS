@@ -883,10 +883,13 @@ extension LibraryViewModel {
         }
     }
 
-    func removeFromLibrary(manga: MangaInfo) async {
-        pinnedManga.removeAll { $0.mangaId == manga.mangaId && $0.sourceId == manga.sourceId }
-        self.manga.removeAll { $0.mangaId == manga.mangaId && $0.sourceId == manga.sourceId }
-        await MangaManager.shared.removeFromLibrary(sourceId: manga.sourceId, mangaId: manga.mangaId)
+    func removeFromLibrary(manga removedManga: [MangaInfo]) {
+        let identifiers = Set(removedManga.map(\.identifier))
+        guard !identifiers.isEmpty else { return }
+        pinnedManga.removeAll { identifiers.contains($0.identifier) }
+        manga.removeAll { identifiers.contains($0.identifier) }
+        storedPinnedManga?.removeAll { identifiers.contains($0.identifier) }
+        storedManga?.removeAll { identifiers.contains($0.identifier) }
     }
 
     func addToCurrentCategory(manga: MangaInfo) async {

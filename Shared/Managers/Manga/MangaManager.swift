@@ -14,6 +14,17 @@ import Nuke
 import UIKit
 #endif
 
+struct LibraryMembershipSnapshot: Sendable {
+    let identifier: MangaIdentifier
+    let categories: [String]
+    let lastOpened: Date
+    let lastUpdated: Date
+    let lastUpdatedChapters: Date
+    let lastChapter: Date?
+    let lastRead: Date?
+    let dateAdded: Date
+}
+
 actor MangaManager {
     static let shared = MangaManager()
 
@@ -149,47 +160,145 @@ extension MangaManager {
     }
 
     func removeFromLibrary(sourceId: String, mangaId: String) async {
-        // Get manga object for notification before deletion
-        let mangaForNotification = await CoreDataManager.shared.container.performBackgroundTask { context in
-            CoreDataManager.shared.getManga(sourceId: sourceId, mangaId: mangaId, context: context)?.toNewManga()
-        }
+        _ = await removeFromLibrary(
+            manga: [.init(sourceKey: sourceId, mangaKey: mangaId)]
+        )
+    }
 
-        await CoreDataManager.shared.container.performBackgroundTask { context in
-            // Library membership is independent from the manga record. Keep
-            // the manga and its chapters so history and a future details view
-            // remain immediately usable after removal, as in Tachiyomi/Mihon.
-            if let libraryObject = CoreDataManager.shared.getLibraryManga(
-                sourceId: sourceId,
-                mangaId: mangaId,
+    /// Remove only library membership for all identifiers in one transaction.
+    /// Manga, chapters, history, downloads, and tracker bindings remain stored.
+    @discardableResult
+    func removeFromLibrary(
+        manga identifiers: [MangaIdentifier]
+    ) async -> [LibraryMembershipSnapshot] {
+        let selected = Set(identifiers)
+        guard !selected.isEmpty else { return [] }
+
+        let sendsItemNotification = selected.count == 1
+        let result = await CoreDataManager.shared.container.performBackgroundTask {
+            @Sendable context -> ([LibraryMembershipSnapshot], AidokuRunner.Manga?) in
+            var snapshots: [LibraryMembershipSnapshot] = []
+            var removedManga: AidokuRunner.Manga?
+            snapshots.reserveCapacity(selected.count)
+
+            for libraryObject in CoreDataManager.shared.getLibraryManga(
                 context: context
             ) {
+                guard
+                    let mangaObject = libraryObject.manga,
+                    selected.contains(mangaObject.identifier)
+                else {
+                    continue
+                }
+                snapshots.append(
+                    .init(
+                        identifier: mangaObject.identifier,
+                        categories: (libraryObject.categories?.allObjects as? [CategoryObject])?
+                            .compactMap(\.title) ?? [],
+                        lastOpened: libraryObject.lastOpened,
+                        lastUpdated: libraryObject.lastUpdated,
+                        lastUpdatedChapters: libraryObject.lastUpdatedChapters,
+                        lastChapter: libraryObject.lastChapter,
+                        lastRead: libraryObject.lastRead,
+                        dateAdded: libraryObject.dateAdded
+                    )
+                )
+                if sendsItemNotification {
+                    removedManga = mangaObject.toNewManga()
+                }
                 context.delete(libraryObject)
             }
-            // remove associated trackers
-            if
-                case let items = CoreDataManager.shared.getTracks(
-                    sourceId: sourceId,
-                    mangaId: mangaId,
-                    context: context
-                ).map({ $0.toItem() }),
-                !items.isEmpty
-            {
-                for item in items {
-                    TrackerManager.shared.removeTrackItem(item: item, context: context)
-                }
-            }
+
             do {
                 try context.save()
+                return (snapshots, removedManga)
             } catch {
-                LogManager.logger.error("MangaManager.removeFromLibrary(mangaId: \(mangaId)): \(error.localizedDescription)")
+                context.rollback()
+                LogManager.logger.error(
+                    "MangaManager.removeFromLibrary(batch): " +
+                        error.localizedDescription
+                )
+                return ([], nil)
             }
         }
 
-        // Post specific notification for removal with manga object
-        if let mangaForNotification {
-            NotificationCenter.default.post(name: .removeFromLibrary, object: mangaForNotification)
+        // Item-level observers only need a notification for the single-title
+        // path. A bulk operation uses one library refresh instead of hundreds
+        // of collection-view reload notifications.
+        if let manga = result.1 {
+            NotificationCenter.default.post(
+                name: .removeFromLibrary,
+                object: manga
+            )
+        }
+        NotificationCenter.default.post(name: .updateLibrary, object: nil)
+        return result.0
+    }
+
+    /// Restore membership from the lightweight snapshot used by UndoManager.
+    func restoreLibraryMembership(
+        _ snapshots: [LibraryMembershipSnapshot]
+    ) async {
+        guard !snapshots.isEmpty else { return }
+        let sendsItemNotification = snapshots.count == 1
+        let restored = await CoreDataManager.shared.container.performBackgroundTask {
+            @Sendable context -> AidokuRunner.Manga? in
+            let categoriesByTitle = Dictionary(
+                CoreDataManager.shared.getCategories(
+                    sorted: false,
+                    context: context
+                ).compactMap { category in
+                    category.title.map { ($0, category) }
+                },
+                uniquingKeysWith: { first, _ in first }
+            )
+            var restoredManga: AidokuRunner.Manga?
+
+            for snapshot in snapshots {
+                guard
+                    let mangaObject = CoreDataManager.shared.getManga(
+                        sourceId: snapshot.identifier.sourceKey,
+                        mangaId: snapshot.identifier.mangaKey,
+                        context: context
+                    ),
+                    mangaObject.libraryObject == nil
+                else {
+                    continue
+                }
+                let libraryObject = LibraryMangaObject(context: context)
+                libraryObject.manga = mangaObject
+                libraryObject.lastOpened = snapshot.lastOpened
+                libraryObject.lastUpdated = snapshot.lastUpdated
+                libraryObject.lastUpdatedChapters = snapshot.lastUpdatedChapters
+                libraryObject.lastChapter = snapshot.lastChapter
+                libraryObject.lastRead = snapshot.lastRead
+                libraryObject.dateAdded = snapshot.dateAdded
+                libraryObject.categories = NSSet(
+                    array: snapshot.categories.compactMap {
+                        categoriesByTitle[$0]
+                    }
+                )
+                if sendsItemNotification {
+                    restoredManga = mangaObject.toNewManga()
+                }
+            }
+
+            do {
+                try context.save()
+                return restoredManga
+            } catch {
+                context.rollback()
+                LogManager.logger.error(
+                    "MangaManager.restoreLibraryMembership: " +
+                        error.localizedDescription
+                )
+                return nil
+            }
         }
 
+        if let manga = restored {
+            NotificationCenter.default.post(name: .addToLibrary, object: manga)
+        }
         NotificationCenter.default.post(name: .updateLibrary, object: nil)
     }
 

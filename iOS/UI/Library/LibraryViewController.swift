@@ -1671,6 +1671,7 @@ extension LibraryViewController: UISearchResultsUpdating {
 extension LibraryViewController {
     @discardableResult
     func removeFromLibrary(mangaInfo: [MangaInfo]) -> Task<Void, Never>? {
+        guard !mangaInfo.isEmpty else { return nil }
         let mangaCount = mangaInfo.count
         let actionName =
             mangaCount > 1
@@ -1679,48 +1680,36 @@ extension LibraryViewController {
             ) : NSLocalizedString("REMOVING_(ONE)_ITEM_FROM_LIBRARY")
         undoManager.setActionName(actionName)
 
-        let removedManga = mangaInfo.map {
-            let manga = CoreDataManager.shared.getManga(sourceId: $0.sourceId, mangaId: $0.mangaId)?
-                .toManga()
+        return Task {
+            // Update the in-memory snapshot immediately with a single O(n)
+            // filter, then perform one background Core Data transaction.
+            viewModel.removeFromLibrary(manga: mangaInfo)
+            // Animating hundreds of simultaneous diffable-data-source deletes
+            // can monopolize the main thread even though the model update is
+            // cheap. Keep the animation for the normal single-title action.
+            updateDataSource(animatingDifferences: mangaInfo.count == 1)
 
-            let chapters = CoreDataManager.shared.getChapters(
-                sourceId: $0.sourceId, mangaId: $0.mangaId
-            ).map { $0.toChapter() }
-
-            let trackItems = CoreDataManager.shared.getTracks(
-                sourceId: $0.sourceId, mangaId: $0.mangaId
-            ).map { $0.toItem() }
-
-            let categories = CoreDataManager.shared.getCategories(
-                sourceId: $0.sourceId, mangaId: $0.mangaId
-            ).compactMap { $0.title }
-
-            return (manga, chapters, trackItems, categories)
-        }
-
-        undoManager.registerUndo(withTarget: self) { target in
-            target.undoManager.registerUndo(withTarget: target) { redoTarget in
-                redoTarget.removeFromLibrary(mangaInfo: mangaInfo)
+            let snapshots = await MangaManager.shared.removeFromLibrary(
+                manga: mangaInfo.map(\.identifier)
+            )
+            guard !snapshots.isEmpty else {
+                await viewModel.loadLibrary()
+                updateDataSource()
+                return
             }
 
-            Task {
-                for (manga, chapters, trackItems, categories) in removedManga {
-                    guard let manga = manga else { continue }
-                    await MangaManager.shared.restoreToLibrary(
-                        manga: manga, chapters: chapters, trackItems: trackItems,
-                        categories: categories)
+            undoManager.registerUndo(withTarget: self) { target in
+                target.undoManager.registerUndo(withTarget: target) {
+                    redoTarget in
+                    redoTarget.removeFromLibrary(mangaInfo: mangaInfo)
                 }
 
-                NotificationCenter.default.post(name: .updateLibrary, object: nil)
+                Task {
+                    await MangaManager.shared.restoreLibraryMembership(
+                        snapshots
+                    )
+                }
             }
-        }
-
-        return Task {
-            for manga in mangaInfo {
-                await viewModel.removeFromLibrary(manga: manga)
-            }
-
-            updateDataSource()
         }
     }
 
