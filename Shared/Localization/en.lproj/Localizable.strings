@@ -109,6 +109,7 @@
 "REMOVING_(ONE)_ITEM_FROM_CATEGORY_%@" = "Removing Item from Category %@";
 "REMOVING_%i_ITEMS_FROM_CATEGORY_%@" = "Removing %i Items from Category %@";
 "REFRESHING_LIBRARY" = "Refreshing Library…";
+"CALCULATING_LIBRARY_REFRESH" = "Calculating titles to refresh…";
 "PROCESSING_ENTRIES" = "Processing Entries…";
 "REFRESH_NO_WIFI" = "Not Connected to Wi-Fi";
 "REFRESH_NO_WIFI_TEXT" = "The \"Only Update on Wi-Fi\" setting is enabled, so the library cannot be refreshed until a Wi-Fi connection is available.";

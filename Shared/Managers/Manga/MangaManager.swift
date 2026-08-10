@@ -686,9 +686,9 @@ extension MangaManager {
                     skipReachabilityCheck: skipReachabilityCheck,
                     forceAll: forceAll,
                     task: task,
-                    refreshStarted: { progress in
+                    refreshStarted: {
 #if !os(macOS)
-                        await tabController?.showLibraryRefreshView(progress: progress)
+                        await tabController?.showLibraryRefreshView()
 
                         self.onLibraryRefreshProgress = { progress in
                             tabController?.setLibraryRefreshProgress(progress)
@@ -794,8 +794,20 @@ extension MangaManager {
         skipReachabilityCheck: Bool,
         forceAll: Bool,
         task: ProgressReporting? = nil,
-        refreshStarted: ((LibraryRefreshProgress) async -> Void)? = nil
+        refreshStarted: (() async -> Void)? = nil
     ) async {
+        // Avoid showing refresh UI for a request that cannot run, but show it
+        // before source loading and filtering so that work never feels stalled.
+        if
+            !skipReachabilityCheck,
+            UserDefaults.standard.bool(forKey: "Library.updateOnlyOnWifi"),
+            Reachability.getConnectionType() != .wifi
+        {
+            return
+        }
+
+        await refreshStarted?()
+
         // make sure user agent and sources have loaded before doing library refresh
         _ = await UserAgentProvider.shared.getUserAgent()
         await SourceManager.shared.waitForSourcesLoad()
@@ -806,15 +818,6 @@ extension MangaManager {
         // fetch all library items from db
         let allManga = await CoreDataManager.shared.container.performBackgroundTask { context in
             CoreDataManager.shared.getLibraryManga(category: category, context: context).compactMap { $0.manga?.toManga() }
-        }
-
-        // check if connected to wi-fi
-        if
-            !skipReachabilityCheck,
-            UserDefaults.standard.bool(forKey: "Library.updateOnlyOnWifi"),
-            Reachability.getConnectionType() != .wifi
-        {
-            return
         }
 
         let skipOptions = forceAll ? [] : UserDefaults.standard.stringArray(forKey: "Library.skipTitles") ?? []
@@ -841,7 +844,7 @@ extension MangaManager {
         task?.progress.totalUnitCount = Int64(total)
         task?.progress.completedUnitCount = 0
 
-        await refreshStarted?(initialProgress)
+        await onLibraryRefreshProgress?(initialProgress)
 
 #if !os(macOS)
         if #available(iOS 26.0, *),
