@@ -236,7 +236,6 @@ class LibraryCategorySelectionHeader: UICollectionReusableView {
 struct LibraryFilterDrawerView: View {
     private let originalFilters: [LibraryFilter]
     private let sourceKeys: [String]
-    private let categories: [String]
     private let onApply: ([LibraryFilter]) -> Void
 
     @State private var filters: [LibraryFilter]
@@ -246,12 +245,10 @@ struct LibraryFilterDrawerView: View {
     init(
         filters: [LibraryFilter],
         sourceKeys: [String],
-        categories: [String],
         onApply: @escaping ([LibraryFilter]) -> Void
     ) {
         self.originalFilters = filters
         self.sourceKeys = sourceKeys
-        self.categories = categories
         self.onApply = onApply
         self._filters = State(initialValue: filters)
     }
@@ -291,16 +288,6 @@ struct LibraryFilterDrawerView: View {
                             }
                         } label: {
                             filterGroupLabel(for: .source)
-                        }
-                    }
-
-                    if !categories.isEmpty {
-                        DisclosureGroup {
-                            ForEach(categories, id: \.self) { category in
-                                filterRow(title: category, method: .category, value: category)
-                            }
-                        } label: {
-                            filterGroupLabel(for: .category)
                         }
                     }
                 }

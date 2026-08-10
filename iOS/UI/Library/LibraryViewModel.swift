@@ -157,8 +157,17 @@ class LibraryViewModel {
     init() {
         let filtersData = UserDefaults.standard.data(forKey: "Library.filters")
         if let filtersData {
-            let filters = try? JSONDecoder().decode([LibraryFilter].self, from: filtersData)
-            self.filters = filters ?? []
+            let decodedFilters =
+                (try? JSONDecoder().decode([LibraryFilter].self, from: filtersData))
+                ?? []
+            // Categories are selected by the library tab bar. Discard legacy
+            // drawer category filters so they cannot remain invisibly active.
+            self.filters = decodedFilters.filter { $0.type != .category }
+            if self.filters != decodedFilters,
+               let cleanedData = try? JSONEncoder().encode(self.filters)
+            {
+                UserDefaults.standard.set(cleanedData, forKey: "Library.filters")
+            }
         } else {
             self.filters = []
         }
@@ -203,6 +212,12 @@ extension LibraryViewModel {
     private var needsDownloadData: Bool {
         badgeType.contains(.downloaded) ||
             effectiveFilters.contains { $0.type == .downloaded }
+    }
+
+    func hasEffectiveFilter(
+        _ methods: Set<LibraryFilter.FilterMethod>
+    ) -> Bool {
+        effectiveFilters.contains { methods.contains($0.type) }
     }
 
     func isCategoryLocked() -> Bool {
@@ -425,7 +440,9 @@ extension LibraryViewModel {
                 await fetchUnreads(skipSortCheck: true)
             }
             if needsDownloadData {
-                await fetchDownloadCounts()
+                // The enclosing load applies downloaded filters after the
+                // counts are populated, so avoid starting a nested reload.
+                await fetchDownloadCounts(reapplyFilters: false)
             }
         } else {
             for index in self.manga.indices {
@@ -566,7 +583,7 @@ extension LibraryViewModel {
                 }
             }
         }
-        if pinType == .unread {
+        if pinType == .unread || hasEffectiveFilter([.hasUnread, .started]) {
             await loadLibrary()
         } else if sortMethod == .unreadChapters {
             await sortLibrary()
@@ -596,33 +613,32 @@ extension LibraryViewModel {
         onlyUncached: Bool = false
     ) async {
         if !skipSortCheck && pinType == .unread {
-            // re-load library to ensure pinned manga is correct
-            await loadLibrary()
+            // Refresh counts as part of the reload so newly read titles move
+            // out of the pinned section immediately.
+            await loadLibrary(refreshBadges: true)
             return
-        }
-
-        let currentManga = (self.manga + self.pinnedManga).filter {
-            !onlyUncached || unreadBadgeCache[$0.identifier] == nil
         }
 
         // Use one grouped store query. Issuing multiple Core Data requests for
         // every title makes a history refresh scale with the number of manga.
-        let unreadCounts = await CoreDataManager.shared.container
+        let allUnreadCounts = await CoreDataManager.shared.container
             .performBackgroundTask { @Sendable context in
-                let allCounts = CoreDataManager.shared.libraryUnreadCounts(
+                CoreDataManager.shared.libraryUnreadCounts(
                     context: context
                 )
-                return Dictionary(
-                    uniqueKeysWithValues: currentManga.map {
-                        ($0.identifier, allCounts[$0.identifier] ?? 0)
-                    }
-                )
+            }
+
+        let unreadCounts = if onlyUncached {
+            allUnreadCounts.filter { unreadBadgeCache[$0.key] == nil }
+        } else {
+            allUnreadCounts
         }
 
-        for manga in currentManga {
-            if let count = unreadCounts[manga.identifier] {
-                unreadBadgeCache[manga.identifier] = count
-            }
+        // Keep counts for the whole library current. This matters for exclude
+        // filters: a currently hidden title may need to reappear after a
+        // history change.
+        for (identifier, count) in unreadCounts {
+            unreadBadgeCache[identifier] = count
         }
         saveUnreadBadgeCache()
 
@@ -672,8 +688,8 @@ extension LibraryViewModel {
             }
         }
         // re-sort library if needed
-        if didUpdate {
-            if pinType == .unread {
+        if didUpdate || hasEffectiveFilter([.hasUnread]) {
+            if pinType == .unread || hasEffectiveFilter([.hasUnread]) {
                 await loadLibrary()
             } else if sortMethod == .unreadChapters {
                 await sortLibrary()
@@ -683,7 +699,8 @@ extension LibraryViewModel {
 
     func fetchDownloadCounts(
         for identifier: MangaIdentifier? = nil,
-        onlyUncached: Bool = false
+        onlyUncached: Bool = false,
+        reapplyFilters: Bool = true
     ) async {
         var downloadCounts: [MangaIdentifier: Int] = [:]
         if let identifier {
@@ -711,9 +728,12 @@ extension LibraryViewModel {
                 self.manga[i].downloads = count
             }
         }
+        if reapplyFilters && hasEffectiveFilter([.downloaded]) {
+            await loadLibrary()
+        }
     }
 
-    func clearDownloadCounts() {
+    func clearDownloadCounts() async {
         downloadBadgeCache.removeAll()
         saveDownloadBadgeCache()
         for index in pinnedManga.indices {
@@ -721,6 +741,9 @@ extension LibraryViewModel {
         }
         for index in manga.indices {
             manga[index].downloads = 0
+        }
+        if hasEffectiveFilter([.downloaded]) {
+            await loadLibrary()
         }
     }
 

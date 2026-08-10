@@ -166,12 +166,12 @@ struct SettingsTrackingView: View {
                         } catch {
                             LogManager.logger.error("Unable to log out from \(tracker.name) tracker: \(error)")
                         }
-                        NotificationCenter.default.post(name: .updateTrackers, object: nil)
                         // Remove all tracked items for this tracker
                         await CoreDataManager.shared.container.performBackgroundTask { @Sendable context in
                             CoreDataManager.shared.removeTracks(trackerId: tracker.id, context: context)
                             try? context.save()
                         }
+                        NotificationCenter.default.post(name: .updateTrackers, object: nil)
                     }
                 }
             }
@@ -291,6 +291,7 @@ extension SettingsTrackingView {
                 } catch {
                     LogManager.logger.error("Unable to remove tracker items from source: \(error)")
                 }
+                NotificationCenter.default.post(name: .updateTrackers, object: nil)
             }
         }
     }

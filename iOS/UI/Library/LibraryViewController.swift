@@ -298,8 +298,10 @@ class LibraryViewController: OldMangaCollectionViewController {
         let updateDownloadCounts: (Notification) -> Void = { [weak self] notification in
             guard let self else { return }
             if notification.name == .downloadsRemoved, notification.object == nil {
-                self.viewModel.clearDownloadCounts()
-                self.updateDataSource()
+                Task {
+                    await self.viewModel.clearDownloadCounts()
+                    self.updateDataSource()
+                }
                 return
             }
             if let id = notification.object as? ChapterIdentifier {
@@ -380,7 +382,14 @@ class LibraryViewController: OldMangaCollectionViewController {
                 } else {
                     false
                 }
-                if !libraryReloaded {
+                let metadataFilterChanged = self.viewModel.hasEffectiveFilter([
+                    .completed,
+                    .contentRating,
+                    .source
+                ])
+                if metadataFilterChanged {
+                    await self.viewModel.loadLibrary()
+                } else if !libraryReloaded {
                     if self.viewModel.sortMethod == .lastUpdated || self.viewModel.sortMethod == .lastChapter {
                         // if sorting by updated or last chapter, or pinning updated, we need to reload the library to update the order
                         await self.viewModel.loadLibrary()
@@ -389,6 +398,17 @@ class LibraryViewController: OldMangaCollectionViewController {
                         await self.viewModel.fetchUnreads(for: id)
                     }
                 }
+                self.updateDataSource()
+            }
+        }
+        addObserver(forName: .updateTrackers) { [weak self] _ in
+            guard let self,
+                  self.viewModel.hasEffectiveFilter([.tracking])
+            else {
+                return
+            }
+            Task { @MainActor in
+                await self.viewModel.loadLibrary()
                 self.updateDataSource()
             }
         }
@@ -479,6 +499,9 @@ class LibraryViewController: OldMangaCollectionViewController {
             guard let self, let item = notification.object as? (chapter: Chapter, page: Int) else { return }
             Task { @MainActor in
                 self.viewModel.mangaRead(sourceId: item.chapter.sourceId, mangaId: item.chapter.mangaId)
+                if self.viewModel.hasEffectiveFilter([.started]) {
+                    await self.viewModel.loadLibrary()
+                }
                 self.updateDataSource()
             }
         }
@@ -1056,14 +1079,11 @@ extension LibraryViewController {
         guard presentedFilterDrawer == nil else { return }
 
         var sourceKeys = viewModel.sourceKeys
-        var categories = viewModel.categories
         for filter in viewModel.filters {
             guard let value = filter.value else { continue }
             switch filter.type {
                 case .source where !sourceKeys.contains(value):
                     sourceKeys.append(value)
-                case .category where !categories.contains(value):
-                    categories.append(value)
                 default:
                     break
             }
@@ -1071,8 +1091,7 @@ extension LibraryViewController {
 
         let view = LibraryFilterDrawerView(
             filters: viewModel.filters,
-            sourceKeys: sourceKeys,
-            categories: categories
+            sourceKeys: sourceKeys
         ) { [weak self] filters in
             self?.applyLibraryFilters(filters)
         }
