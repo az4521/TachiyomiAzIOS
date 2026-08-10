@@ -65,11 +65,6 @@ actor NotificationManager {
     /// an app-managed notification or Live Activity while the system UI exists.
     private var systemManagedProgressOperations: Set<ProgressOperation> = []
 
-#if os(iOS)
-    @available(iOS 16.1, *)
-    private var liveActivities: [ProgressOperation: Activity<ProgressLiveActivityAttributes>] = [:]
-#endif
-
     nonisolated func isEnabled() -> Bool {
         UserDefaults.standard.bool(forKey: Self.settingKey)
     }
@@ -427,26 +422,20 @@ actor NotificationManager {
         _ operation: ProgressOperation,
         state: ProgressState
     ) async -> Bool {
-        if liveActivities[operation] != nil {
-            let updated = await updateLiveActivity(operation, state: state)
-            if updated {
-                removeProgressNotification(operation)
-            }
-            return updated
-        }
-
         // The app process can be relaunched while a Live Activity remains on
         // screen. Reuse its stable operation attribute instead of requesting a
         // second activity for the same library refresh/download queue.
         if let existing = Activity<ProgressLiveActivityAttributes>.activities.first(
             where: { $0.attributes.operationIdentifier == operation.rawValue }
         ) {
-            liveActivities[operation] = existing
-            let updated = await updateLiveActivity(operation, state: state)
-            if updated {
-                removeProgressNotification(operation)
+            let contentState = liveActivityContentState(for: operation, state: state)
+            if #available(iOS 16.2, *) {
+                await existing.update(ActivityContent(state: contentState, staleDate: nil))
+            } else {
+                await existing.update(using: contentState)
             }
-            return updated
+            removeProgressNotification(operation)
+            return true
         }
 
         // ActivityKit only permits an app to start a Live Activity while the
@@ -459,14 +448,13 @@ actor NotificationManager {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return false }
         let contentState = liveActivityContentState(for: operation, state: state)
         do {
-            let activity = try Activity.request(
+            _ = try Activity.request(
                 attributes: ProgressLiveActivityAttributes(
                     operationIdentifier: operation.rawValue
                 ),
                 contentState: contentState,
                 pushType: nil
             )
-            liveActivities[operation] = activity
             removeProgressNotification(operation)
             return true
         } catch {
@@ -482,7 +470,9 @@ actor NotificationManager {
         _ operation: ProgressOperation,
         state: ProgressState
     ) async -> Bool {
-        guard let activity = liveActivities[operation] else { return false }
+        guard let activity = Activity<ProgressLiveActivityAttributes>.activities.first(
+            where: { $0.attributes.operationIdentifier == operation.rawValue }
+        ) else { return false }
         let contentState = liveActivityContentState(for: operation, state: state)
         if #available(iOS 16.2, *) {
             await activity.update(ActivityContent(state: contentState, staleDate: nil))
@@ -497,14 +487,8 @@ actor NotificationManager {
         _ operation: ProgressOperation,
         state: ProgressState?
     ) async {
-        let trackedActivity = liveActivities.removeValue(forKey: operation)
-        var activities = Activity<ProgressLiveActivityAttributes>.activities.filter {
+        let activities = Activity<ProgressLiveActivityAttributes>.activities.filter {
             $0.attributes.operationIdentifier == operation.rawValue
-        }
-        if let trackedActivity,
-           !activities.contains(where: { $0.id == trackedActivity.id })
-        {
-            activities.append(trackedActivity)
         }
         guard !activities.isEmpty else { return }
 
