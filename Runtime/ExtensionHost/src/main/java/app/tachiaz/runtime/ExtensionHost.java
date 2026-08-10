@@ -31,6 +31,10 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class ExtensionHost {
     private static final ConcurrentHashMap<String, LoadedExtension> EXTENSIONS =
         new ConcurrentHashMap<>();
+    // Some extension image metadata/decoder libraries retain parser state in
+    // static fields. Concurrent page prefetches can otherwise pair the bitmap
+    // body from one request with another request's descrambling permutation.
+    private static final Object IMAGE_MATERIALIZATION_LOCK = new Object();
     private static boolean compatibilityInitialized;
     private static Object compatibilityApplication;
     private static Thread compatibilityLooperThread;
@@ -1253,12 +1257,14 @@ public final class ExtensionHost {
 
     private static String materializeImage(Map<String, String> request)
         throws Exception {
-        return materializeImage(
-            requireSource(request),
-            require(request, "imageURL"),
-            request.get("pageURL"),
-            require(request, "destinationPath")
-        );
+        synchronized (IMAGE_MATERIALIZATION_LOCK) {
+            return materializeImage(
+                requireSource(request),
+                require(request, "imageURL"),
+                request.get("pageURL"),
+                require(request, "destinationPath")
+            );
+        }
     }
 
     static String materializeImage(
