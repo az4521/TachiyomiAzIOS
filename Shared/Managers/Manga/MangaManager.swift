@@ -417,8 +417,14 @@ extension MangaManager {
                 // BGTaskScheduler requests are one-shot. Queue the next request
                 // before starting any network work so the schedule survives an
                 // update failure or the app being suspended during the refresh.
-                await self.scheduleNextLibraryRefresh(after: .now)
-                await self.refreshLibrary(category: self.targetCategory, task: task as? ProgressReporting)
+                let category = await self.targetCategory
+                if category == nil {
+                    await self.scheduleNextLibraryRefresh(after: .now)
+                }
+                await self.refreshLibrary(
+                    category: category,
+                    task: task as? ProgressReporting
+                )
 
                 completion.complete(task, success: true)
             }
@@ -445,11 +451,14 @@ extension MangaManager {
                 }
 
                 Task { @Sendable in
+                    let category = await self.targetCategory
                     await self.refreshLibrary(
-                        category: self.targetCategory,
+                        category: category,
                         task: task as? ProgressReporting
                     )
-                    await self.scheduleNextLibraryRefresh(after: .now)
+                    if category == nil {
+                        await self.scheduleNextLibraryRefresh(after: .now)
+                    }
                     completion.complete(task, success: true)
                 }
             }
@@ -552,7 +561,9 @@ extension MangaManager {
 #endif
 
         await refreshLibrary(category: category)
-        scheduleNextLibraryRefresh(after: .now)
+        if category == nil {
+            scheduleNextLibraryRefresh(after: .now)
+        }
 
 #if !os(macOS)
         await endLibraryBackgroundExecution()
@@ -686,6 +697,7 @@ extension MangaManager {
 #endif
 
         NotificationCenter.default.post(name: .updateLibrary, object: nil)
+        NotificationCenter.default.post(name: .libraryRefreshFinished, object: nil)
     }
 
     /// Check if a manga should skip updating based on skip options.
@@ -1001,7 +1013,7 @@ extension MangaManager {
         }
 
         let cancelled = Task.isCancelled
-        if !cancelled {
+        if !cancelled, category == nil {
             UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "Library.lastUpdated")
         }
         let completionSummary: String

@@ -713,6 +713,13 @@ extension LibraryViewController {
 
     @objc func updateLibraryRefresh(refreshControl: UIRefreshControl? = nil) {
         let isBlockedByNoWifi = UserDefaults.standard.bool(forKey: "Library.updateOnlyOnWifi") && Reachability.getConnectionType() != .wifi
+        // nil means All, while an empty string intentionally identifies the
+        // uncategorized tab.
+        let refreshCategory = if viewModel.isInRealCategory || viewModel.isInUncategorizedCategory {
+            viewModel.currentCategory
+        } else {
+            nil
+        }
 
         Task {
             // delay hiding refresh control to avoid buggy animation
@@ -728,7 +735,7 @@ extension LibraryViewController {
                         UIAlertAction(title: NSLocalizedString("REFRESH_ANYWAYS"), style: .default) { _ in
                             Task {
                                 await MangaManager.shared.backgroundRefreshLibrary(
-                                    category: self.viewModel.isInRealCategory ? self.viewModel.currentCategory : nil,
+                                    category: refreshCategory,
                                     skipReachabilityCheck: true
                                 )
                             }
@@ -742,7 +749,7 @@ extension LibraryViewController {
         guard !isBlockedByNoWifi else { return }
         Task {
             await MangaManager.shared.backgroundRefreshLibrary(
-                category: viewModel.isInRealCategory ? viewModel.currentCategory : nil
+                category: refreshCategory
             )
         }
     }

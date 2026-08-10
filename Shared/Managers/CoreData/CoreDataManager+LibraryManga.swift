@@ -37,7 +37,16 @@ extension CoreDataManager {
         let context = context ?? self.context
         let request = LibraryMangaObject.fetchRequest()
         if let category = category {
-            request.predicate = NSPredicate(format: "manga != nil AND any categories.title = %@", category)
+            if category.isEmpty {
+                request.predicate = NSPredicate(
+                    format: "manga != nil AND categories.@count == 0"
+                )
+            } else {
+                request.predicate = NSPredicate(
+                    format: "manga != nil AND any categories.title = %@",
+                    category
+                )
+            }
         } else {
             request.predicate = NSPredicate(format: "manga != nil")
         }

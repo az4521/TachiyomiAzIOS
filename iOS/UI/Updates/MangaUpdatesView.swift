@@ -63,14 +63,16 @@ struct MangaUpdatesView: View {
                 }
             }
             .listStyle(.plain)
+            .refreshable {
+                await MangaManager.shared.backgroundRefreshLibrary()
+            }
             .overlay {
                 if hasNoUpdates {
-                    VStack(alignment: .center) {
-                        Spacer()
-                        Text(NSLocalizedString("NO_UPDATES"))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                    }
+                    UnavailableView(
+                        NSLocalizedString("NO_UPDATES"),
+                        systemImage: "bell.slash"
+                    )
+                    .allowsHitTesting(false)
                 }
             }
         }
@@ -88,6 +90,12 @@ struct MangaUpdatesView: View {
                         }
                     }
                 }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .libraryRefreshFinished)) { _ in
+            loadingTask?.cancel()
+            loadingTask = Task { @MainActor in
+                await reloadEntries()
             }
         }
     }
@@ -165,8 +173,11 @@ extension MangaUpdatesView {
             }
         }
         guard !newUpdates.isEmpty else {
-            reachedEnd = true
-            loadingMore = false
+            withAnimation {
+                reachedEnd = true
+                loadingMore = false
+                hasNoUpdates = entries.isEmpty
+            }
             return
         }
 
@@ -215,6 +226,16 @@ extension MangaUpdatesView {
                 hasNoUpdates = true
             }
         }
+    }
+
+    @MainActor
+    private func reloadEntries() async {
+        entries = []
+        offset = 0
+        reachedEnd = false
+        loadingMore = true
+        hasNoUpdates = false
+        await loadNewEntries()
     }
 
     private func setOpened(manga: AidokuRunner.Manga) {
