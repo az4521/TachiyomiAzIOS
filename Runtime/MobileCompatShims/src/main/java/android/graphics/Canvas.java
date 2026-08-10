@@ -1,6 +1,11 @@
 package android.graphics;
 
 import app.tachiaz.compat.NativeBridge;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,6 +39,7 @@ public final class Canvas {
         int sourceHeight = src.bottom - src.top;
         int destinationWidth = dst.right - dst.left;
         int destinationHeight = dst.bottom - dst.top;
+        traceBitmapCopy(src, dst);
         // Exact, untransformed rectangle copies are common in image
         // descramblers. Perform them through Bitmap's row-oriented pixel API
         // so their Android top-left coordinates never cross the Core Graphics
@@ -91,6 +97,28 @@ public final class Canvas {
             tx,
             ty
         );
+    }
+
+    private static void traceBitmapCopy(Rect source, Rect destination) {
+        String tracePath = System.getProperty("tachiyomiaz.canvas.trace");
+        if (tracePath == null || tracePath.isEmpty()) {
+            return;
+        }
+        String line = source.left + "," + source.top + "," +
+            source.right + "," + source.bottom + " -> " +
+            destination.left + "," + destination.top + "," +
+            destination.right + "," + destination.bottom + "\n";
+        try {
+            Path path = Paths.get(tracePath);
+            Files.write(
+                path,
+                line.getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.CREATE,
+                StandardOpenOption.APPEND
+            );
+        } catch (Exception ignored) {
+            // Diagnostics must never make an extension image request fail.
+        }
     }
 
     public void drawBitmap(Bitmap source, float left, float top, Paint paint) {

@@ -1191,6 +1191,12 @@ actor JVMSourceRuntime {
                     "The extension returned an empty image."
                 )
             }
+            if URL(string: imageURL)?.fragment != nil {
+                exportImageDiagnostics(
+                    destination: destination,
+                    imageURL: imageURL
+                )
+            }
             return .init(
                 fileURL: destination,
                 contentType: descriptor.contentType
@@ -1199,6 +1205,42 @@ actor JVMSourceRuntime {
             try? fileManager.removeItem(at: destination)
             throw error
         }
+    }
+
+    private func exportImageDiagnostics(
+        destination: URL,
+        imageURL: String
+    ) {
+        guard let documents = fileManager.urls(
+            for: .documentDirectory,
+            in: .userDomainMask
+        ).first else {
+            return
+        }
+        let directory = documents.appendingPathComponent(
+            "TachiyomiAZ-Image-Diagnostics",
+            isDirectory: true
+        )
+        try? fileManager.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        let files: [(URL, String)] = [
+            (destination.appendingPathExtension("network"), "network-image.jpg"),
+            (destination, "materialized-image.jpg"),
+            (destination.appendingPathExtension("canvas"), "canvas-trace.txt")
+        ]
+        for (source, name) in files where fileManager.fileExists(
+            atPath: source.path
+        ) {
+            let target = directory.appendingPathComponent(name)
+            try? fileManager.removeItem(at: target)
+            try? fileManager.copyItem(at: source, to: target)
+        }
+        try? Data(imageURL.utf8).write(
+            to: directory.appendingPathComponent("image-url.txt"),
+            options: .atomic
+        )
     }
 
     private func makeRuntime() async throws -> JVMRuntime {
