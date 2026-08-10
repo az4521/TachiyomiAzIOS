@@ -1733,20 +1733,15 @@ extension LibraryViewController {
             }
 
             Task {
-                for manga in mangaInfo {
-                    await target.viewModel.addToCurrentCategory(manga: manga)
-                }
-
+                await target.viewModel.addToCurrentCategory(manga: mangaInfo)
                 NotificationCenter.default.post(name: .updateMangaCategories, object: nil)
             }
         }
 
         return Task {
-            for manga in mangaInfo {
-                await viewModel.removeFromCurrentCategory(manga: manga)
-            }
-
-            updateDataSource()
+            await viewModel.removeFromCurrentCategory(manga: mangaInfo)
+            updateDataSource(animatingDifferences: mangaInfo.count == 1)
+            NotificationCenter.default.post(name: .updateMangaCategories, object: nil)
         }
     }
 }

@@ -165,28 +165,91 @@ extension CoreDataManager {
     }
 
     func addCategoriesToManga(sourceId: String, mangaId: String, categories: [String]) async {
-        await container.performBackgroundTask { context in
-            self.addCategoriesToManga(sourceId: sourceId, mangaId: mangaId, categories: categories, context: context)
-            do {
-                try context.save()
-            } catch {
-                LogManager.logger.error("CoreDataManager.addCategoriesToManga: \(error.localizedDescription)")
-            }
-        }
+        await addCategoriesToManga(
+            [.init(sourceKey: sourceId, mangaKey: mangaId)],
+            categories: categories
+        )
+    }
+
+    /// Add categories to any number of manga with one fetch and one save.
+    func addCategoriesToManga(
+        _ identifiers: [MangaIdentifier],
+        categories: [String]
+    ) async {
+        await updateMangaCategories(
+            identifiers,
+            categories: categories,
+            removing: false
+        )
     }
 
     /// Remove categories from library manga.
     func removeCategoriesFromManga(sourceId: String, mangaId: String, categories: [String]) async {
+        await removeCategoriesFromManga(
+            [.init(sourceKey: sourceId, mangaKey: mangaId)],
+            categories: categories
+        )
+    }
+
+    /// Remove categories from any number of manga with one fetch and one save.
+    func removeCategoriesFromManga(
+        _ identifiers: [MangaIdentifier],
+        categories: [String]
+    ) async {
+        await updateMangaCategories(
+            identifiers,
+            categories: categories,
+            removing: true
+        )
+    }
+
+    private func updateMangaCategories(
+        _ identifiers: [MangaIdentifier],
+        categories: [String],
+        removing: Bool
+    ) async {
+        let selected = Set(identifiers)
+        let categoryTitles = Set(categories)
+        guard !selected.isEmpty, !categoryTitles.isEmpty else { return }
+
         await container.performBackgroundTask { context in
-            guard let libraryObject = self.getLibraryManga(sourceId: sourceId, mangaId: mangaId, context: context) else { return }
-            for category in categories {
-                guard let categoryObject = self.getCategory(title: category, context: context) else { continue }
-                libraryObject.removeFromCategories(categoryObject)
+            let categoryObjects = self.getCategories(
+                sorted: false,
+                context: context
+            ).filter { category in
+                category.title.map(categoryTitles.contains) ?? false
             }
+            guard !categoryObjects.isEmpty else { return }
+
+            let request = LibraryMangaObject.fetchRequest()
+            request.predicate = NSPredicate(format: "manga != nil")
+            request.relationshipKeyPathsForPrefetching = ["manga", "categories"]
+            let libraryObjects = (try? context.fetch(request)) ?? []
+
+            for libraryObject in libraryObjects {
+                guard
+                    let mangaObject = libraryObject.manga,
+                    selected.contains(mangaObject.identifier)
+                else {
+                    continue
+                }
+                for categoryObject in categoryObjects {
+                    if removing {
+                        libraryObject.removeFromCategories(categoryObject)
+                    } else {
+                        libraryObject.addToCategories(categoryObject)
+                    }
+                }
+            }
+
             do {
                 try context.save()
             } catch {
-                LogManager.logger.error("CoreDataManager.removeCategoriesFromManga: \(error.localizedDescription)")
+                context.rollback()
+                LogManager.logger.error(
+                    "CoreDataManager.updateMangaCategories(batch): " +
+                        error.localizedDescription
+                )
             }
         }
     }

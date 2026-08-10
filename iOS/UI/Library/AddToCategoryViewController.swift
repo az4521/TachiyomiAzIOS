@@ -66,17 +66,10 @@ class AddToCategoryViewController: BaseTableViewController {
     @objc func done() {
         close()
         Task {
-            await CoreDataManager.shared.container.performBackgroundTask { [selectedCategories] context in
-                for manga in self.manga {
-                    CoreDataManager.shared.addCategoriesToManga(
-                        sourceId: manga.sourceId,
-                        mangaId: manga.mangaId,
-                        categories: selectedCategories,
-                        context: context
-                    )
-                    try? context.save()
-                }
-            }
+            await CoreDataManager.shared.addCategoriesToManga(
+                manga.map(\.identifier),
+                categories: selectedCategories
+            )
             NotificationCenter.default.post(name: NSNotification.Name("updateMangaCategories"), object: manga)
         }
     }

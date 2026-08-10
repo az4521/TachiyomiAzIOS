@@ -892,22 +892,24 @@ extension LibraryViewModel {
         storedManga?.removeAll { identifiers.contains($0.identifier) }
     }
 
-    func addToCurrentCategory(manga: MangaInfo) async {
+    func addToCurrentCategory(manga: [MangaInfo]) async {
         guard let currentCategory, isInRealCategory else { return }
         await CoreDataManager.shared.addCategoriesToManga(
-            sourceId: manga.sourceId,
-            mangaId: manga.mangaId,
+            manga.map(\.identifier),
             categories: [currentCategory]
         )
     }
 
-    func removeFromCurrentCategory(manga: MangaInfo) async {
+    func removeFromCurrentCategory(manga removedManga: [MangaInfo]) async {
         guard let currentCategory, isInRealCategory else { return }
-        pinnedManga.removeAll { $0.mangaId == manga.mangaId && $0.sourceId == manga.sourceId }
-        self.manga.removeAll { $0.mangaId == manga.mangaId && $0.sourceId == manga.sourceId }
+        let identifiers = Set(removedManga.map(\.identifier))
+        guard !identifiers.isEmpty else { return }
+        pinnedManga.removeAll { identifiers.contains($0.identifier) }
+        manga.removeAll { identifiers.contains($0.identifier) }
+        storedPinnedManga?.removeAll { identifiers.contains($0.identifier) }
+        storedManga?.removeAll { identifiers.contains($0.identifier) }
         await CoreDataManager.shared.removeCategoriesFromManga(
-            sourceId: manga.sourceId,
-            mangaId: manga.mangaId,
+            Array(identifiers),
             categories: [currentCategory]
         )
     }
