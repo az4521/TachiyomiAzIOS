@@ -65,6 +65,7 @@ class SourceSearchViewModel: ObservableObject {
                     filters: filters
                 )
                 guard !Task.isCancelled else { return }
+                await CoreDataManager.shared.cacheMangaSummaries(result.entries)
                 await loadBookmarks(entries: result.entries)
                 hasMore = result.hasNextPage
                 entries = result.entries
@@ -90,6 +91,7 @@ class SourceSearchViewModel: ObservableObject {
                     filters: filters
                 )
                 guard !Task.isCancelled else { return }
+                await CoreDataManager.shared.cacheMangaSummaries(result.entries)
                 await loadBookmarks(entries: result.entries)
                 hasMore = result.hasNextPage
 

@@ -171,6 +171,8 @@ struct SourceListingsContentView: View {
             let result = try await resultTask.value
             guard !Task.isCancelled else { return }
 
+            await CoreDataManager.shared.cacheMangaSummaries(result.entries)
+
             hasMore = result.hasNextPage
             listingLoadState = hasMore ? .notLoading : .allLoaded
             page += 1

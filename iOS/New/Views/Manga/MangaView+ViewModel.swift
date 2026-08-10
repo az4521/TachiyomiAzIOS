@@ -302,6 +302,10 @@ extension MangaView.ViewModel {
         guard !fetchedDetails else { return }
         fetchedDetails = true
 
+        // A title becomes a known database record as soon as its details
+        // screen is opened, even if the source request later fails.
+        await CoreDataManager.shared.cacheMangaSummaries([manga])
+
         if let cachedManga = CoreDataManager.shared.getManga(sourceId: self.manga.sourceKey, mangaId: self.manga.key) {
             self.manga = self.manga.copy(from: cachedManga.toNewManga())
         }
@@ -325,25 +329,28 @@ extension MangaView.ViewModel {
     func fetchData() async {
         let sourceKey = manga.sourceKey
         let mangaId = manga.key
-        let inLibrary = await CoreDataManager.shared.container.performBackgroundTask { @Sendable context in
-            CoreDataManager.shared.hasLibraryManga(sourceId: sourceKey, mangaId: mangaId, context: context)
-        }
-        if inLibrary {
-            // load data from db
-            let chapters = await CoreDataManager.shared.container.performBackgroundTask { @Sendable context in
-                CoreDataManager.shared.getChapters(
+        let storedState = await CoreDataManager.shared.container.performBackgroundTask { @Sendable context in
+            (
+                inLibrary: CoreDataManager.shared.hasLibraryManga(
                     sourceId: sourceKey,
                     mangaId: mangaId,
                     context: context
-                ).map {
-                    $0.toNewChapter()
-                }
-            }
-
+                ),
+                chapters: CoreDataManager.shared.getChapters(
+                    sourceId: sourceKey,
+                    mangaId: mangaId,
+                    context: context
+                ).map { $0.toNewChapter() }
+            )
+        }
+        if storedState.inLibrary || !storedState.chapters.isEmpty {
             var newManga = self.manga
-            newManga.chapters = chapters
+            newManga.chapters = storedState.chapters
             self.manga = newManga
             self.chapters = filteredChapters()
+        }
+        if storedState.inLibrary {
+            // Library data is refreshed by the library updater or pull-to-refresh.
         } else if let source {
             // load new data from source
             await source.partialMangaPublisher?.sink { @Sendable newManga in
@@ -360,10 +367,16 @@ extension MangaView.ViewModel {
                 )
                 manga = newManga
                 chapters = filteredChapters()
+                await CoreDataManager.shared.cacheMangaDetails(
+                    newManga,
+                    includeChapters: true
+                )
             } catch {
                 withAnimation {
-                    self.manga.chapters = []
-                    self.chapters = []
+                    if storedState.chapters.isEmpty {
+                        self.manga.chapters = []
+                        self.chapters = []
+                    }
                     self.error = error
                 }
             }
@@ -531,6 +544,11 @@ extension MangaView.ViewModel {
                 }
 
                 NotificationCenter.default.post(name: .updateManga, object: newManga.identifier)
+            } else {
+                await CoreDataManager.shared.cacheMangaDetails(
+                    newManga,
+                    includeChapters: true
+                )
             }
 
             await loadHistory()
@@ -545,8 +563,8 @@ extension MangaView.ViewModel {
             await syncTrackerProgress()
         } catch {
             withAnimation {
-                self.manga.chapters = []
-                self.chapters = []
+                // Keep the last persisted details and chapter list visible if
+                // a refresh fails or the source is temporarily unavailable.
                 self.error = error
             }
         }

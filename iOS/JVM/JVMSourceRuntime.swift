@@ -1617,18 +1617,14 @@ actor TachiyomiXSourceRunner: AidokuRunner.Runner {
         // Foundation URL round-tripping must not be allowed to discard local
         // fragment metadata used by extension image interceptors.
         let imageURL = context?["mihonImageURL"] ?? url
-        let image = try await JVMSourceRuntime.shared.materializeImage(
-            extensionId: extensionId,
-            sourceId: descriptor.id,
-            imageURL: imageURL,
-            pageURL: pageURL
-        )
+        // Return a stable virtual request before doing any extension or
+        // network work. Nuke can now satisfy a cached cover/page directly;
+        // URLProtocol materializes it through the extension only on a miss.
         return JVMImageURLProtocol.request(
             extensionId: extensionId,
             sourceId: descriptor.id,
             imageURL: imageURL,
-            pageURL: pageURL,
-            preparedImage: image
+            pageURL: pageURL
         )
     }
 }
@@ -1878,23 +1874,11 @@ struct TachiyomiXMaterializedImage: Sendable {
 }
 
 final class JVMImageURLProtocol: URLProtocol {
-    // Change this when the Java/native materialization pipeline changes so
-    // Nuke cannot reuse bytes produced by an older compatibility layer.
-    private static let materializerRevision = "4"
-    // Nightly builds receive a unique CFBundleVersion. Including it prevents
-    // future native/JVM image-pipeline fixes from being hidden by an image
-    // materialized by an older installed build, even if the manual revision
-    // above is accidentally left unchanged.
-    private static let appBuildRevision = Bundle.main.object(
-        forInfoDictionaryKey: "CFBundleVersion"
-    ) as? String ?? "development"
-
     private struct Descriptor: Sendable {
         let extensionId: String
         let sourceId: Int64
         let imageURL: String
         let pageURL: String?
-        let preparedImage: TachiyomiXMaterializedImage?
     }
 
     private static let registryLock = NSLock()
@@ -1905,12 +1889,9 @@ final class JVMImageURLProtocol: URLProtocol {
         extensionId: String,
         sourceId: Int64,
         imageURL: String,
-        pageURL: String?,
-        preparedImage: TachiyomiXMaterializedImage? = nil
+        pageURL: String?
     ) -> URLRequest {
         let identity = [
-            materializerRevision,
-            appBuildRevision,
             extensionId,
             String(sourceId),
             imageURL,
@@ -1929,15 +1910,12 @@ final class JVMImageURLProtocol: URLProtocol {
             extensionId: extensionId,
             sourceId: sourceId,
             imageURL: imageURL,
-            pageURL: pageURL,
-            preparedImage: preparedImage
+            pageURL: pageURL
         )
         registryLock.unlock()
-        var request = URLRequest(
+        return URLRequest(
             url: URL(string: "tachiyomiaz-jvm-image://\(token)")!
         )
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        return request
     }
 
     override class func canInit(with request: URLRequest) -> Bool {
@@ -1964,22 +1942,12 @@ final class JVMImageURLProtocol: URLProtocol {
         loadingTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let image: TachiyomiXMaterializedImage
-                if
-                    let preparedImage = descriptor.preparedImage,
-                    FileManager.default.fileExists(
-                        atPath: preparedImage.fileURL.path
-                    )
-                {
-                    image = preparedImage
-                } else {
-                    image = try await JVMSourceRuntime.shared.materializeImage(
-                        extensionId: descriptor.extensionId,
-                        sourceId: descriptor.sourceId,
-                        imageURL: descriptor.imageURL,
-                        pageURL: descriptor.pageURL
-                    )
-                }
+                let image = try await JVMSourceRuntime.shared.materializeImage(
+                    extensionId: descriptor.extensionId,
+                    sourceId: descriptor.sourceId,
+                    imageURL: descriptor.imageURL,
+                    pageURL: descriptor.pageURL
+                )
                 defer {
                     try? FileManager.default.removeItem(at: image.fileURL)
                 }

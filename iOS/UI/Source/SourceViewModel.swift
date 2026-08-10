@@ -64,7 +64,11 @@ actor SourceViewModel {
             // load regular manga list
             result = try? await source.getMangaList(filters: selectedFilters.filters, page: page)
         }
-        let mangaInfo = result?.manga.map { $0.toInfo() } ?? []
+        let fetchedManga = result?.manga ?? []
+        await CoreDataManager.shared.cacheMangaSummaries(
+            fetchedManga.map { $0.toNew() }
+        )
+        let mangaInfo = fetchedManga.map { $0.toInfo() }
         currentPage = page
         hasMore = result?.hasNextPage ?? false
         manga.append(contentsOf: mangaInfo)

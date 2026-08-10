@@ -55,6 +55,73 @@ extension CoreDataManager {
         return createManga(manga, context: context)
     }
 
+    /// Persist the stable fields returned by browse/search pages. These
+    /// records intentionally exist independently of LibraryManga, matching
+    /// Tachiyomi's distinction between known manga and library membership.
+    func cacheMangaSummaries(_ manga: [AidokuRunner.Manga]) async {
+        guard !manga.isEmpty else { return }
+        await container.performBackgroundTask { context in
+            for (sourceId, entries) in Dictionary(
+                grouping: manga,
+                by: \.sourceKey
+            ) {
+                let ids = Array(Set(entries.map(\.key)))
+                let request = MangaObject.fetchRequest()
+                request.predicate = NSPredicate(
+                    format: "sourceId == %@ AND id IN %@",
+                    sourceId,
+                    ids
+                )
+                var objectsById = Dictionary(
+                    ((try? context.fetch(request)) ?? []).map { ($0.id, $0) },
+                    uniquingKeysWith: { first, _ in first }
+                )
+                for entry in entries {
+                    let object = objectsById[entry.key] ?? MangaObject(
+                        context: context
+                    )
+                    object.loadSummary(from: entry)
+                    objectsById[entry.key] = object
+                }
+            }
+            do {
+                try context.save()
+            } catch {
+                LogManager.logger.error(
+                    "CoreDataManager.cacheMangaSummaries: \(error.localizedDescription)"
+                )
+            }
+        }
+    }
+
+    /// Save details fetched by an opened manga screen. Chapter persistence is
+    /// optional so lightweight callers do not accidentally grow the database,
+    /// while a details screen can retain the complete list for history.
+    func cacheMangaDetails(
+        _ manga: AidokuRunner.Manga,
+        includeChapters: Bool
+    ) async {
+        await container.performBackgroundTask { context in
+            let object = self.getOrCreateManga(manga, context: context)
+            object.load(from: manga)
+            if includeChapters, let chapters = manga.chapters {
+                self.setChapters(
+                    chapters,
+                    sourceId: manga.sourceKey,
+                    mangaId: manga.key,
+                    context: context
+                )
+            }
+            do {
+                try context.save()
+            } catch {
+                LogManager.logger.error(
+                    "CoreDataManager.cacheMangaDetails: \(error.localizedDescription)"
+                )
+            }
+        }
+    }
+
     /// Check if a manga object exists.
     func hasManga(
         sourceId: String,

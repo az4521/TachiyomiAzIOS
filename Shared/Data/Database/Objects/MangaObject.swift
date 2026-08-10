@@ -15,6 +15,30 @@ public class MangaObject: NSManagedObject {
         .init(sourceKey: sourceId, mangaKey: id)
     }
 
+    /// Merge the stable fields available on a browse/search card without
+    /// erasing richer details already fetched for this title.
+    func loadSummary(from manga: AidokuRunner.Manga) {
+        let editedKeys = EditedKeys(rawValue: editedKeys)
+        id = manga.key
+        sourceId = manga.sourceKey
+        if !editedKeys.contains(.title), !manga.title.isEmpty {
+            title = manga.title
+        }
+        if
+            !editedKeys.contains(.cover),
+            let incomingCover = manga.cover,
+            !incomingCover.isEmpty
+        {
+            cover = incomingCover
+        }
+        if !editedKeys.contains(.url), let incomingURL = manga.url {
+            url = incomingURL.absoluteString
+        }
+        if let incomingMemo = manga.memo {
+            memo = incomingMemo
+        }
+    }
+
     func load(from manga: Manga, override: Bool = false) {
         let editedKeys = EditedKeys(rawValue: editedKeys)
         id = manga.id

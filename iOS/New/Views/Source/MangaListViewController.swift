@@ -54,6 +54,8 @@ extension MangaListViewController {
             let result = try await getEntries?(nextPage)
             guard let result else { return }
 
+            await CoreDataManager.shared.cacheMangaSummaries(result.entries)
+
             let newBookmarks = await CoreDataManager.shared.container.performBackgroundTask { context in
                 var items: Set<String> = []
                 for manga in result.entries where CoreDataManager.shared.hasLibraryManga(

@@ -197,6 +197,9 @@ extension SearchContentView.ViewModel {
                 }
                 if let result {
                     guard !Task.isCancelled else { return }
+                    await CoreDataManager.shared.cacheMangaSummaries(
+                        result.entries
+                    )
                     results.append(.init(source: source, result: result))
                 }
             }

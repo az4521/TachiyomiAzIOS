@@ -155,14 +155,16 @@ extension MangaManager {
         }
 
         await CoreDataManager.shared.container.performBackgroundTask { context in
-            // remove from library
-            CoreDataManager.shared.removeManga(
+            // Library membership is independent from the manga record. Keep
+            // the manga and its chapters so history and a future details view
+            // remain immediately usable after removal, as in Tachiyomi/Mihon.
+            if let libraryObject = CoreDataManager.shared.getLibraryManga(
                 sourceId: sourceId,
                 mangaId: mangaId,
                 context: context
-            )
-            // remove chapters
-            CoreDataManager.shared.removeChapters(sourceId: sourceId, mangaId: mangaId, context: context)
+            ) {
+                context.delete(libraryObject)
+            }
             // remove associated trackers
             if
                 case let items = CoreDataManager.shared.getTracks(

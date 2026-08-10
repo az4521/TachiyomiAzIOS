@@ -344,6 +344,10 @@ extension HistoryView.ViewModel {
             needsDetails: needsManga,
             needsChapters: true
         ) {
+            await CoreDataManager.shared.cacheMangaDetails(
+                newManga,
+                includeChapters: true
+            )
             await MainActor.run {
                 if needsManga {
                     self.mangaCache[mangaCacheKey] = newManga

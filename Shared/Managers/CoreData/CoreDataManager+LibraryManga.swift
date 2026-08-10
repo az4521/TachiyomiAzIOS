@@ -95,6 +95,9 @@ extension CoreDataManager {
         context: NSManagedObjectContext? = nil
     ) {
         let mangaObject = self.getOrCreateManga(manga, context: context)
+        // The object may already exist as a browse/history cache entry.
+        // Promote it with the latest full metadata when it joins the library.
+        mangaObject.load(from: manga)
         let libraryObject = LibraryMangaObject(context: context ?? self.context)
         libraryObject.manga = mangaObject
         libraryObject.lastChapter = chapters.compactMap { $0.dateUploaded }.max()
