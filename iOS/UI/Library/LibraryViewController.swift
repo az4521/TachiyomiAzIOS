@@ -715,7 +715,7 @@ extension LibraryViewController {
         let isBlockedByNoWifi = UserDefaults.standard.bool(forKey: "Library.updateOnlyOnWifi") && Reachability.getConnectionType() != .wifi
         // nil means All, while an empty string intentionally identifies the
         // uncategorized tab.
-        let refreshCategory = if viewModel.isInRealCategory || viewModel.isInUncategorizedCategory {
+        let refreshCategory: String? = if viewModel.isInRealCategory || viewModel.isInUncategorizedCategory {
             viewModel.currentCategory
         } else {
             nil
