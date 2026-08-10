@@ -1,6 +1,7 @@
 package android.graphics;
 
 import app.tachiaz.compat.NativeBridge;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -8,8 +9,11 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.zip.CRC32;
 
 public final class Canvas {
+    private static final ThreadLocal<Diagnostics> DIAGNOSTICS =
+        new ThreadLocal<Diagnostics>();
     private final Bitmap bitmap;
     // Android's affine matrix layout: x' = a*x + c*y + tx,
     // y' = b*x + d*y + ty.
@@ -28,6 +32,25 @@ public final class Canvas {
         this.bitmap = bitmap;
     }
 
+    public static void beginDiagnostics(String tracePath) {
+        if (tracePath == null || tracePath.isEmpty()) {
+            DIAGNOSTICS.remove();
+            return;
+        }
+        Diagnostics diagnostics = new Diagnostics(tracePath);
+        DIAGNOSTICS.set(diagnostics);
+        try {
+            Files.deleteIfExists(diagnostics.tracePath);
+            Files.deleteIfExists(diagnostics.decodedPath);
+        } catch (Exception ignored) {
+            // Diagnostics must never make an extension image request fail.
+        }
+    }
+
+    public static void endDiagnostics() {
+        DIAGNOSTICS.remove();
+    }
+
     public void drawBitmap(Bitmap source, Rect src, Rect dst, Paint paint) {
         if (source == null || dst == null) {
             throw new NullPointerException();
@@ -39,7 +62,7 @@ public final class Canvas {
         int sourceHeight = src.bottom - src.top;
         int destinationWidth = dst.right - dst.left;
         int destinationHeight = dst.bottom - dst.top;
-        traceBitmapCopy(src, dst);
+        captureDecodedBitmap(source);
         // Exact, untransformed rectangle copies are common in image
         // descramblers. Pack the coordinates into one array so the iOS Zero
         // JVM never has to marshal trailing rectangle arguments through its
@@ -72,6 +95,7 @@ public final class Canvas {
                     dst.bottom
                 }
             );
+            traceBitmapCopy(source, bitmap, src, dst, true);
             return;
         }
         NativeBridge.canvasDrawBitmap(
@@ -89,27 +113,98 @@ public final class Canvas {
             },
             new float[] {a, b, c, d, tx, ty}
         );
+        traceBitmapCopy(source, bitmap, src, dst, false);
     }
 
-    private static void traceBitmapCopy(Rect source, Rect destination) {
-        String tracePath = System.getProperty("tachiyomiaz.canvas.trace");
-        if (tracePath == null || tracePath.isEmpty()) {
+    private static void captureDecodedBitmap(Bitmap source) {
+        Diagnostics diagnostics = DIAGNOSTICS.get();
+        if (diagnostics == null || diagnostics.decodedWritten) {
+            return;
+        }
+        diagnostics.decodedWritten = true;
+        try (OutputStream output = Files.newOutputStream(
+            diagnostics.decodedPath,
+            StandardOpenOption.CREATE,
+            StandardOpenOption.TRUNCATE_EXISTING
+        )) {
+            source.compress(Bitmap.CompressFormat.PNG, 100, output);
+        } catch (Exception ignored) {
+            // Diagnostics must never make an extension image request fail.
+        }
+    }
+
+    private static void traceBitmapCopy(
+        Bitmap sourceBitmap,
+        Bitmap destinationBitmap,
+        Rect source,
+        Rect destination,
+        boolean exact
+    ) {
+        Diagnostics diagnostics = DIAGNOSTICS.get();
+        if (diagnostics == null) {
             return;
         }
         String line = source.left + "," + source.top + "," +
             source.right + "," + source.bottom + " -> " +
             destination.left + "," + destination.top + "," +
-            destination.right + "," + destination.bottom + "\n";
+            destination.right + "," + destination.bottom +
+            " | exact=" + exact +
+            " sourceCrc=" + bitmapCrc(sourceBitmap, source) +
+            " destinationCrc=" + bitmapCrc(destinationBitmap, destination) +
+            "\n";
         try {
-            Path path = Paths.get(tracePath);
             Files.write(
-                path,
+                diagnostics.tracePath,
                 line.getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.CREATE,
                 StandardOpenOption.APPEND
             );
         } catch (Exception ignored) {
             // Diagnostics must never make an extension image request fail.
+        }
+    }
+
+    private static String bitmapCrc(Bitmap bitmap, Rect rectangle) {
+        int width = rectangle.right - rectangle.left;
+        int height = rectangle.bottom - rectangle.top;
+        if (
+            width <= 0 || height <= 0 ||
+            (long) width * height > Integer.MAX_VALUE
+        ) {
+            return "invalid";
+        }
+        try {
+            int[] pixels = new int[width * height];
+            bitmap.getPixels(
+                pixels,
+                0,
+                width,
+                rectangle.left,
+                rectangle.top,
+                width,
+                height
+            );
+            CRC32 crc = new CRC32();
+            for (int color : pixels) {
+                crc.update((color >>> 24) & 0xff);
+                crc.update((color >>> 16) & 0xff);
+                crc.update((color >>> 8) & 0xff);
+                crc.update(color & 0xff);
+            }
+            return Long.toHexString(crc.getValue());
+        } catch (Exception error) {
+            return "error";
+        }
+    }
+
+    private static final class Diagnostics {
+        final Path tracePath;
+        final Path decodedPath;
+        boolean decodedWritten;
+
+        Diagnostics(String tracePath) {
+            this.tracePath = Paths.get(tracePath);
+            this.decodedPath = Paths.get(tracePath + ".decoded.png");
         }
     }
 

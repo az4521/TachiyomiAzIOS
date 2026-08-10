@@ -1228,7 +1228,11 @@ actor JVMSourceRuntime {
         let files: [(URL, String)] = [
             (destination.appendingPathExtension("network"), "network-image.jpg"),
             (destination, "materialized-image.jpg"),
-            (destination.appendingPathExtension("canvas"), "canvas-trace.txt")
+            (destination.appendingPathExtension("canvas"), "canvas-trace.txt"),
+            (
+                destination.appendingPathExtension("canvas.decoded.png"),
+                "decoded-image.png"
+            )
         ]
         for (source, name) in files where fileManager.fileExists(
             atPath: source.path

@@ -77,6 +77,8 @@ public final class AndroidCompatibilitySurfaceTest {
         );
         bitmapFactory.getMethod("decodeStream", InputStream.class);
         canvas.getConstructor(bitmap);
+        canvas.getMethod("beginDiagnostics", String.class);
+        canvas.getMethod("endDiagnostics");
         canvas.getMethod("drawBitmap", bitmap, rect, rect, paint);
         canvas.getMethod("drawText", String.class, float.class, float.class, paint);
         canvas.getMethod("translate", float.class, float.class);

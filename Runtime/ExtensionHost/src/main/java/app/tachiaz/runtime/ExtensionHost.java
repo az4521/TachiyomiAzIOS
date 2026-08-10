@@ -1337,8 +1337,18 @@ public final class ExtensionHost {
             networkDiagnostic
         );
         Class<?> requestType = Class.forName("okhttp3.Request", true, loader);
-        System.setProperty(
-            "tachiyomiaz.canvas.trace",
+        Class<?> canvasType = Class.forName(
+            "android.graphics.Canvas",
+            true,
+            loader
+        );
+        Method beginCanvasDiagnostics = canvasType.getMethod(
+            "beginDiagnostics",
+            String.class
+        );
+        Method endCanvasDiagnostics = canvasType.getMethod("endDiagnostics");
+        beginCanvasDiagnostics.invoke(
+            null,
             canvasDiagnostic.toAbsolutePath().toString()
         );
         Object response;
@@ -1349,7 +1359,7 @@ public final class ExtensionHost {
             Class<?> callType = Class.forName("okhttp3.Call", true, loader);
             response = callType.getMethod("execute").invoke(call);
         } finally {
-            System.clearProperty("tachiyomiaz.canvas.trace");
+            endCanvasDiagnostics.invoke(null);
         }
 
         Path destination = new File(
