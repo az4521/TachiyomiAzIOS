@@ -1614,16 +1614,19 @@ actor TachiyomiXSourceRunner: AidokuRunner.Runner {
         context: AidokuRunner.PageContext?
     ) async throws -> URLRequest {
         let pageURL = context?["mihonPageURL"]
+        // Foundation URL round-tripping must not be allowed to discard local
+        // fragment metadata used by extension image interceptors.
+        let imageURL = context?["mihonImageURL"] ?? url
         let image = try await JVMSourceRuntime.shared.materializeImage(
             extensionId: extensionId,
             sourceId: descriptor.id,
-            imageURL: url,
+            imageURL: imageURL,
             pageURL: pageURL
         )
         return JVMImageURLProtocol.request(
             extensionId: extensionId,
             sourceId: descriptor.id,
-            imageURL: url,
+            imageURL: imageURL,
             pageURL: pageURL,
             preparedImage: image
         )
@@ -1855,7 +1858,10 @@ private extension TachiyomiXPage {
             return .init(
                 content: .url(
                     url: resolvedURL,
-                    context: ["mihonPageURL": url]
+                    context: [
+                        "mihonPageURL": url,
+                        "mihonImageURL": value
+                    ]
                 )
             )
         }

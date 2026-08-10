@@ -10,6 +10,7 @@ import java.lang.reflect.Proxy;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.net.URI;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -1317,7 +1318,15 @@ public final class ExtensionHost {
             imageRequest.setAccessible(true);
             nativeRequest = imageRequest.invoke(source, page);
         }
-        Object client = getter(source, "getClient");
+        nativeRequest = preserveImageRequestFragment(
+            nativeRequest,
+            imageURL,
+            loader
+        );
+        Object client = clientWithBufferedImageResponse(
+            getter(source, "getClient"),
+            loader
+        );
         Class<?> requestType = Class.forName("okhttp3.Request", true, loader);
         Object call = client.getClass()
             .getMethod("newCall", requestType)
@@ -1400,6 +1409,144 @@ public final class ExtensionHost {
         String result = "{\"contentType\":\"" +
             MiniJson.escapeValue(contentType) + "\"}";
         return MiniJson.response(true, result, null, null);
+    }
+
+    /**
+     * OkHttp never sends a URL fragment over HTTP, but application
+     * interceptors can use it as local image-processing metadata. Preserve the
+     * fragment from the Page even if an extension's imageRequest rebuilds the
+     * URL and accidentally drops it.
+     */
+    private static Object preserveImageRequestFragment(
+        Object request,
+        String imageURL,
+        ClassLoader loader
+    ) throws Exception {
+        String fragment;
+        try {
+            fragment = URI.create(imageURL).getFragment();
+        } catch (IllegalArgumentException invalidURL) {
+            return request;
+        }
+        if (fragment == null || fragment.isEmpty()) {
+            return request;
+        }
+        Object currentURL = request.getClass().getMethod("url").invoke(request);
+        Object currentFragment = currentURL.getClass()
+            .getMethod("fragment")
+            .invoke(currentURL);
+        if (fragment.equals(currentFragment)) {
+            return request;
+        }
+        Object urlBuilder = currentURL.getClass()
+            .getMethod("newBuilder")
+            .invoke(currentURL);
+        urlBuilder.getClass()
+            .getMethod("fragment", String.class)
+            .invoke(urlBuilder, fragment);
+        Object restoredURL = urlBuilder.getClass().getMethod("build")
+            .invoke(urlBuilder);
+        Object requestBuilder = request.getClass()
+            .getMethod("newBuilder")
+            .invoke(request);
+        Class<?> httpUrlType = Class.forName("okhttp3.HttpUrl", true, loader);
+        requestBuilder.getClass()
+            .getMethod("url", httpUrlType)
+            .invoke(requestBuilder, restoredURL);
+        return requestBuilder.getClass().getMethod("build")
+            .invoke(requestBuilder);
+    }
+
+    /**
+     * Some image interceptors peek at metadata using ResponseBody.contentLength
+     * before decoding the body. OpenJDK's iOS HTTP path can expose a streamed
+     * body with an unknown length, causing those interceptors to silently
+     * return the encrypted response. Append this interceptor after the
+     * extension's own interceptors so the wire response is replayable and has
+     * its exact byte length before control returns to them.
+     */
+    private static Object clientWithBufferedImageResponse(
+        Object client,
+        ClassLoader loader
+    ) throws Exception {
+        Class<?> interceptorType = Class.forName(
+            "okhttp3.Interceptor",
+            true,
+            loader
+        );
+        Class<?> chainType = Class.forName(
+            "okhttp3.Interceptor$Chain",
+            true,
+            loader
+        );
+        Class<?> requestType = Class.forName("okhttp3.Request", true, loader);
+        Class<?> responseType = Class.forName("okhttp3.Response", true, loader);
+        Class<?> responseBodyType = Class.forName(
+            "okhttp3.ResponseBody",
+            true,
+            loader
+        );
+        Class<?> mediaTypeType = Class.forName(
+            "okhttp3.MediaType",
+            true,
+            loader
+        );
+        Object normalizer = Proxy.newProxyInstance(
+            loader,
+            new Class<?>[] { interceptorType },
+            (proxy, method, arguments) -> {
+                if (!"intercept".equals(method.getName())) {
+                    if ("toString".equals(method.getName())) {
+                        return "TachiyomiAZBufferedImageResponseInterceptor";
+                    }
+                    if ("hashCode".equals(method.getName())) {
+                        return System.identityHashCode(proxy);
+                    }
+                    if ("equals".equals(method.getName())) {
+                        return proxy == arguments[0];
+                    }
+                    return null;
+                }
+                Object chain = arguments[0];
+                Object request = chainType.getMethod("request").invoke(chain);
+                Object response = chainType
+                    .getMethod("proceed", requestType)
+                    .invoke(chain, request);
+                Object body = responseType.getMethod("body").invoke(response);
+                if (body == null) {
+                    return response;
+                }
+                Object mediaType = responseBodyType.getMethod("contentType")
+                    .invoke(body);
+                byte[] bytes = (byte[]) responseBodyType.getMethod("bytes")
+                    .invoke(body);
+                Object companion = responseBodyType.getField("Companion")
+                    .get(null);
+                Object replacement = companion.getClass()
+                    .getMethod("create", byte[].class, mediaTypeType)
+                    .invoke(companion, bytes, mediaType);
+                Object responseBuilder = responseType
+                    .getMethod("newBuilder")
+                    .invoke(response);
+                responseBuilder.getClass()
+                    .getMethod("body", responseBodyType)
+                    .invoke(responseBuilder, replacement);
+                return responseBuilder.getClass().getMethod("build")
+                    .invoke(responseBuilder);
+            }
+        );
+        Class<?> clientType = Class.forName("okhttp3.OkHttpClient", true, loader);
+        Class<?> clientBuilderType = Class.forName(
+            "okhttp3.OkHttpClient$Builder",
+            true,
+            loader
+        );
+        Object builder = clientType.getMethod("newBuilder")
+            .invoke(client);
+        clientBuilderType
+            .getMethod("addInterceptor", interceptorType)
+            .invoke(builder, normalizer);
+        return clientBuilderType.getMethod("build").invoke(builder);
     }
 
     private static String detectedImageContentType(
