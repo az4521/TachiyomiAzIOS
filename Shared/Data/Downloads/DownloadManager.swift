@@ -10,6 +10,26 @@ import AidokuRunner
 import Foundation
 import ZIPFoundation
 
+#if !os(macOS)
+/// BGTask expiration races the async worker finishing. The scheduler requires
+/// exactly one completion call, so arbitrate both paths under a lock.
+final class BackgroundTaskCompletionGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var completed = false
+
+    func complete(_ task: BGTask, success: Bool) {
+        lock.lock()
+        guard !completed else {
+            lock.unlock()
+            return
+        }
+        completed = true
+        lock.unlock()
+        task.setTaskCompleted(success: success)
+    }
+}
+#endif
+
 /*
  File Structure:
    Downloads/
@@ -53,26 +73,59 @@ actor DownloadManager {
 
     nonisolated func registerBackgroundTasks() {
 #if !os(macOS) && !targetEnvironment(simulator)
-        BGTaskScheduler.shared.register(
-            forTaskWithIdentifier: DownloadQueue.taskIdentifier,
-            using: nil
-        ) { @Sendable [weak self] task in
+        let launchHandler: @Sendable (BGTask) -> Void = { [weak self] task in
             guard let self else { return }
+            let completion = BackgroundTaskCompletionGate()
+            let isContinuedTask: Bool
+            if #available(iOS 26.0, *) {
+                isContinuedTask = task is BGContinuedProcessingTask
+            } else {
+                isContinuedTask = false
+            }
 
             task.expirationHandler = {
+                completion.complete(task, success: false)
                 Task {
-                    await self.queue.expireBackgroundExecution()
+                    await self.queue.expireBackgroundExecution(
+                        reschedule: !isContinuedTask
+                    )
                 }
-                task.setTaskCompleted(success: false)
             }
 
             Task { @Sendable in
                 let success = await self.queue.runAsBackgroundTask(
                     task as? ProgressReporting
                 )
-                if success {
-                    task.setTaskCompleted(success: true)
-                }
+                completion.complete(task, success: success)
+            }
+        }
+
+        let processingRegistered = BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: DownloadQueue.taskIdentifier,
+            using: nil,
+            launchHandler: launchHandler
+        )
+        if !processingRegistered {
+            LogManager.logger.error(
+                "Unable to register the deferred download background task"
+            )
+        }
+
+        if #available(iOS 26.0, *) {
+            let continuedRegistered = BGTaskScheduler.shared.register(
+                forTaskWithIdentifier: DownloadQueue.continuedTaskIdentifier,
+                using: nil,
+                launchHandler: launchHandler
+            )
+            Task {
+                await self.queue.setContinuedTaskRegistered(
+                    continuedRegistered
+                )
+            }
+            if !continuedRegistered {
+                LogManager.logger.error(
+                    "Unable to register the continued download background task"
+                )
             }
         }
 #endif

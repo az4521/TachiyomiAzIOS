@@ -33,12 +33,16 @@ actor DownloadQueue {
     private var progressNotificationActive = false
     private var backgroundExecutionExpired = false
     private var systemSuspended = false
+    private var continuedRequestPending = false
+    private var continuedTaskRegistered = false
 
 #if os(iOS)
     private var foregroundBackgroundTask: UIBackgroundTaskIdentifier = .invalid
 #endif
 
     static let taskIdentifier = (Bundle.main.bundleIdentifier ?? "") + ".download"
+    static let continuedTaskIdentifier =
+        (Bundle.main.bundleIdentifier ?? "") + ".download.continued.queue"
 
     init(cache: DownloadCache, onCompletion: (() -> Void)? = nil) {
         self.cache = cache
@@ -47,6 +51,10 @@ actor DownloadQueue {
 
     func setOnCompletion(_ onCompletion: (() -> Void)?) {
         self.onCompletion = onCompletion
+    }
+
+    func setContinuedTaskRegistered(_ registered: Bool) {
+        continuedTaskRegistered = registered
     }
 
     func start() async {
@@ -67,16 +75,22 @@ actor DownloadQueue {
             UserDefaults.standard.bool(forKey: "Downloads.background"),
             !ProcessInfo.processInfo.isMacCatalystApp
         {
-            if #available(iOS 26.0, *) {
+            if #available(iOS 26.0, *),
+               continuedTaskRegistered,
+               !continuedRequestPending
+            {
                 let request = BGContinuedProcessingTaskRequest(
-                    identifier: Self.taskIdentifier,
+                    identifier: Self.continuedTaskIdentifier,
                     title: NSLocalizedString("DOWNLOADING"),
                     subtitle: NSLocalizedString("PROCESSING_QUEUE")
                 )
+                request.strategy = .fail
+                continuedRequestPending = true
                 do {
                     try BGTaskScheduler.shared.submit(request)
                     return
                 } catch {
+                    continuedRequestPending = false
                     LogManager.logger.error("Failed to start continued background downloading: \(error)")
                 }
             }
@@ -134,6 +148,12 @@ actor DownloadQueue {
         }
 #if !os(macOS) && !targetEnvironment(simulator)
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.taskIdentifier)
+        if #available(iOS 26.0, *) {
+            BGTaskScheduler.shared.cancel(
+                taskRequestWithIdentifier: Self.continuedTaskIdentifier
+            )
+            continuedRequestPending = false
+        }
 #endif
 #if os(iOS)
         await endForegroundBackgroundExecution()
@@ -292,6 +312,15 @@ extension DownloadQueue {
     }
 
     func runAsBackgroundTask(_ task: ProgressReporting?) async -> Bool {
+        let isContinuedTask: Bool
+        if #available(iOS 26.0, *) {
+            isContinuedTask = task is BGContinuedProcessingTask
+        } else {
+            isContinuedTask = false
+        }
+        if isContinuedTask {
+            continuedRequestPending = false
+        }
         if queue.isEmpty,
            let queueData = UserDefaults.standard.data(forKey: "Data.downloadQueueState"),
            let restoredQueue = try? JSONDecoder().decode(
@@ -323,25 +352,33 @@ extension DownloadQueue {
 
         let success = queue.isEmpty || paused
         setBackgroundTask(nil)
-        if !success {
+        if !success, !isContinuedTask {
             scheduleBackgroundProcessing()
         }
         return success
     }
 
-    func expireBackgroundExecution() async {
+    func expireBackgroundExecution(reschedule: Bool = true) async {
         backgroundExecutionExpired = true
         await suspendTasksForSystem()
         setBackgroundTask(nil)
-        scheduleBackgroundProcessing()
+        if reschedule {
+            scheduleBackgroundProcessing()
+        }
         await NotificationManager.shared.finishProgress(
             .downloads,
             success: false,
-            summary: NSLocalizedString(
-                "DOWNLOADS_PAUSED_RESUME",
-                value: "Downloads were paused and will resume when iOS allows background processing.",
-                comment: "Download background task expiration notification"
-            )
+            summary: reschedule
+                ? NSLocalizedString(
+                    "DOWNLOADS_PAUSED_RESUME",
+                    value: "Downloads were paused and will resume when iOS allows background processing.",
+                    comment: "Download background task expiration notification"
+                )
+                : NSLocalizedString(
+                    "DOWNLOADS_PAUSED_OPEN_APP",
+                    value: "Downloads were paused. Open the app to resume them.",
+                    comment: "User-cancelled continued download task notification"
+                )
         )
     }
 
@@ -407,6 +444,12 @@ extension DownloadQueue {
         guard totalDownloads > 0 else { return }
 #if !os(macOS) && !targetEnvironment(simulator)
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.taskIdentifier)
+        if #available(iOS 26.0, *) {
+            BGTaskScheduler.shared.cancel(
+                taskRequestWithIdentifier: Self.continuedTaskIdentifier
+            )
+            continuedRequestPending = false
+        }
 #endif
         let total = totalDownloads
         let successful = successfulDownloads

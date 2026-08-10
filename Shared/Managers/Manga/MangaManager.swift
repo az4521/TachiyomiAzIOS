@@ -29,10 +29,13 @@ actor MangaManager {
     static let shared = MangaManager()
 
     private static let taskIdentifier = (Bundle.main.bundleIdentifier ?? "") + ".libraryRefresh"
+    private static let continuedTaskIdentifier =
+        (Bundle.main.bundleIdentifier ?? "") + ".libraryRefresh.continued.manual"
 
     private var libraryRefreshTask: Task<(), Never>?
     private var libraryRefreshProgressTask: Task<(), Never>?
     private var onLibraryRefreshProgress: (@MainActor (Progress) -> Void)?
+    private var continuedTaskRegistered = false
 
     private var targetCategory: String?
     private var skipReachabilityCheck: Bool = false
@@ -396,14 +399,18 @@ extension MangaManager {
 extension MangaManager {
     nonisolated func register() {
 #if !os(macOS) && !targetEnvironment(simulator)
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.taskIdentifier, using: nil) { @Sendable [weak self] task in
+        let processingRegistered = BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: Self.taskIdentifier,
+            using: nil
+        ) { @Sendable [weak self] task in
             guard let self else { return }
+            let completion = BackgroundTaskCompletionGate()
 
             task.expirationHandler = {
+                completion.complete(task, success: false)
                 Task {
                     await self.libraryRefreshTask?.cancel()
                 }
-                task.setTaskCompleted(success: false)
             }
 
             Task { @Sendable in
@@ -413,10 +420,53 @@ extension MangaManager {
                 await self.scheduleNextLibraryRefresh(after: .now)
                 await self.refreshLibrary(category: self.targetCategory, task: task as? ProgressReporting)
 
-                task.setTaskCompleted(success: true)
+                completion.complete(task, success: true)
+            }
+        }
+        if !processingRegistered {
+            LogManager.logger.error(
+                "Unable to register the deferred library refresh task"
+            )
+        }
+
+        if #available(iOS 26.0, *) {
+            let continuedRegistered = BGTaskScheduler.shared.register(
+                forTaskWithIdentifier: Self.continuedTaskIdentifier,
+                using: nil
+            ) { @Sendable [weak self] task in
+                guard let self else { return }
+                let completion = BackgroundTaskCompletionGate()
+
+                task.expirationHandler = {
+                    completion.complete(task, success: false)
+                    Task {
+                        await self.libraryRefreshTask?.cancel()
+                    }
+                }
+
+                Task { @Sendable in
+                    await self.refreshLibrary(
+                        category: self.targetCategory,
+                        task: task as? ProgressReporting
+                    )
+                    await self.scheduleNextLibraryRefresh(after: .now)
+                    completion.complete(task, success: true)
+                }
+            }
+            Task {
+                await self.setContinuedTaskRegistered(continuedRegistered)
+            }
+            if !continuedRegistered {
+                LogManager.logger.error(
+                    "Unable to register the continued library refresh task"
+                )
             }
         }
 #endif
+    }
+
+    private func setContinuedTaskRegistered(_ registered: Bool) {
+        continuedTaskRegistered = registered
     }
 
     nonisolated static func libraryUpdateInterval(for value: String?) -> TimeInterval? {
@@ -470,12 +520,17 @@ extension MangaManager {
         self.skipReachabilityCheck = skipReachabilityCheck
 
 #if !os(macOS) && !targetEnvironment(simulator)
-        if #available(iOS 26.0, *), UserDefaults.standard.bool(forKey: "Library.backgroundRefresh"), !ProcessInfo.processInfo.isMacCatalystApp {
+        if #available(iOS 26.0, *),
+           continuedTaskRegistered,
+           UserDefaults.standard.bool(forKey: "Library.backgroundRefresh"),
+           !ProcessInfo.processInfo.isMacCatalystApp
+        {
             let request = BGContinuedProcessingTaskRequest(
-                identifier: Self.taskIdentifier,
+                identifier: Self.continuedTaskIdentifier,
                 title: NSLocalizedString("REFRESHING_LIBRARY"),
                 subtitle: NSLocalizedString("PROCESSING_ENTRIES")
             )
+            request.strategy = .fail
             do {
                 try BGTaskScheduler.shared.submit(request)
                 return
@@ -619,6 +674,7 @@ extension MangaManager {
             }
             await libraryRefreshTask?.value
         }
+        onLibraryRefreshProgress = nil
 
         self.targetCategory = nil
         self.skipReachabilityCheck = false
@@ -751,6 +807,23 @@ extension MangaManager {
         let total = filteredManga.count
         var completed = 0
         var failed = 0
+        task?.progress.totalUnitCount = Int64(total)
+        task?.progress.completedUnitCount = 0
+
+#if !os(macOS)
+        if #available(iOS 26.0, *),
+           let task = task as? BGContinuedProcessingTask
+        {
+            task.updateTitle(
+                NSLocalizedString("REFRESHING_LIBRARY"),
+                subtitle: String(
+                    format: NSLocalizedString("%i_OF_%i"),
+                    0,
+                    total
+                )
+            )
+        }
+#endif
 
 #if !os(macOS)
         let isBackground = await UIApplication.shared.applicationState != .active

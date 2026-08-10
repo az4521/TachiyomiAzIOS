@@ -5,8 +5,10 @@
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).download</string>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER).download.continued.*</string>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).backup</string>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).libraryRefresh</string>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER).libraryRefresh.continued.*</string>
 	</array>
 	<key>CFBundleDocumentTypes</key>
 	<array>
