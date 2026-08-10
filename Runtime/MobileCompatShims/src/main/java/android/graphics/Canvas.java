@@ -41,9 +41,9 @@ public final class Canvas {
         int destinationHeight = dst.bottom - dst.top;
         traceBitmapCopy(src, dst);
         // Exact, untransformed rectangle copies are common in image
-        // descramblers. Perform them through Bitmap's row-oriented pixel API
-        // so their Android top-left coordinates never cross the Core Graphics
-        // coordinate system or the long arm64 JNI Canvas call signature.
+        // descramblers. Pack the coordinates into one array so the iOS Zero
+        // JVM never has to marshal trailing rectangle arguments through its
+        // native-call stack. That path can corrupt coordinates on arm64.
         if (
             a == 1f && b == 0f && c == 0f && d == 1f &&
             tx == 0f && ty == 0f &&
@@ -58,24 +58,19 @@ public final class Canvas {
             dst.bottom <= bitmap.getHeight() &&
             (long) sourceWidth * sourceHeight <= Integer.MAX_VALUE
         ) {
-            int[] pixels = new int[sourceWidth * sourceHeight];
-            source.getPixels(
-                pixels,
-                0,
-                sourceWidth,
-                src.left,
-                src.top,
-                sourceWidth,
-                sourceHeight
-            );
-            bitmap.setPixels(
-                pixels,
-                0,
-                sourceWidth,
-                dst.left,
-                dst.top,
-                destinationWidth,
-                destinationHeight
+            NativeBridge.bitmapCopyPixels(
+                bitmap.nativeHandle(),
+                source.nativeHandle(),
+                new int[] {
+                    src.left,
+                    src.top,
+                    src.right,
+                    src.bottom,
+                    dst.left,
+                    dst.top,
+                    dst.right,
+                    dst.bottom
+                }
             );
             return;
         }

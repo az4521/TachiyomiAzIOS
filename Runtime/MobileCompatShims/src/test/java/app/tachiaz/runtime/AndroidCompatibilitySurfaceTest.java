@@ -205,6 +205,12 @@ public final class AndroidCompatibilitySurfaceTest {
             "app.tachiaz.compat.NativeBridge"
         );
         nativeBridgeType.getMethod(
+            "bitmapCopyPixels",
+            long.class,
+            long.class,
+            int[].class
+        );
+        nativeBridgeType.getMethod(
             "webkitCommand",
             String.class,
             long.class,

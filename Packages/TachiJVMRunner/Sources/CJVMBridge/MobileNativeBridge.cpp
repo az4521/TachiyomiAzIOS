@@ -564,6 +564,72 @@ void JNICALL bitmap_set_pixels(
     );
 }
 
+void JNICALL bitmap_copy_pixels(
+    JNIEnv *environment,
+    jclass,
+    jlong destination_handle,
+    jlong source_handle,
+    jintArray rectangles
+) {
+    NativeBitmap *destination = bitmap(destination_handle);
+    NativeBitmap *source = bitmap(source_handle);
+    if (
+        destination == nullptr || source == nullptr || rectangles == nullptr ||
+        environment->GetArrayLength(rectangles) < 8
+    ) {
+        return;
+    }
+    jint coordinates[8];
+    environment->GetIntArrayRegion(rectangles, 0, 8, coordinates);
+    if (environment->ExceptionCheck()) {
+        return;
+    }
+    const int source_left = coordinates[0];
+    const int source_top = coordinates[1];
+    const int source_right = coordinates[2];
+    const int source_bottom = coordinates[3];
+    const int destination_left = coordinates[4];
+    const int destination_top = coordinates[5];
+    const int destination_right = coordinates[6];
+    const int destination_bottom = coordinates[7];
+    const int width = source_right - source_left;
+    const int height = source_bottom - source_top;
+    if (
+        width <= 0 || height <= 0 ||
+        destination_right - destination_left != width ||
+        destination_bottom - destination_top != height ||
+        source_left < 0 || source_top < 0 ||
+        destination_left < 0 || destination_top < 0 ||
+        source_right > static_cast<int>(source->width) ||
+        source_bottom > static_cast<int>(source->height) ||
+        destination_right > static_cast<int>(destination->width) ||
+        destination_bottom > static_cast<int>(destination->height)
+    ) {
+        return;
+    }
+    const std::vector<uint8_t> source_copy = destination == source
+        ? source->pixels
+        : std::vector<uint8_t>();
+    const uint8_t *source_pixels = source_copy.empty()
+        ? source->pixels.data()
+        : source_copy.data();
+    for (int row = 0; row < height; ++row) {
+        std::memcpy(
+            destination->pixels.data() + pixel_offset(
+                destination,
+                destination_left,
+                destination_top + row
+            ),
+            source_pixels + pixel_offset(
+                source,
+                source_left,
+                source_top + row
+            ),
+            static_cast<size_t>(width) * 4
+        );
+    }
+}
+
 void JNICALL canvas_draw_bitmap(
     JNIEnv *, jclass, jlong destination_handle, jlong source_handle,
     jint source_left, jint source_top, jint source_right, jint source_bottom,
@@ -1197,6 +1263,7 @@ const JNINativeMethod methods[] = {
     {const_cast<char *>("bitmapSetPixel"), const_cast<char *>("(JIII)V"), reinterpret_cast<void *>(&bitmap_set_pixel)},
     {const_cast<char *>("bitmapGetPixels"), const_cast<char *>("(J[IIIIIII)V"), reinterpret_cast<void *>(&bitmap_get_pixels)},
     {const_cast<char *>("bitmapSetPixels"), const_cast<char *>("(J[IIIIIII)V"), reinterpret_cast<void *>(&bitmap_set_pixels)},
+    {const_cast<char *>("bitmapCopyPixels"), const_cast<char *>("(JJ[I)V"), reinterpret_cast<void *>(&bitmap_copy_pixels)},
     {const_cast<char *>("canvasDrawBitmap"), const_cast<char *>("(JJIIIIIIIIFFFFFF)V"), reinterpret_cast<void *>(&canvas_draw_bitmap)},
     {const_cast<char *>("canvasDrawText"), const_cast<char *>("(JLjava/lang/String;FFFIZLjava/lang/String;IFFFFFFF)V"), reinterpret_cast<void *>(&canvas_draw_text)},
     {const_cast<char *>("textRegisterFont"), const_cast<char *>("(Ljava/lang/String;)Ljava/lang/String;"), reinterpret_cast<void *>(&text_register_font)},

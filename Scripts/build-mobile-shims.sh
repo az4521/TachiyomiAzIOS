@@ -16,6 +16,11 @@ compat_root="$repository_root/Runtime/ExtensionHost/compat"
 compat_output_jar="$compat_root/000-tachiaz-mobile-compat-shims.jar"
 aircompressor_jar="$compat_root/aircompressor-0.27.jar"
 aircompressor_sha256="fdbef3137a28f63bb0cb93487803080ede746a4ec3d421e36c6f0c305c35e5e4"
+if command -v shasum >/dev/null; then
+    checksum=(shasum -a 256)
+else
+    checksum=(sha256sum)
+fi
 
 if [[ -n "${TACHIYOMIAZ_BUILD_JAVA_HOME:-}" ]]; then
     java_home="$TACHIYOMIAZ_BUILD_JAVA_HOME"
@@ -40,7 +45,7 @@ mkdir -p \
     "$output_root" \
     "$compat_root"
 if [[ ! -f "$aircompressor_jar" ]] ||
-    ! echo "$aircompressor_sha256  $aircompressor_jar" | shasum -a 256 -c -
+    ! echo "$aircompressor_sha256  $aircompressor_jar" | "${checksum[@]}" -c -
 then
     command -v curl >/dev/null || {
         echo "curl is required to download Aircompressor." >&2
@@ -51,7 +56,7 @@ then
         --output "$temporary_aircompressor" \
         "https://repo1.maven.org/maven2/io/airlift/aircompressor/0.27/aircompressor-0.27.jar"
     echo "$aircompressor_sha256  $temporary_aircompressor" |
-        shasum -a 256 -c -
+        "${checksum[@]}" -c -
     mv "$temporary_aircompressor" "$aircompressor_jar"
 fi
 sources=()

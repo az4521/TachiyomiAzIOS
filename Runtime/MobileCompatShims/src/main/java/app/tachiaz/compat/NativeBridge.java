@@ -48,6 +48,11 @@ public final class NativeBridge {
         int width,
         int height
     );
+    public static native void bitmapCopyPixels(
+        long destination,
+        long source,
+        int[] rectangles
+    );
     public static native void canvasDrawBitmap(
         long destination,
         long source,
