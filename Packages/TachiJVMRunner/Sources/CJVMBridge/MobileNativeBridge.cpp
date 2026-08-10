@@ -270,6 +270,32 @@ int32_t read_color(const uint8_t *pixel) {
         static_cast<int32_t>(pixel[2]);
 }
 
+bool read_int_array(
+    JNIEnv *environment,
+    jintArray array,
+    jint *values,
+    jsize count
+) {
+    if (array == nullptr || environment->GetArrayLength(array) < count) {
+        return false;
+    }
+    environment->GetIntArrayRegion(array, 0, count, values);
+    return !environment->ExceptionCheck();
+}
+
+bool read_float_array(
+    JNIEnv *environment,
+    jfloatArray array,
+    jfloat *values,
+    jsize count
+) {
+    if (array == nullptr || environment->GetArrayLength(array) < count) {
+        return false;
+    }
+    environment->GetFloatArrayRegion(array, 0, count, values);
+    return !environment->ExceptionCheck();
+}
+
 jlongArray JNICALL bitmap_create(JNIEnv *environment, jclass, jint width, jint height) {
     if (
         width <= 0 || height <= 0 ||
@@ -547,20 +573,52 @@ void transfer_pixels(
 }
 
 void JNICALL bitmap_get_pixels(
-    JNIEnv *environment, jclass, jlong value, jintArray pixels,
-    jint offset, jint stride, jint x, jint y, jint width, jint height
+    JNIEnv *environment,
+    jclass,
+    jlong value,
+    jintArray pixels,
+    jintArray parameters
 ) {
+    jint values[6];
+    if (!read_int_array(environment, parameters, values, 6)) {
+        return;
+    }
     transfer_pixels(
-        environment, value, pixels, offset, stride, x, y, width, height, false
+        environment,
+        value,
+        pixels,
+        values[0],
+        values[1],
+        values[2],
+        values[3],
+        values[4],
+        values[5],
+        false
     );
 }
 
 void JNICALL bitmap_set_pixels(
-    JNIEnv *environment, jclass, jlong value, jintArray pixels,
-    jint offset, jint stride, jint x, jint y, jint width, jint height
+    JNIEnv *environment,
+    jclass,
+    jlong value,
+    jintArray pixels,
+    jintArray parameters
 ) {
+    jint values[6];
+    if (!read_int_array(environment, parameters, values, 6)) {
+        return;
+    }
     transfer_pixels(
-        environment, value, pixels, offset, stride, x, y, width, height, true
+        environment,
+        value,
+        pixels,
+        values[0],
+        values[1],
+        values[2],
+        values[3],
+        values[4],
+        values[5],
+        true
     );
 }
 
@@ -573,15 +631,11 @@ void JNICALL bitmap_copy_pixels(
 ) {
     NativeBitmap *destination = bitmap(destination_handle);
     NativeBitmap *source = bitmap(source_handle);
-    if (
-        destination == nullptr || source == nullptr || rectangles == nullptr ||
-        environment->GetArrayLength(rectangles) < 8
-    ) {
+    if (destination == nullptr || source == nullptr) {
         return;
     }
     jint coordinates[8];
-    environment->GetIntArrayRegion(rectangles, 0, 8, coordinates);
-    if (environment->ExceptionCheck()) {
+    if (!read_int_array(environment, rectangles, coordinates, 8)) {
         return;
     }
     const int source_left = coordinates[0];
@@ -631,20 +685,43 @@ void JNICALL bitmap_copy_pixels(
 }
 
 void JNICALL canvas_draw_bitmap(
-    JNIEnv *, jclass, jlong destination_handle, jlong source_handle,
-    jint source_left, jint source_top, jint source_right, jint source_bottom,
-    jint destination_left, jint destination_top,
-    jint destination_right, jint destination_bottom,
-    jfloat a, jfloat b, jfloat c, jfloat d, jfloat tx, jfloat ty
+    JNIEnv *environment,
+    jclass,
+    jlong destination_handle,
+    jlong source_handle,
+    jintArray rectangles,
+    jfloatArray matrix
 ) {
     NativeBitmap *destination = bitmap(destination_handle);
     NativeBitmap *source = bitmap(source_handle);
+    jint coordinates[8];
+    jfloat transform[6];
+    if (
+        destination == nullptr || source == nullptr ||
+        !read_int_array(environment, rectangles, coordinates, 8) ||
+        !read_float_array(environment, matrix, transform, 6)
+    ) {
+        return;
+    }
+    const int source_left = coordinates[0];
+    const int source_top = coordinates[1];
+    const int source_right = coordinates[2];
+    const int source_bottom = coordinates[3];
+    const int destination_left = coordinates[4];
+    const int destination_top = coordinates[5];
+    const int destination_right = coordinates[6];
+    const int destination_bottom = coordinates[7];
+    const float a = transform[0];
+    const float b = transform[1];
+    const float c = transform[2];
+    const float d = transform[3];
+    const float tx = transform[4];
+    const float ty = transform[5];
     const int source_width = source_right - source_left;
     const int source_height = source_bottom - source_top;
     const int destination_width = destination_right - destination_left;
     const int destination_height = destination_bottom - destination_top;
     if (
-        destination == nullptr || source == nullptr ||
         source_width <= 0 || source_height <= 0 ||
         destination_width <= 0 || destination_height <= 0
     ) {
@@ -737,24 +814,35 @@ void JNICALL canvas_draw_text(
     jclass,
     jlong value,
     jstring text,
-    jfloat x,
-    jfloat baseline,
-    jfloat size,
-    jint color,
-    jboolean bold,
+    jintArray style_values,
     jstring font_name,
-    jint style,
-    jfloat stroke_width,
-    jfloat a,
-    jfloat b,
-    jfloat c,
-    jfloat d,
-    jfloat tx,
-    jfloat ty
+    jfloatArray geometry
 ) {
     NativeBitmap *target = bitmap(value);
+    jint style[3];
+    jfloat values[10];
+    if (
+        target == nullptr ||
+        !read_int_array(environment, style_values, style, 3) ||
+        !read_float_array(environment, geometry, values, 10)
+    ) {
+        return;
+    }
+    const int color = style[0];
+    const bool bold = style[1] != 0;
+    const int paint_style = style[2];
+    const float x = values[0];
+    const float baseline = values[1];
+    const float size = values[2];
+    const float stroke_width = values[3];
+    const float a = values[4];
+    const float b = values[5];
+    const float c = values[6];
+    const float d = values[7];
+    const float tx = values[8];
+    const float ty = values[9];
     CFStringRef string = cf_string(environment, text);
-    if (target == nullptr || string == nullptr) {
+    if (string == nullptr) {
         if (string != nullptr) CFRelease(string);
         return;
     }
@@ -762,9 +850,9 @@ void JNICALL canvas_draw_text(
     CFAttributedStringRef attributed = attributed_text(
         string,
         size,
-        bold == JNI_TRUE,
+        bold,
         color,
-        style,
+        paint_style,
         stroke_width,
         font_name_cf
     );
@@ -1039,20 +1127,25 @@ jintArray JNICALL pdf_page_size(
 }
 
 jboolean JNICALL pdf_render(
-    JNIEnv *,
+    JNIEnv *environment,
     jclass,
     jlong value,
-    jint page_index,
     jlong bitmap_handle,
-    jint left,
-    jint top,
-    jint right,
-    jint bottom
+    jintArray parameters
 ) {
     CGPDFDocumentRef document = reinterpret_cast<CGPDFDocumentRef>(
         static_cast<intptr_t>(value)
     );
     NativeBitmap *target = bitmap(bitmap_handle);
+    jint values[5];
+    if (!read_int_array(environment, parameters, values, 5)) {
+        return JNI_FALSE;
+    }
+    const int page_index = values[0];
+    const int left = values[1];
+    const int top = values[2];
+    const int right = values[3];
+    const int bottom = values[4];
     if (
         document == nullptr || target == nullptr || target->context == nullptr ||
         page_index < 0 || left >= right || top >= bottom
@@ -1261,11 +1354,11 @@ const JNINativeMethod methods[] = {
     {const_cast<char *>("bitmapErase"), const_cast<char *>("(JI)V"), reinterpret_cast<void *>(&bitmap_erase)},
     {const_cast<char *>("bitmapGetPixel"), const_cast<char *>("(JII)I"), reinterpret_cast<void *>(&bitmap_get_pixel)},
     {const_cast<char *>("bitmapSetPixel"), const_cast<char *>("(JIII)V"), reinterpret_cast<void *>(&bitmap_set_pixel)},
-    {const_cast<char *>("bitmapGetPixels"), const_cast<char *>("(J[IIIIIII)V"), reinterpret_cast<void *>(&bitmap_get_pixels)},
-    {const_cast<char *>("bitmapSetPixels"), const_cast<char *>("(J[IIIIIII)V"), reinterpret_cast<void *>(&bitmap_set_pixels)},
+    {const_cast<char *>("bitmapGetPixels"), const_cast<char *>("(J[I[I)V"), reinterpret_cast<void *>(&bitmap_get_pixels)},
+    {const_cast<char *>("bitmapSetPixels"), const_cast<char *>("(J[I[I)V"), reinterpret_cast<void *>(&bitmap_set_pixels)},
     {const_cast<char *>("bitmapCopyPixels"), const_cast<char *>("(JJ[I)V"), reinterpret_cast<void *>(&bitmap_copy_pixels)},
-    {const_cast<char *>("canvasDrawBitmap"), const_cast<char *>("(JJIIIIIIIIFFFFFF)V"), reinterpret_cast<void *>(&canvas_draw_bitmap)},
-    {const_cast<char *>("canvasDrawText"), const_cast<char *>("(JLjava/lang/String;FFFIZLjava/lang/String;IFFFFFFF)V"), reinterpret_cast<void *>(&canvas_draw_text)},
+    {const_cast<char *>("canvasDrawBitmap"), const_cast<char *>("(JJ[I[F)V"), reinterpret_cast<void *>(&canvas_draw_bitmap)},
+    {const_cast<char *>("canvasDrawText"), const_cast<char *>("(JLjava/lang/String;[ILjava/lang/String;[F)V"), reinterpret_cast<void *>(&canvas_draw_text)},
     {const_cast<char *>("textRegisterFont"), const_cast<char *>("(Ljava/lang/String;)Ljava/lang/String;"), reinterpret_cast<void *>(&text_register_font)},
     {const_cast<char *>("textMeasure"), const_cast<char *>("(Ljava/lang/String;FZLjava/lang/String;)F"), reinterpret_cast<void *>(&text_measure)},
     {const_cast<char *>("textFontMetrics"), const_cast<char *>("(FZLjava/lang/String;)[F"), reinterpret_cast<void *>(&text_font_metrics)},
@@ -1273,7 +1366,7 @@ const JNINativeMethod methods[] = {
     {const_cast<char *>("pdfOpen"), const_cast<char *>("(Ljava/lang/String;)J"), reinterpret_cast<void *>(&pdf_open)},
     {const_cast<char *>("pdfPageCount"), const_cast<char *>("(J)I"), reinterpret_cast<void *>(&pdf_page_count)},
     {const_cast<char *>("pdfPageSize"), const_cast<char *>("(JI)[I"), reinterpret_cast<void *>(&pdf_page_size)},
-    {const_cast<char *>("pdfRender"), const_cast<char *>("(JIJIIII)Z"), reinterpret_cast<void *>(&pdf_render)},
+    {const_cast<char *>("pdfRender"), const_cast<char *>("(JJ[I)Z"), reinterpret_cast<void *>(&pdf_render)},
     {const_cast<char *>("pdfClose"), const_cast<char *>("(J)V"), reinterpret_cast<void *>(&pdf_close)},
     {const_cast<char *>("javascriptCreate"), const_cast<char *>("()J"), reinterpret_cast<void *>(&javascript_create)},
     {const_cast<char *>("javascriptEvaluate"), const_cast<char *>("(JLjava/lang/String;)Ljava/lang/Object;"), reinterpret_cast<void *>(&javascript_evaluate)},

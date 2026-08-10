@@ -131,12 +131,14 @@ public final class PdfRenderer implements Closeable {
             }
             if (!NativeBridge.pdfRender(
                 nativeHandle,
-                index,
                 destination.nativeHandle(),
-                clip.left,
-                clip.top,
-                clip.right,
-                clip.bottom
+                new int[] {
+                    index,
+                    clip.left,
+                    clip.top,
+                    clip.right,
+                    clip.bottom
+                }
             )) {
                 throw new IllegalStateException("Unable to render PDF page");
             }

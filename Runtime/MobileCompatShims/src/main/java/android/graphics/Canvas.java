@@ -77,20 +77,17 @@ public final class Canvas {
         NativeBridge.canvasDrawBitmap(
             bitmap.nativeHandle(),
             source.nativeHandle(),
-            src.left,
-            src.top,
-            src.right,
-            src.bottom,
-            dst.left,
-            dst.top,
-            dst.right,
-            dst.bottom,
-            a,
-            b,
-            c,
-            d,
-            tx,
-            ty
+            new int[] {
+                src.left,
+                src.top,
+                src.right,
+                src.bottom,
+                dst.left,
+                dst.top,
+                dst.right,
+                dst.bottom
+            },
+            new float[] {a, b, c, d, tx, ty}
         );
     }
 
@@ -137,20 +134,24 @@ public final class Canvas {
         NativeBridge.canvasDrawText(
             bitmap.nativeHandle(),
             text,
-            x,
-            y,
-            paint.getTextSize(),
-            paint.getColor(),
-            paint.getTypeface().isBold(),
+            new int[] {
+                paint.getColor(),
+                paint.getTypeface().isBold() ? 1 : 0,
+                paint.getStyle().ordinal()
+            },
             paint.getTypeface().getNativeName(),
-            paint.getStyle().ordinal(),
-            paint.getStrokeWidth(),
-            a,
-            b,
-            c,
-            d,
-            tx,
-            ty
+            new float[] {
+                x,
+                y,
+                paint.getTextSize(),
+                paint.getStrokeWidth(),
+                a,
+                b,
+                c,
+                d,
+                tx,
+                ty
+            }
         );
     }
 

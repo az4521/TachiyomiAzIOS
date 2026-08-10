@@ -114,6 +114,10 @@ done < <(find "$compat_test_source_root" -name '*.java' -type f | sort)
 "$java_home/bin/java" \
     -cp "$compat_output_jar:$compat_classpath:$compat_test_build_root" \
     app.tachiaz.runtime.AndroidCompatibilitySurfaceTest
+"$java_home/bin/java" \
+    -cp "$compat_output_jar:$compat_classpath:$compat_test_build_root" \
+    app.tachiaz.runtime.NativeRegistrationDescriptorTest \
+    "$repository_root/Packages/TachiJVMRunner/Sources/CJVMBridge/MobileNativeBridge.cpp"
 if [[ ! -f "$java_home/lib/security/cacerts" ]]; then
     echo "JDK trust store is missing: $java_home/lib/security/cacerts" >&2
     exit 1

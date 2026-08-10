@@ -31,22 +31,12 @@ public final class NativeBridge {
     public static native void bitmapGetPixels(
         long handle,
         int[] pixels,
-        int offset,
-        int stride,
-        int x,
-        int y,
-        int width,
-        int height
+        int[] parameters
     );
     public static native void bitmapSetPixels(
         long handle,
         int[] pixels,
-        int offset,
-        int stride,
-        int x,
-        int y,
-        int width,
-        int height
+        int[] parameters
     );
     public static native void bitmapCopyPixels(
         long destination,
@@ -56,38 +46,15 @@ public final class NativeBridge {
     public static native void canvasDrawBitmap(
         long destination,
         long source,
-        int sourceLeft,
-        int sourceTop,
-        int sourceRight,
-        int sourceBottom,
-        int destinationLeft,
-        int destinationTop,
-        int destinationRight,
-        int destinationBottom,
-        float scaleX,
-        float skewY,
-        float skewX,
-        float scaleY,
-        float translateX,
-        float translateY
+        int[] rectangles,
+        float[] matrix
     );
     public static native void canvasDrawText(
         long handle,
         String text,
-        float x,
-        float baseline,
-        float size,
-        int color,
-        boolean bold,
+        int[] style,
         String fontName,
-        int style,
-        float strokeWidth,
-        float scaleX,
-        float skewY,
-        float skewX,
-        float scaleY,
-        float translateX,
-        float translateY
+        float[] geometry
     );
     public static native String textRegisterFont(String path);
     public static native float textMeasure(
@@ -114,12 +81,8 @@ public final class NativeBridge {
     public static native int[] pdfPageSize(long handle, int pageIndex);
     public static native boolean pdfRender(
         long handle,
-        int pageIndex,
         long bitmapHandle,
-        int left,
-        int top,
-        int right,
-        int bottom
+        int[] parameters
     );
     public static native void pdfClose(long handle);
 

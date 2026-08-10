@@ -127,7 +127,9 @@ public final class Bitmap {
     ) {
         checkPixels(pixels, offset, stride, x, y, width, height);
         NativeBridge.bitmapGetPixels(
-            nativeHandle(), pixels, offset, stride, x, y, width, height
+            nativeHandle(),
+            pixels,
+            new int[] {offset, stride, x, y, width, height}
         );
     }
 
@@ -142,7 +144,9 @@ public final class Bitmap {
     ) {
         checkPixels(pixels, offset, stride, x, y, width, height);
         NativeBridge.bitmapSetPixels(
-            nativeHandle(), pixels, offset, stride, x, y, width, height
+            nativeHandle(),
+            pixels,
+            new int[] {offset, stride, x, y, width, height}
         );
     }
 
