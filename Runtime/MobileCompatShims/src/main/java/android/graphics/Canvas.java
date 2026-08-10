@@ -30,6 +30,49 @@ public final class Canvas {
         if (src == null) {
             src = new Rect(0, 0, source.getWidth(), source.getHeight());
         }
+        int sourceWidth = src.right - src.left;
+        int sourceHeight = src.bottom - src.top;
+        int destinationWidth = dst.right - dst.left;
+        int destinationHeight = dst.bottom - dst.top;
+        // Exact, untransformed rectangle copies are common in image
+        // descramblers. Perform them through Bitmap's row-oriented pixel API
+        // so their Android top-left coordinates never cross the Core Graphics
+        // coordinate system or the long arm64 JNI Canvas call signature.
+        if (
+            a == 1f && b == 0f && c == 0f && d == 1f &&
+            tx == 0f && ty == 0f &&
+            sourceWidth > 0 && sourceHeight > 0 &&
+            sourceWidth == destinationWidth &&
+            sourceHeight == destinationHeight &&
+            src.left >= 0 && src.top >= 0 &&
+            src.right <= source.getWidth() &&
+            src.bottom <= source.getHeight() &&
+            dst.left >= 0 && dst.top >= 0 &&
+            dst.right <= bitmap.getWidth() &&
+            dst.bottom <= bitmap.getHeight() &&
+            (long) sourceWidth * sourceHeight <= Integer.MAX_VALUE
+        ) {
+            int[] pixels = new int[sourceWidth * sourceHeight];
+            source.getPixels(
+                pixels,
+                0,
+                sourceWidth,
+                src.left,
+                src.top,
+                sourceWidth,
+                sourceHeight
+            );
+            bitmap.setPixels(
+                pixels,
+                0,
+                sourceWidth,
+                dst.left,
+                dst.top,
+                destinationWidth,
+                destinationHeight
+            );
+            return;
+        }
         NativeBridge.canvasDrawBitmap(
             bitmap.nativeHandle(),
             source.nativeHandle(),
