@@ -577,14 +577,10 @@ extension MangaManager {
             request.strategy = .fail
             do {
                 try BGTaskScheduler.shared.submit(request)
-                await NotificationManager.shared.useSystemManagedProgress(
-                    .libraryUpdate
-                )
+                await NotificationManager.shared.useSystemManagedProgress(.libraryUpdate)
                 return
             } catch {
-                await NotificationManager.shared.stopUsingSystemManagedProgress(
-                    .libraryUpdate
-                )
+                await NotificationManager.shared.stopUsingSystemManagedProgress(.libraryUpdate)
                 LogManager.logger.error("Failed to start background library refresh: \(error)")
             }
         }
@@ -735,9 +731,8 @@ extension MangaManager {
         await tabController?.hideAccessoryView()
 #endif
 
-        // Normally doLibraryRefresh finishes progress itself. This also clears
-        // an iOS 26 system-managed presentation when the refresh exits before
-        // progress begins (for example, because Wi-Fi-only updating is blocked).
+        // Clear a system-managed iOS 26 presentation when the refresh exits
+        // before doLibraryRefresh publishes its normal completion state.
         await NotificationManager.shared.finishProgress(
             .libraryUpdate,
             success: !Task.isCancelled
@@ -832,9 +827,7 @@ extension MangaManager {
 
 #if !os(macOS)
         if #available(iOS 26.0, *), task is BGContinuedProcessingTask {
-            await NotificationManager.shared.useSystemManagedProgress(
-                .libraryUpdate
-            )
+            await NotificationManager.shared.useSystemManagedProgress(.libraryUpdate)
         }
 #endif
 

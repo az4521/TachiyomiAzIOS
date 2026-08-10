@@ -7,7 +7,6 @@ import Foundation
 import UserNotifications
 
 #if os(iOS)
-import ActivityKit
 import UIKit
 #endif
 
@@ -51,18 +50,11 @@ actor NotificationManager {
         var detail: String?
         var percentage: Int
         var lastUpdate: Date
-        var presentation: ProgressPresentation
-    }
-
-    private enum ProgressPresentation: Equatable {
-        case notification
-        case liveActivity
     }
 
     private var progressStates: [ProgressOperation: ProgressState] = [:]
-    /// iOS 26 continued-processing tasks own their progress presentation. The
-    /// operation remains marked until it finishes so callbacks cannot recreate
-    /// an app-managed notification or Live Activity while the system UI exists.
+    /// iOS 26 continued-processing tasks provide their own system progress UI.
+    /// Keep the operation marked so fallback notifications don't duplicate it.
     private var systemManagedProgressOperations: Set<ProgressOperation> = []
 
     nonisolated func isEnabled() -> Bool {
@@ -126,28 +118,16 @@ actor NotificationManager {
               progressNotificationsEnabled(for: operation),
               Self.shouldPublishProgress(total: total, detail: detail)
         else {
-            await removeProgress(operation)
+            progressStates.removeValue(forKey: operation)
             return
         }
-        var state = ProgressState(
+        progressStates[operation] = .init(
             completed: 0,
             total: total,
             detail: detail,
             percentage: 0,
-            lastUpdate: .distantPast,
-            presentation: .notification
+            lastUpdate: .distantPast
         )
-        progressStates[operation] = state
-
-#if os(iOS)
-        if #available(iOS 16.1, *) {
-            if await startOrUpdateLiveActivity(operation, state: state) {
-                state.presentation = .liveActivity
-                progressStates[operation] = state
-                return
-            }
-        }
-#endif
 
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
@@ -180,12 +160,7 @@ actor NotificationManager {
         guard !systemManagedProgressOperations.contains(operation),
               progressNotificationsEnabled(for: operation),
               Self.shouldPublishProgress(total: total, detail: detail)
-        else {
-            if !progressNotificationsEnabled(for: operation) {
-                await removeProgress(operation)
-            }
-            return
-        }
+        else { return }
 
         let fraction = total > 0 ? min(1, max(0, completed / Double(total))) : 0
         let percentage = Int((fraction * 100).rounded())
@@ -195,31 +170,13 @@ actor NotificationManager {
             let waitedLongEnough = now.timeIntervalSince(state.lastUpdate) >= 1
             guard percentage == 100 || changedEnough || waitedLongEnough else { return }
         }
-        var state = ProgressState(
+        progressStates[operation] = .init(
             completed: completed,
             total: total,
             detail: detail,
             percentage: percentage,
-            lastUpdate: now,
-            presentation: progressStates[operation]?.presentation ?? .notification
+            lastUpdate: now
         )
-        progressStates[operation] = state
-
-#if os(iOS)
-        if #available(iOS 16.1, *) {
-            if state.presentation == .liveActivity {
-                if await updateLiveActivity(operation, state: state) {
-                    return
-                }
-                state.presentation = .notification
-                progressStates[operation] = state
-            } else if await startOrUpdateLiveActivity(operation, state: state) {
-                state.presentation = .liveActivity
-                progressStates[operation] = state
-                return
-            }
-        }
-#endif
 
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
@@ -268,7 +225,6 @@ actor NotificationManager {
     ) async {
         let state = progressStates.removeValue(forKey: operation)
         let wasSystemManaged = systemManagedProgressOperations.remove(operation) != nil
-        await clearProgressSurfaces(operation, state: state)
         guard !wasSystemManaged, state != nil else { return }
         guard progressNotificationsEnabled(for: operation) else { return }
 
@@ -277,6 +233,7 @@ actor NotificationManager {
             UIApplication.shared.applicationState == .active
         }
         if isActive {
+            await removeProgress(operation)
             return
         }
 #endif
@@ -330,42 +287,26 @@ actor NotificationManager {
     }
 
     func removeProgress(_ operation: ProgressOperation) async {
-        let state = progressStates.removeValue(forKey: operation)
-        await clearProgressSurfaces(operation, state: state)
-    }
-
-    /// Called after an iOS 26 continued-processing request is accepted or its
-    /// handler begins. It also tears down an activity created just before the
-    /// request was submitted, preventing a duplicate system/live presentation.
-    func useSystemManagedProgress(_ operation: ProgressOperation) async {
-        systemManagedProgressOperations.insert(operation)
-        let state = progressStates.removeValue(forKey: operation)
-        await clearProgressSurfaces(operation, state: state)
-    }
-
-    /// A rejected continued-processing request falls back to the app-managed
-    /// progress surface on the next begin/update callback.
-    func stopUsingSystemManagedProgress(_ operation: ProgressOperation) {
-        systemManagedProgressOperations.remove(operation)
-    }
-
-    private func clearProgressSurfaces(
-        _ operation: ProgressOperation,
-        state: ProgressState?
-    ) async {
-#if os(iOS)
-        if #available(iOS 16.1, *) {
-            await endLiveActivity(operation, state: state)
-        }
-#endif
-        removeProgressNotification(operation)
-    }
-
-    private func removeProgressNotification(_ operation: ProgressOperation) {
+        progressStates.removeValue(forKey: operation)
         let identifiers = [progressIdentifier(for: operation)]
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: identifiers)
         center.removeDeliveredNotifications(withIdentifiers: identifiers)
+    }
+
+    /// Suppress the app-owned notification while an iOS 26 continued task is
+    /// displaying its native system progress UI.
+    func useSystemManagedProgress(_ operation: ProgressOperation) {
+        systemManagedProgressOperations.insert(operation)
+        progressStates.removeValue(forKey: operation)
+        let identifiers = [progressIdentifier(for: operation)]
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+        center.removeDeliveredNotifications(withIdentifiers: identifiers)
+    }
+
+    func stopUsingSystemManagedProgress(_ operation: ProgressOperation) {
+        systemManagedProgressOperations.remove(operation)
     }
 
     nonisolated static func progressBody(
@@ -415,123 +356,6 @@ actor NotificationManager {
                 NSLocalizedString("DOWNLOADING")
         }
     }
-
-#if os(iOS)
-    @available(iOS 16.1, *)
-    private func startOrUpdateLiveActivity(
-        _ operation: ProgressOperation,
-        state: ProgressState
-    ) async -> Bool {
-        // The app process can be relaunched while a Live Activity remains on
-        // screen. Reuse its stable operation attribute instead of requesting a
-        // second activity for the same library refresh/download queue.
-        if let existing = Activity<ProgressLiveActivityAttributes>.activities.first(
-            where: { $0.attributes.operationIdentifier == operation.rawValue }
-        ) {
-            let contentState = liveActivityContentState(for: operation, state: state)
-            if #available(iOS 16.2, *) {
-                await existing.update(ActivityContent(state: contentState, staleDate: nil))
-            } else {
-                await existing.update(using: contentState)
-            }
-            removeProgressNotification(operation)
-            return true
-        }
-
-        // ActivityKit only permits an app to start a Live Activity while the
-        // app is in the foreground. Existing activities may still be updated
-        // above while background work has execution time.
-        let canStartActivity = await MainActor.run {
-            UIApplication.shared.applicationState == .active
-        }
-        guard canStartActivity else { return false }
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return false }
-        let contentState = liveActivityContentState(for: operation, state: state)
-        do {
-            _ = try Activity.request(
-                attributes: ProgressLiveActivityAttributes(
-                    operationIdentifier: operation.rawValue
-                ),
-                contentState: contentState,
-                pushType: nil
-            )
-            removeProgressNotification(operation)
-            return true
-        } catch {
-            LogManager.logger.debug(
-                "Unable to start progress Live Activity for \(operation.rawValue): \(error)"
-            )
-            return false
-        }
-    }
-
-    @available(iOS 16.1, *)
-    private func updateLiveActivity(
-        _ operation: ProgressOperation,
-        state: ProgressState
-    ) async -> Bool {
-        guard let activity = Activity<ProgressLiveActivityAttributes>.activities.first(
-            where: { $0.attributes.operationIdentifier == operation.rawValue }
-        ) else { return false }
-        let contentState = liveActivityContentState(for: operation, state: state)
-        if #available(iOS 16.2, *) {
-            await activity.update(ActivityContent(state: contentState, staleDate: nil))
-        } else {
-            await activity.update(using: contentState)
-        }
-        return true
-    }
-
-    @available(iOS 16.1, *)
-    private func endLiveActivity(
-        _ operation: ProgressOperation,
-        state: ProgressState?
-    ) async {
-        let activities = Activity<ProgressLiveActivityAttributes>.activities.filter {
-            $0.attributes.operationIdentifier == operation.rawValue
-        }
-        guard !activities.isEmpty else { return }
-
-        let finalState = liveActivityContentState(
-            for: operation,
-            state: state ?? .init(
-                completed: 0,
-                total: 0,
-                detail: nil,
-                percentage: 0,
-                lastUpdate: .now,
-                presentation: .liveActivity
-            )
-        )
-        for activity in activities {
-            if #available(iOS 16.2, *) {
-                await activity.end(
-                    ActivityContent(state: finalState, staleDate: nil),
-                    dismissalPolicy: .immediate
-                )
-            } else {
-                await activity.end(using: finalState, dismissalPolicy: .immediate)
-            }
-        }
-    }
-
-    @available(iOS 16.1, *)
-    private func liveActivityContentState(
-        for operation: ProgressOperation,
-        state: ProgressState
-    ) -> ProgressLiveActivityAttributes.ContentState {
-        ProgressLiveActivityAttributes.ContentState(
-            title: title(for: operation),
-            detail: state.detail ?? NSLocalizedString(
-                "PREPARING",
-                value: "Preparing…",
-                comment: "Preparing a background operation"
-            ),
-            completed: state.completed,
-            total: state.total
-        )
-    }
-#endif
 
     private static func sendNotification(
         identifier: String,
