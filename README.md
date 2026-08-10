@@ -1,4 +1,4 @@
-# TachiyomiAZ iOS
+# TachiyomiAZ for iOS
 
 TachiyomiAZ iOS is a sideload-focused manga reader for iPhone and iPad. It
 runs Tachiyomi/TachiyomiX JVM extension JARs through a bundled OpenJDK runtime
@@ -6,6 +6,13 @@ and an iOS Android-compatibility layer.
 
 The app does not include extension repositories or a built-in catalogue of
 third-party sources. Users choose and add their own compatible repository.
+
+## LEGAL NOTICE: 
+TachiyomiAZ™ is intended to be used for viewing EMAILS and FREE doujins only, I do not condone using this app to access pirated copyrighted material, and by installing TachiyomiAZ™ you agree not to use the application for this purpose. Installing any extensions designed to access anything but EMAIL and FREELY AVAILABLE FAN WORKS is strongly discouraged, cuz I don't wanna get sued. any mention of manga within the application, source code, or this readme is referring only to doujinshi manga.
+
+For legal purposes this is an EMAIL AND FREE DOUJINSHI READER APP, NOT TO BE USED TO ILLEGALLY ACCESS COPYRIGHTED MATERIAL
+
+plz don't sue me
 
 ## Features
 
@@ -53,6 +60,17 @@ mihon://extension-store?url=<percent-encoded-repository-url>
 Only add repositories whose contents you trust. Extensions execute code inside
 the bundled JVM compatibility environment and can make network requests.
 
+
+## Backups
+
+TachiyomiAZ iOS uses `.tachibk` as its backup format. Restoring a backup merges
+it into the existing library. Existing read chapters stay read, while chapters
+marked read by the backup are promoted to read.
+
+Create or restore backups from **Settings → Backups**.
+
+---
+
 ## How Suwayomi is used
 
 TachiyomiAZ iOS uses part of
@@ -86,14 +104,6 @@ under the
 [Mozilla Public License 2.0](https://github.com/Suwayomi/Suwayomi-Server/blob/eb2dc0b19a9571b27c02bebc5c883e404b7bd7fb/LICENSE),
 while TachiyomiAZ iOS is distributed under GPLv3. See their respective
 repositories for source and full license terms.
-
-## Backups
-
-TachiyomiAZ iOS uses `.tachibk` as its backup format. Restoring a backup merges
-it into the existing library. Existing read chapters stay read, while chapters
-marked read by the backup are promoted to read.
-
-Create or restore backups from **Settings → Backups**.
 
 ## Build from source
 
@@ -146,3 +156,12 @@ extension-library behavior can be implemented generically.
 The application source is distributed under the [GNU GPLv3](LICENSE).
 Translations and third-party components may carry their own licenses; consult
 their accompanying notices before redistribution.
+
+## Credit
+
+Thank you to the Aidoku, Suwayomi, Mihon, and OpenJDK teams for
+
+- [Aidoku, the starting point from which this app was developed, using only the non-proprietary parts of the Aidoku app](https://github.com/Aidoku/Aidoku)
+- [Suwayomi-Server, for the android compatibility library that powers the app's extension system](https://github.com/Suwayomi/Suwayomi-Server)
+- [TachiyomiX, the standard interface used by extensions and the format used by extension repositories](https://github.com/mihonapp/tachiyomix)
+- [OpenJDK Mobile Zero-Assembler, the java virtual machine that allows running Suwayomi and TachiyomiX extensions on iOS](https://github.com/openjdk/mobile)
