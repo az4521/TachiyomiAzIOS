@@ -25,6 +25,33 @@ struct LibraryMembershipSnapshot: Sendable {
     let dateAdded: Date
 }
 
+struct LibraryRefreshProgress: Equatable, Sendable {
+    let completed: Int
+    let total: Int
+
+    init(completed: Int64, total: Int64) {
+        self.total = max(0, Int(total))
+        self.completed = min(max(0, Int(completed)), self.total)
+    }
+
+    init(completed: Int, total: Int) {
+        self.init(completed: Int64(completed), total: Int64(total))
+    }
+
+    var fractionCompleted: Float {
+        guard total > 0 else { return 0 }
+        return Float(completed) / Float(total)
+    }
+
+    var localizedDetail: String {
+        String(
+            format: NSLocalizedString("%i_OF_%i"),
+            completed,
+            total
+        )
+    }
+}
+
 actor MangaManager {
     static let shared = MangaManager()
 
@@ -34,7 +61,7 @@ actor MangaManager {
 
     private var libraryRefreshTask: Task<(), Never>?
     private var libraryRefreshProgressTask: Task<(), Never>?
-    private var onLibraryRefreshProgress: (@MainActor (Progress) -> Void)?
+    private var onLibraryRefreshProgress: (@MainActor (LibraryRefreshProgress) -> Void)?
     private var continuedTaskRegistered = false
 
     private var targetCategory: String?
@@ -659,22 +686,18 @@ extension MangaManager {
                     skipReachabilityCheck: skipReachabilityCheck,
                     forceAll: forceAll,
                     task: task,
-                    refreshStarted: {
+                    refreshStarted: { progress in
 #if !os(macOS)
-                        await tabController?.showLibraryRefreshView()
+                        await tabController?.showLibraryRefreshView(progress: progress)
 
                         self.onLibraryRefreshProgress = { progress in
-                            tabController?.setLibraryRefreshProgress(Float(progress.fractionCompleted))
-                            task?.progress.totalUnitCount = progress.totalUnitCount
-                            task?.progress.completedUnitCount = progress.completedUnitCount
+                            tabController?.setLibraryRefreshProgress(progress)
+                            task?.progress.totalUnitCount = Int64(progress.total)
+                            task?.progress.completedUnitCount = Int64(progress.completed)
                             if #available(iOS 26.0, *), let task = task as? BGContinuedProcessingTask {
                                 task.updateTitle(
                                     NSLocalizedString("REFRESHING_LIBRARY"),
-                                    subtitle: String(
-                                        format: NSLocalizedString("%i_OF_%i"),
-                                        Int(progress.completedUnitCount),
-                                        Int(progress.totalUnitCount)
-                                    )
+                                    subtitle: progress.localizedDetail
                                 )
                             }
                         }
@@ -685,6 +708,8 @@ extension MangaManager {
             }
             await libraryRefreshTask?.value
         }
+        libraryRefreshProgressTask?.cancel()
+        libraryRefreshProgressTask = nil
         onLibraryRefreshProgress = nil
 
         self.targetCategory = nil
@@ -732,7 +757,7 @@ extension MangaManager {
             return true
         }
         // has no read chapters
-        if options.contains("notStarted") && CoreDataManager.shared.readCount(
+        if options.contains("notStarted") && CoreDataManager.shared.startedCount(
             sourceId: manga.sourceId,
             mangaId: manga.id,
             lang: manga.langFilter,
@@ -769,7 +794,7 @@ extension MangaManager {
         skipReachabilityCheck: Bool,
         forceAll: Bool,
         task: ProgressReporting? = nil,
-        refreshStarted: (() async -> Void)? = nil
+        refreshStarted: ((LibraryRefreshProgress) async -> Void)? = nil
     ) async {
         // make sure user agent and sources have loaded before doing library refresh
         _ = await UserAgentProvider.shared.getUserAgent()
@@ -781,11 +806,6 @@ extension MangaManager {
         // fetch all library items from db
         let allManga = await CoreDataManager.shared.container.performBackgroundTask { context in
             CoreDataManager.shared.getLibraryManga(category: category, context: context).compactMap { $0.manga?.toManga() }
-        }
-
-        // ensure there are manga to update
-        guard !allManga.isEmpty else {
-            return
         }
 
         // check if connected to wi-fi
@@ -802,8 +822,6 @@ extension MangaManager {
             .filter { $0 != category }
         let updateMetadata = forceAll || UserDefaults.standard.bool(forKey: "Library.refreshMetadata")
 
-        await refreshStarted?()
-
         // filter items that we should skip
         let filteredManga = await CoreDataManager.shared.container.performBackgroundTask { context in
             allManga.filter { manga in
@@ -819,8 +837,11 @@ extension MangaManager {
         let total = filteredManga.count
         var completed = 0
         var failed = 0
+        let initialProgress = LibraryRefreshProgress(completed: 0, total: total)
         task?.progress.totalUnitCount = Int64(total)
         task?.progress.completedUnitCount = 0
+
+        await refreshStarted?(initialProgress)
 
 #if !os(macOS)
         if #available(iOS 26.0, *),
@@ -828,11 +849,7 @@ extension MangaManager {
         {
             task.updateTitle(
                 NSLocalizedString("REFRESHING_LIBRARY"),
-                subtitle: String(
-                    format: NSLocalizedString("%i_OF_%i"),
-                    0,
-                    total
-                )
+                subtitle: initialProgress.localizedDetail
             )
         }
 #endif
@@ -849,15 +866,10 @@ extension MangaManager {
         await NotificationManager.shared.beginProgress(
             .libraryUpdate,
             total: total,
-            detail: String(
-                format: NSLocalizedString("%i_OF_%i"),
-                0,
-                total
-            )
+            detail: initialProgress.localizedDetail
         )
 
         var newDetails: [MangaIdentifier: AidokuRunner.Manga] = [:]
-        let progress = Progress(totalUnitCount: Int64(total))
 
         // Source requests are network-bound. The old updater awaited each title
         // serially despite already defining a concurrency limit. Fetch bounded
@@ -897,8 +909,10 @@ extension MangaManager {
                     results.append(result)
                     completed += 1
                     if result.1 == nil { failed += 1 }
-                    progress.completedUnitCount = Int64(completed)
-                    updateLibraryRefreshProgress(progress)
+                    updateLibraryRefreshProgress(
+                        completed: Int64(completed),
+                        total: Int64(total)
+                    )
                 }
                 return results
             }
@@ -1012,6 +1026,11 @@ extension MangaManager {
             }
         }
 
+        await flushLibraryRefreshProgress(
+            completed: Int64(completed),
+            total: Int64(total)
+        )
+
         let cancelled = Task.isCancelled
         if !cancelled, category == nil {
             UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "Library.lastUpdated")
@@ -1056,24 +1075,35 @@ extension MangaManager {
         )
     }
 
-    private func updateLibraryRefreshProgress(_ progress: Progress) {
+    private func updateLibraryRefreshProgress(completed: Int64, total: Int64) {
+        let progress = LibraryRefreshProgress(completed: completed, total: total)
         libraryRefreshProgressTask?.cancel()
         libraryRefreshProgressTask = Task {
             // buffer progress updates by 100ms
             try? await Task.sleep(nanoseconds: 100_000_000)
             guard !Task.isCancelled else { return }
-            await onLibraryRefreshProgress?(progress)
-            await NotificationManager.shared.updateProgress(
-                .libraryUpdate,
-                completed: Double(progress.completedUnitCount),
-                total: Int(progress.totalUnitCount),
-                detail: String(
-                    format: NSLocalizedString("%i_OF_%i"),
-                    Int(progress.completedUnitCount),
-                    Int(progress.totalUnitCount)
-                )
-            )
+            await publishLibraryRefreshProgress(progress)
         }
+    }
+
+    private func flushLibraryRefreshProgress(completed: Int64, total: Int64) async {
+        libraryRefreshProgressTask?.cancel()
+        libraryRefreshProgressTask = nil
+        await publishLibraryRefreshProgress(
+            LibraryRefreshProgress(completed: completed, total: total)
+        )
+    }
+
+    private func publishLibraryRefreshProgress(_ progress: LibraryRefreshProgress) async {
+        guard !Task.isCancelled else { return }
+        await onLibraryRefreshProgress?(progress)
+        guard !Task.isCancelled else { return }
+        await NotificationManager.shared.updateProgress(
+            .libraryUpdate,
+            completed: Double(progress.completed),
+            total: progress.total,
+            detail: progress.localizedDetail
+        )
     }
 }
 

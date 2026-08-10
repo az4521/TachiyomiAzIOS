@@ -10,6 +10,10 @@ import AidokuRunner
 
 extension CoreDataManager {
 
+    static func normalizedScanlatorFilter(_ scanlators: [String]?) -> [String]? {
+        scanlators?.isEmpty == false ? scanlators : nil
+    }
+
     /// Remove all chapter objects.
     func clearChapters(context: NSManagedObjectContext? = nil) {
         clear(request: ChapterObject.fetchRequest(), context: context)
@@ -212,11 +216,7 @@ extension CoreDataManager {
         scanlators: [String]?,
         context: NSManagedObjectContext? = nil
     ) -> Int {
-        let scanlators: [String]? = if scanlators?.isEmpty ?? true {
-            nil
-        } else {
-            scanlators
-        }
+        let scanlators = Self.normalizedScanlatorFilter(scanlators)
         let context = context ?? self.context
         let request = ChapterObject.fetchRequest()
         if let scanlators, let lang {
@@ -344,6 +344,7 @@ extension CoreDataManager {
         scanlators: [String]?,
         context: NSManagedObjectContext? = nil
     ) -> Int {
+        let scanlators = Self.normalizedScanlatorFilter(scanlators)
         let context = context ?? self.context
         let request = ChapterObject.fetchRequest()
         if let scanlators, let lang {
@@ -375,6 +376,52 @@ extension CoreDataManager {
         } else {
             request.predicate = NSPredicate(
                 format: "sourceId == %@ AND mangaId == %@ AND history != nil AND history.completed == true",
+                sourceId, mangaId
+            )
+        }
+        return (try? context.count(for: request)) ?? 0
+    }
+
+    /// Get the number of chapters that have been started, including partially read chapters.
+    func startedCount(
+        sourceId: String,
+        mangaId: String,
+        lang: String?,
+        scanlators: [String]?,
+        context: NSManagedObjectContext? = nil
+    ) -> Int {
+        let scanlators = Self.normalizedScanlatorFilter(scanlators)
+        let context = context ?? self.context
+        let request = ChapterObject.fetchRequest()
+        if let scanlators, let lang {
+            request.predicate = NSPredicate(
+                format: """
+                sourceId == %@
+                AND mangaId == %@
+                AND lang == %@
+                AND ((scanlator IN %@) OR (scanlator == nil AND %@ CONTAINS ''))
+                AND history != nil
+                """,
+                sourceId, mangaId, lang, scanlators, scanlators
+            )
+        } else if let scanlators {
+            request.predicate = NSPredicate(
+                format: """
+                sourceId == %@
+                AND mangaId == %@
+                AND ((scanlator IN %@) OR (scanlator == nil AND %@ CONTAINS ''))
+                AND history != nil
+                """,
+                sourceId, mangaId, scanlators, scanlators
+            )
+        } else if let lang {
+            request.predicate = NSPredicate(
+                format: "sourceId == %@ AND mangaId == %@ AND lang == %@ AND history != nil",
+                sourceId, mangaId, lang
+            )
+        } else {
+            request.predicate = NSPredicate(
+                format: "sourceId == %@ AND mangaId == %@ AND history != nil",
                 sourceId, mangaId
             )
         }

@@ -46,4 +46,32 @@ struct LibraryUpdateSchedulerTests {
                 == "██████████ 100%"
         )
     }
+
+    @Test func libraryRefreshProgressFormatsCountsAndClampsValues() {
+        let halfway = LibraryRefreshProgress(completed: 5, total: 10)
+        #expect(halfway.localizedDetail == "5 of 10")
+        #expect(halfway.fractionCompleted == 0.5)
+
+        let belowZero = LibraryRefreshProgress(completed: -1, total: 10)
+        #expect(belowZero.completed == 0)
+        #expect(belowZero.localizedDetail == "0 of 10")
+        #expect(belowZero.fractionCompleted == 0)
+
+        let aboveTotal = LibraryRefreshProgress(completed: 12, total: 10)
+        #expect(aboveTotal.completed == 10)
+        #expect(aboveTotal.localizedDetail == "10 of 10")
+        #expect(aboveTotal.fractionCompleted == 1)
+    }
+
+    @Test func zeroTitleLibraryRefreshHasStableProgress() {
+        let progress = LibraryRefreshProgress(completed: 0, total: 0)
+        #expect(progress.localizedDetail == "0 of 0")
+        #expect(progress.fractionCompleted == 0)
+    }
+
+    @Test func emptyScanlatorFilterDoesNotExcludeEveryChapter() {
+        #expect(CoreDataManager.normalizedScanlatorFilter(nil) == nil)
+        #expect(CoreDataManager.normalizedScanlatorFilter([]) == nil)
+        #expect(CoreDataManager.normalizedScanlatorFilter(["Group"]) == ["Group"])
+    }
 }

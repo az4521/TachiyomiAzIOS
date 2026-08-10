@@ -84,13 +84,33 @@ class TabBarController: UITabBarController {
 
     private lazy var libraryProgressView = CircularProgressView(frame: CGRect(x: 0, y: 0, width: 20, height: 20))
 
+    private lazy var libraryRefreshTitleLabel: UILabel = {
+        let label = UILabel()
+        label.text = NSLocalizedString("REFRESHING_LIBRARY")
+        label.font = .preferredFont(forTextStyle: .subheadline)
+        label.adjustsFontForContentSizeCategory = true
+        return label
+    }()
+
+    private lazy var libraryRefreshDetailLabel: UILabel = {
+        let label = UILabel()
+        label.font = .preferredFont(forTextStyle: .caption1)
+        label.textColor = .secondaryLabel
+        label.adjustsFontForContentSizeCategory = true
+        return label
+    }()
+
     private lazy var libraryRefreshAccessory: UIView = {
         let view = UIView()
 
-        let label = UILabel()
-        label.text = NSLocalizedString("REFRESHING_LIBRARY")
-        label.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(label)
+        let labelStack = UIStackView(arrangedSubviews: [
+            libraryRefreshTitleLabel,
+            libraryRefreshDetailLabel
+        ])
+        labelStack.axis = .vertical
+        labelStack.alignment = .leading
+        labelStack.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(labelStack)
 
         libraryProgressView.radius = 12
         libraryProgressView.translatesAutoresizingMaskIntoConstraints = false
@@ -115,10 +135,9 @@ class TabBarController: UITabBarController {
         }
 
         NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            label.trailingAnchor.constraint(equalTo: libraryProgressView.leadingAnchor, constant: -16),
-            label.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-            label.heightAnchor.constraint(equalToConstant: 48),
+            labelStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            labelStack.trailingAnchor.constraint(equalTo: libraryProgressView.leadingAnchor, constant: -16),
+            labelStack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
 
             libraryProgressView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
             libraryProgressView.centerYAnchor.constraint(equalTo: view.centerYAnchor),
@@ -480,8 +499,9 @@ class TabBarController: UITabBarController {
 }
 
 extension TabBarController {
-    func showLibraryRefreshView() {
-        libraryProgressView.setProgress(value: 0, withAnimation: false)
+    func showLibraryRefreshView(progress: LibraryRefreshProgress) {
+        libraryRefreshDetailLabel.text = progress.localizedDetail
+        libraryProgressView.setProgress(value: progress.fractionCompleted, withAnimation: false)
         libraryRefreshAccessory.layer.opacity = 0
         view.insertSubview(libraryRefreshAccessory, belowSubview: drawerBackdrop)
         UIView.animate(withDuration: 0.5) {
@@ -489,8 +509,9 @@ extension TabBarController {
         }
     }
 
-    func setLibraryRefreshProgress(_ progress: Float) {
-        libraryProgressView.setProgress(value: progress, withAnimation: true)
+    func setLibraryRefreshProgress(_ progress: LibraryRefreshProgress) {
+        libraryRefreshDetailLabel.text = progress.localizedDetail
+        libraryProgressView.setProgress(value: progress.fractionCompleted, withAnimation: true)
     }
 
     func hideAccessoryView() {
