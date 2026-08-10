@@ -53,7 +53,7 @@ struct ProgressLiveActivityWidget: Widget {
                 Image(systemName: iconName(for: context.attributes.operationIdentifier))
                     .foregroundStyle(.tint)
             }
-            .keylineTint(.tint)
+            .keylineTint(.accentColor)
         }
     }
 
