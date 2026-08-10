@@ -79,14 +79,13 @@ jlong handle(NativeBitmap *value) {
     return static_cast<jlong>(reinterpret_cast<intptr_t>(value));
 }
 
-// Quartz bitmap contexts use a bottom-left origin, while Android Bitmap and
-// Canvas expose row zero at the top. Keep the backing context in Quartz's
-// native orientation (so CGImage encode/decode remains lossless) and map every
-// Android pixel coordinate at the raw-buffer boundary.
+// CGBitmapContext's supplied memory begins with the encoded image's top row.
+// Quartz drawing coordinates still use a bottom-left origin, but raw Android
+// Bitmap access must address the backing rows directly. Flipping the row here
+// makes getPixels/setPixels disagree with ImageIO and permutes descrambler
+// tiles when the finished bitmap is encoded.
 size_t pixel_offset(const NativeBitmap *value, int x, int android_y) {
-    const size_t quartz_y = value->height - 1 -
-        static_cast<size_t>(android_y);
-    return (quartz_y * value->bytes_per_row) +
+    return (static_cast<size_t>(android_y) * value->bytes_per_row) +
         (static_cast<size_t>(x) * 4);
 }
 

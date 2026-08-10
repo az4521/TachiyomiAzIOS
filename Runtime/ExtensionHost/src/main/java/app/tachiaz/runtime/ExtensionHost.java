@@ -1323,44 +1323,16 @@ public final class ExtensionHost {
             imageURL,
             loader
         );
-        Path networkDiagnostic = new File(
-            destinationPath + ".network"
-        ).toPath();
-        Path canvasDiagnostic = new File(
-            destinationPath + ".canvas"
-        ).toPath();
-        Files.deleteIfExists(networkDiagnostic);
-        Files.deleteIfExists(canvasDiagnostic);
         Object client = clientWithBufferedImageResponse(
             getter(source, "getClient"),
-            loader,
-            networkDiagnostic
-        );
-        Class<?> requestType = Class.forName("okhttp3.Request", true, loader);
-        Class<?> canvasType = Class.forName(
-            "android.graphics.Canvas",
-            true,
             loader
         );
-        Method beginCanvasDiagnostics = canvasType.getMethod(
-            "beginDiagnostics",
-            String.class
-        );
-        Method endCanvasDiagnostics = canvasType.getMethod("endDiagnostics");
-        beginCanvasDiagnostics.invoke(
-            null,
-            canvasDiagnostic.toAbsolutePath().toString()
-        );
-        Object response;
-        try {
-            Object call = client.getClass()
-                .getMethod("newCall", requestType)
-                .invoke(client, nativeRequest);
-            Class<?> callType = Class.forName("okhttp3.Call", true, loader);
-            response = callType.getMethod("execute").invoke(call);
-        } finally {
-            endCanvasDiagnostics.invoke(null);
-        }
+        Class<?> requestType = Class.forName("okhttp3.Request", true, loader);
+        Object call = client.getClass()
+            .getMethod("newCall", requestType)
+            .invoke(client, nativeRequest);
+        Class<?> callType = Class.forName("okhttp3.Call", true, loader);
+        Object response = callType.getMethod("execute").invoke(call);
 
         Path destination = new File(
             destinationPath
@@ -1495,8 +1467,7 @@ public final class ExtensionHost {
      */
     private static Object clientWithBufferedImageResponse(
         Object client,
-        ClassLoader loader,
-        Path networkDiagnostic
+        ClassLoader loader
     ) throws Exception {
         Class<?> interceptorType = Class.forName(
             "okhttp3.Interceptor",
@@ -1549,7 +1520,6 @@ public final class ExtensionHost {
                     .invoke(body);
                 byte[] bytes = (byte[]) responseBodyType.getMethod("bytes")
                     .invoke(body);
-                Files.write(networkDiagnostic, bytes);
                 Object companion = responseBodyType.getField("Companion")
                     .get(null);
                 Object replacement = companion.getClass()
