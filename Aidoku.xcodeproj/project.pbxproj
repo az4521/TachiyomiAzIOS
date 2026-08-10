@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C0DE00000000000000000011 /* ProgressLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00000000000000000001 /* ProgressLiveActivityAttributes.swift */; };
+		C0DE00000000000000000012 /* ProgressLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00000000000000000001 /* ProgressLiveActivityAttributes.swift */; };
+		C0DE00000000000000000013 /* ProgressLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00000000000000000002 /* ProgressLiveActivityWidget.swift */; };
+		C0DE00000000000000000014 /* AidokuProgressLiveActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C0DE00000000000000000004 /* AidokuProgressLiveActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A12000000000000000000003 /* TachiJVMRunner in Frameworks */ = {isa = PBXBuildFile; productRef = A12000000000000000000002 /* TachiJVMRunner */; };
 		A12200000000000000000001 /* OpenJDK.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A12200000000000000000002 /* OpenJDK.xcframework */; };
 		A12100000000000000000003 /* JVMExtensionManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12100000000000000000001 /* JVMExtensionManifest.swift */; };
@@ -608,6 +612,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		C0DE00000000000000000060 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FB1B4826277CE18D0056D02C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C0DE00000000000000000040;
+			remoteInfo = AidokuProgressLiveActivity;
+		};
 		FBB44E762EC635620032EFBB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = FB1B4826277CE18D0056D02C /* Project object */;
@@ -617,7 +628,25 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		C0DE00000000000000000033 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				C0DE00000000000000000014 /* AidokuProgressLiveActivity.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		C0DE00000000000000000001 /* ProgressLiveActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressLiveActivityAttributes.swift; sourceTree = "<group>"; };
+		C0DE00000000000000000002 /* ProgressLiveActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressLiveActivityWidget.swift; sourceTree = "<group>"; };
+		C0DE00000000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		C0DE00000000000000000004 /* AidokuProgressLiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = wrapper.app-extension; includeInIndex = 0; path = AidokuProgressLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A12200000000000000000002 /* OpenJDK.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Vendor/OpenJDK/OpenJDK.xcframework; sourceTree = SOURCE_ROOT; };
 		A12100000000000000000001 /* JVMExtensionManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JVMExtensionManifest.swift; sourceTree = "<group>"; };
 		A12100000000000000000002 /* JVMSourceRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JVMSourceRuntime.swift; sourceTree = "<group>"; };
@@ -1107,6 +1136,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		C0DE00000000000000000031 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		FB1B4832277CE1920056D02C /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -1398,6 +1434,7 @@
 			isa = PBXGroup;
 			children = (
 				91D7BEFB2DD7E4BB00898539 /* Aidoku.xcconfig */,
+				C0DE00000000000000000020 /* LiveActivities */,
 				FBE578FE2899840E00F9F1B5 /* Managers */,
 				FB02E1F5288D7C6700B9E2DE /* Models */,
 				FB1B48B2277CF7DC0056D02C /* Extensions */,
@@ -1423,6 +1460,7 @@
 				FB1B4835277CE1920056D02C /* Aidoku.app */,
 				FB1B483B277CE1920056D02C /* Aidoku.app */,
 				FBB44E722EC635620032EFBB /* AidokuTests.xctest */,
+				C0DE00000000000000000004 /* AidokuProgressLiveActivity.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -1445,6 +1483,7 @@
 				91D7BEF72DD7E46800898539 /* Aidoku-IOS.xcconfig */,
 				FB1B4852277CE4510056D02C /* AppDelegate.swift */,
 				FB1B4855277CE5560056D02C /* SceneDelegate.swift */,
+				C0DE00000000000000000021 /* LiveActivities */,
 				A12100000000000000000005 /* JVM */,
 				FB662E892DA58B0900007514 /* New */,
 				FB31AD0527AC3A1900D50410 /* Extensions */,
@@ -1454,6 +1493,23 @@
 				FB4EEBDE27A4F5AF005081A3 /* iOS.entitlements */,
 			);
 			path = iOS;
+			sourceTree = "<group>";
+		};
+		C0DE00000000000000000020 /* LiveActivities */ = {
+			isa = PBXGroup;
+			children = (
+				C0DE00000000000000000001 /* ProgressLiveActivityAttributes.swift */,
+			);
+			path = LiveActivities;
+			sourceTree = "<group>";
+		};
+		C0DE00000000000000000021 /* LiveActivities */ = {
+			isa = PBXGroup;
+			children = (
+				C0DE00000000000000000002 /* ProgressLiveActivityWidget.swift */,
+				C0DE00000000000000000003 /* Info.plist */,
+			);
+			path = LiveActivities;
 			sourceTree = "<group>";
 		};
 		A12100000000000000000005 /* JVM */ = {
@@ -2410,6 +2466,25 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		C0DE00000000000000000040 /* AidokuProgressLiveActivity */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C0DE00000000000000000052 /* Build configuration list for PBXNativeTarget "AidokuProgressLiveActivity" */;
+			buildPhases = (
+				C0DE00000000000000000030 /* Sources */,
+				C0DE00000000000000000031 /* Frameworks */,
+				C0DE00000000000000000032 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AidokuProgressLiveActivity;
+			packageProductDependencies = (
+			);
+			productName = AidokuProgressLiveActivity;
+			productReference = C0DE00000000000000000004 /* AidokuProgressLiveActivity.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		FB1B4834277CE1920056D02C /* Aidoku (iOS) */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = FB1B484A277CE1920056D02C /* Build configuration list for PBXNativeTarget "Aidoku (iOS)" */;
@@ -2419,10 +2494,12 @@
 				FB1B4833277CE1920056D02C /* Resources */,
 				A12000000000000000000004 /* Embed OpenJDK Runtime */,
 				FBED233627C3C4D70095D0C0 /* ShellScript */,
+				C0DE00000000000000000033 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C0DE00000000000000000061 /* PBXTargetDependency */,
 			);
 			name = "Aidoku (iOS)";
 			packageProductDependencies = (
@@ -2495,6 +2572,9 @@
 				LastSwiftUpdateCheck = 2600;
 				LastUpgradeCheck = 2610;
 				TargetAttributes = {
+					C0DE00000000000000000040 = {
+						CreatedOnToolsVersion = 26.0;
+					};
 					FB1B4834277CE1920056D02C = {
 						CreatedOnToolsVersion = 13.2.1;
 						LastSwiftMigration = 1340;
@@ -2576,11 +2656,19 @@
 				FB1B4834277CE1920056D02C /* Aidoku (iOS) */,
 				FB1B483A277CE1920056D02C /* Aidoku (macOS) */,
 				FBB44E712EC635620032EFBB /* AidokuTests */,
+				C0DE00000000000000000040 /* AidokuProgressLiveActivity */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		C0DE00000000000000000032 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		FB1B4833277CE1920056D02C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -2661,10 +2749,20 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		C0DE00000000000000000030 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C0DE00000000000000000012 /* ProgressLiveActivityAttributes.swift in Sources */,
+				C0DE00000000000000000013 /* ProgressLiveActivityWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		FB1B4831277CE1920056D02C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C0DE00000000000000000011 /* ProgressLiveActivityAttributes.swift in Sources */,
 				A12100000000000000000003 /* JVMExtensionManifest.swift in Sources */,
 				A12100000000000000000004 /* JVMSourceRuntime.swift in Sources */,
 				F12400000000000000000002 /* JVMWebKitBridge.swift in Sources */,
@@ -3263,6 +3361,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		C0DE00000000000000000061 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C0DE00000000000000000040 /* AidokuProgressLiveActivity */;
+			targetProxy = C0DE00000000000000000060 /* PBXContainerItemProxy */;
+		};
 		FBB44E772EC635620032EFBB /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = FB1B4834277CE1920056D02C /* Aidoku (iOS) */;
@@ -3331,6 +3434,46 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
+		C0DE00000000000000000050 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 91D7BEF72DD7E46800898539 /* Aidoku-IOS.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = iOS/LiveActivities/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				MARKETING_VERSION = 0.8.4;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_ID_PREFIX).$(APP_ID_SUFFIX).ProgressLiveActivity";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C0DE00000000000000000051 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 91D7BEF72DD7E46800898539 /* Aidoku-IOS.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = iOS/LiveActivities/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				MARKETING_VERSION = 0.8.4;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_ID_PREFIX).$(APP_ID_SUFFIX).ProgressLiveActivity";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		FB1B4848277CE1920056D02C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -3689,6 +3832,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		C0DE00000000000000000052 /* Build configuration list for PBXNativeTarget "AidokuProgressLiveActivity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C0DE00000000000000000050 /* Debug */,
+				C0DE00000000000000000051 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		FB1B4829277CE18D0056D02C /* Build configuration list for PBXProject "Aidoku" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

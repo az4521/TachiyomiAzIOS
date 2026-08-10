@@ -437,6 +437,10 @@ extension MangaManager {
                 completion.complete(task, success: false)
                 Task {
                     await self.libraryRefreshTask?.cancel()
+                    await NotificationManager.shared.finishProgress(
+                        .libraryUpdate,
+                        success: false
+                    )
                 }
             }
 
@@ -474,6 +478,10 @@ extension MangaManager {
                     completion.complete(task, success: false)
                     Task {
                         await self.libraryRefreshTask?.cancel()
+                        await NotificationManager.shared.finishProgress(
+                            .libraryUpdate,
+                            success: false
+                        )
                     }
                 }
 
@@ -569,8 +577,14 @@ extension MangaManager {
             request.strategy = .fail
             do {
                 try BGTaskScheduler.shared.submit(request)
+                await NotificationManager.shared.useSystemManagedProgress(
+                    .libraryUpdate
+                )
                 return
             } catch {
+                await NotificationManager.shared.stopUsingSystemManagedProgress(
+                    .libraryUpdate
+                )
                 LogManager.logger.error("Failed to start background library refresh: \(error)")
             }
         }
@@ -721,6 +735,14 @@ extension MangaManager {
         await tabController?.hideAccessoryView()
 #endif
 
+        // Normally doLibraryRefresh finishes progress itself. This also clears
+        // an iOS 26 system-managed presentation when the refresh exits before
+        // progress begins (for example, because Wi-Fi-only updating is blocked).
+        await NotificationManager.shared.finishProgress(
+            .libraryUpdate,
+            success: !Task.isCancelled
+        )
+
         NotificationCenter.default.post(name: .updateLibrary, object: nil)
         NotificationCenter.default.post(name: .libraryRefreshFinished, object: nil)
     }
@@ -807,6 +829,14 @@ extension MangaManager {
         }
 
         await refreshStarted?()
+
+#if !os(macOS)
+        if #available(iOS 26.0, *), task is BGContinuedProcessingTask {
+            await NotificationManager.shared.useSystemManagedProgress(
+                .libraryUpdate
+            )
+        }
+#endif
 
         await NotificationManager.shared.beginProgress(
             .libraryUpdate,

@@ -67,8 +67,6 @@ actor DownloadQueue {
             completedDownloads = 0
             successfulDownloads = 0
         }
-        await beginProgressNotification()
-
 #if !os(macOS) && !targetEnvironment(simulator)
         if
             bgTask == nil,
@@ -88,9 +86,18 @@ actor DownloadQueue {
                 continuedRequestPending = true
                 do {
                     try BGTaskScheduler.shared.submit(request)
+                    // Do this before returning so the Live Activity/text
+                    // fallback is never briefly visible beside iOS's native
+                    // continued-processing progress UI.
+                    await NotificationManager.shared.useSystemManagedProgress(
+                        .downloads
+                    )
                     return
                 } catch {
                     continuedRequestPending = false
+                    await NotificationManager.shared.stopUsingSystemManagedProgress(
+                        .downloads
+                    )
                     LogManager.logger.error("Failed to start continued background downloading: \(error)")
                 }
             }
@@ -98,6 +105,8 @@ actor DownloadQueue {
             await beginForegroundBackgroundExecution()
         }
 #endif
+
+        await beginProgressNotification()
 
         await initAndResumeTasks()
     }
@@ -155,6 +164,7 @@ actor DownloadQueue {
             continuedRequestPending = false
         }
 #endif
+        await NotificationManager.shared.stopUsingSystemManagedProgress(.downloads)
 #if os(iOS)
         await endForegroundBackgroundExecution()
 #endif
@@ -320,6 +330,7 @@ extension DownloadQueue {
         }
         if isContinuedTask {
             continuedRequestPending = false
+            await NotificationManager.shared.useSystemManagedProgress(.downloads)
         }
         if queue.isEmpty,
            let queueData = UserDefaults.standard.data(forKey: "Data.downloadQueueState"),
