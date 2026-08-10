@@ -36,6 +36,14 @@ actor NotificationManager {
     static let progressCompletionCategoryIdentifier = "backgroundTaskCompletion"
     static let progressThreadIdentifier = "backgroundTasks"
 
+    nonisolated static var calculatingLibraryRefreshDetail: String {
+        NSLocalizedString(
+            "CALCULATING_LIBRARY_REFRESH",
+            value: "Calculating titles to refresh…",
+            comment: "Library refresh status while determining the eligible title count"
+        )
+    }
+
     private struct ProgressState {
         var completed: Double
         var total: Int
@@ -103,7 +111,9 @@ actor NotificationManager {
         total: Int,
         detail: String? = nil
     ) async {
-        guard progressNotificationsEnabled(for: operation), total > 0 else {
+        guard progressNotificationsEnabled(for: operation),
+              Self.shouldPublishProgress(total: total, detail: detail)
+        else {
             progressStates.removeValue(forKey: operation)
             return
         }
@@ -143,9 +153,11 @@ actor NotificationManager {
         detail: String? = nil,
         force: Bool = false
     ) async {
-        guard progressNotificationsEnabled(for: operation), total > 0 else { return }
+        guard progressNotificationsEnabled(for: operation),
+              Self.shouldPublishProgress(total: total, detail: detail)
+        else { return }
 
-        let fraction = min(1, max(0, completed / Double(total)))
+        let fraction = total > 0 ? min(1, max(0, completed / Double(total))) : 0
         let percentage = Int((fraction * 100).rounded())
         let now = Date.now
         if let state = progressStates[operation], !force {
@@ -296,6 +308,10 @@ actor NotificationManager {
         let progress = "\(bar) \(percentage)%"
         guard let detail, !detail.isEmpty else { return progress }
         return "\(progress)\n\(detail)"
+    }
+
+    nonisolated static func shouldPublishProgress(total: Int, detail: String?) -> Bool {
+        total > 0 || (total == 0 && !(detail?.isEmpty ?? true))
     }
 
     private func progressNotificationsEnabled(for operation: ProgressOperation) -> Bool {

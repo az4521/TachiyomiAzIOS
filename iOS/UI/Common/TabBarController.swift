@@ -500,11 +500,7 @@ class TabBarController: UITabBarController {
 
 extension TabBarController {
     func showLibraryRefreshView() {
-        libraryRefreshDetailLabel.text = NSLocalizedString(
-            "CALCULATING_LIBRARY_REFRESH",
-            value: "Calculating titles to refresh…",
-            comment: "Library refresh status while determining the eligible title count"
-        )
+        libraryRefreshDetailLabel.text = NotificationManager.calculatingLibraryRefreshDetail
         libraryProgressView.setProgress(value: 0, withAnimation: false)
         libraryRefreshAccessory.layer.opacity = 0
         view.insertSubview(libraryRefreshAccessory, belowSubview: drawerBackdrop)

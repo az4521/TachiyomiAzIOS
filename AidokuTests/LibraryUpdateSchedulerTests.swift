@@ -45,6 +45,22 @@ struct LibraryUpdateSchedulerTests {
             NotificationManager.progressBody(completed: 12, total: 10)
                 == "██████████ 100%"
         )
+        #expect(
+            NotificationManager.progressBody(
+                completed: 0,
+                total: 0,
+                detail: "Calculating titles to refresh…"
+            ) == "Calculating titles to refresh…"
+        )
+    }
+
+    @Test func progressNotificationPublishabilityRequiresProgressOrDetail() {
+        #expect(NotificationManager.shouldPublishProgress(total: 1, detail: nil))
+        #expect(NotificationManager.shouldPublishProgress(total: 0, detail: "Calculating"))
+        #expect(NotificationManager.shouldPublishProgress(total: 0, detail: "0 of 0"))
+        #expect(!NotificationManager.shouldPublishProgress(total: 0, detail: nil))
+        #expect(!NotificationManager.shouldPublishProgress(total: 0, detail: ""))
+        #expect(!NotificationManager.shouldPublishProgress(total: -1, detail: "Invalid"))
     }
 
     @Test func libraryRefreshProgressFormatsCountsAndClampsValues() {

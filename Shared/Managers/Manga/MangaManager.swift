@@ -564,7 +564,7 @@ extension MangaManager {
             let request = BGContinuedProcessingTaskRequest(
                 identifier: Self.continuedTaskIdentifier,
                 title: NSLocalizedString("REFRESHING_LIBRARY"),
-                subtitle: NSLocalizedString("PROCESSING_ENTRIES")
+                subtitle: NotificationManager.calculatingLibraryRefreshDetail
             )
             request.strategy = .fail
             do {
@@ -807,6 +807,12 @@ extension MangaManager {
         }
 
         await refreshStarted?()
+
+        await NotificationManager.shared.beginProgress(
+            .libraryUpdate,
+            total: 0,
+            detail: NotificationManager.calculatingLibraryRefreshDetail
+        )
 
         // make sure user agent and sources have loaded before doing library refresh
         _ = await UserAgentProvider.shared.getUserAgent()
