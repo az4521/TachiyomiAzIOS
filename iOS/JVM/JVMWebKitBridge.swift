@@ -125,7 +125,10 @@ final class JVMWebKitBridge {
                 await context.applySettings(argument1 ?? "")
                 return "true"
             case "addJSInterface":
-                context.addJavaScriptInterface(named: argument1 ?? "")
+                context.addJavaScriptInterface(
+                    named: argument1 ?? "",
+                    asynchronousMethods: argument2 ?? ""
+                )
                 return "true"
             case "removeJSInterface":
                 context.removeJavaScriptInterface(named: argument1 ?? "")
@@ -323,6 +326,7 @@ final class JVMWebKitBridge {
         let webView: WKWebView
         var originalURL: URL?
         private var javaScriptHandlers: [String: String] = [:]
+        private var asynchronousJavaScriptMethods: [String: Set<String>] = [:]
         private var bypassInterception = false
         private var blockImages = false
         private var wideViewport = false
@@ -364,6 +368,7 @@ final class JVMWebKitBridge {
                 controller.removeScriptMessageHandler(forName: handler)
             }
             javaScriptHandlers.removeAll()
+            asynchronousJavaScriptMethods.removeAll()
             controller.removeAllUserScripts()
         }
 
@@ -392,19 +397,23 @@ final class JVMWebKitBridge {
             rebuildScripts()
         }
 
-        func addJavaScriptInterface(named name: String) {
+        func addJavaScriptInterface(named name: String, asynchronousMethods: String) {
             guard !name.isEmpty, javaScriptHandlers[name] == nil else { return }
             let safeName = "tachiyomiaz_js_" + Data(name.utf8).base64EncodedString()
                 .replacingOccurrences(of: "+", with: "_")
                 .replacingOccurrences(of: "/", with: "-")
                 .replacingOccurrences(of: "=", with: "")
             javaScriptHandlers[name] = safeName
+            asynchronousJavaScriptMethods[name] = Set(
+                asynchronousMethods.split(separator: "\n").map(String.init)
+            )
             webView.configuration.userContentController.add(self, name: safeName)
             rebuildScripts()
         }
 
         func removeJavaScriptInterface(named name: String) {
             guard let handler = javaScriptHandlers.removeValue(forKey: name) else { return }
+            asynchronousJavaScriptMethods[name] = nil
             webView.configuration.userContentController.removeScriptMessageHandler(forName: handler)
             rebuildScripts()
         }
@@ -432,14 +441,27 @@ final class JVMWebKitBridge {
             for (name, handler) in javaScriptHandlers {
                 let nameJSON = Self.jsonLiteral(name)
                 let handlerJSON = Self.jsonLiteral(handler)
+                let asynchronousMethodsJSON = "[" +
+                    (asynchronousJavaScriptMethods[name] ?? [])
+                        .sorted()
+                        .map(Self.jsonLiteral)
+                        .joined(separator: ",") +
+                    "]"
                 let source = """
                 (() => {
                   const name = \(nameJSON);
                   const handler = \(handlerJSON);
+                  const asynchronousMethods = new Set(\(asynchronousMethodsJSON));
                   const encode = value => btoa(unescape(encodeURIComponent(String(value))));
                   const invoke = (method, args) => {
                     const payload = String(method) + '\\n' + args.length + '\\n' +
                       args.map(encode).join('\\t');
+                    if (asynchronousMethods.has(String(method) + '\\t' + args.length)) {
+                      try {
+                        window.webkit.messageHandlers[handler].postMessage(payload);
+                      } catch (_) {}
+                      return null;
+                    }
                     const result = window.prompt('__tachiyomiaz_jsbridge__' + handler, payload);
                     try { return result == null ? null : JSON.parse(result); } catch (_) { return null; }
                   };

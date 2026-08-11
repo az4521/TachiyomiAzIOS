@@ -317,7 +317,28 @@ public final class IOSWebViewProviderFactory
         private void addJavascriptInterface(Object object, String name) {
             if (object == null || name == null || name.isEmpty()) return;
             javascriptInterfaces.put(name, object);
-            command("addJSInterface", handle, name, null);
+            command(
+                "addJSInterface",
+                handle,
+                name,
+                asynchronousJavascriptMethods(object)
+            );
+        }
+
+        private static String asynchronousJavascriptMethods(Object target) {
+            StringBuilder output = new StringBuilder();
+            for (Method method : target.getClass().getMethods()) {
+                if (
+                    method.isAnnotationPresent(JavascriptInterface.class) &&
+                    method.getReturnType() == Void.TYPE
+                ) {
+                    if (output.length() > 0) output.append('\n');
+                    output.append(method.getName())
+                        .append('\t')
+                        .append(method.getParameterTypes().length);
+                }
+            }
+            return output.toString();
         }
 
         private String dispatchJavascript(String name, String payload) {

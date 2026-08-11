@@ -234,6 +234,21 @@ public final class AndroidCompatibilitySurfaceTest {
         Class<?> webViewFactoryType = Class.forName(
             "app.tachiaz.compat.IOSWebViewProviderFactory"
         );
+        Class<?> providerType = Class.forName(
+            "app.tachiaz.compat.IOSWebViewProviderFactory$Provider"
+        );
+        java.lang.reflect.Method asyncMethods = providerType.getDeclaredMethod(
+            "asynchronousJavascriptMethods",
+            Object.class
+        );
+        asyncMethods.setAccessible(true);
+        String asyncMethodList = (String) asyncMethods.invoke(null, new JavascriptTarget());
+        if (!asyncMethodList.contains("post\t1") || asyncMethodList.contains("echo\t1")) {
+            throw new AssertionError(
+                "Only void JavaScript interface methods should use asynchronous WebKit messages: " +
+                asyncMethodList
+            );
+        }
         webViewFactoryType.getMethod("install").invoke(null);
         Object cookieManager = cookieManagerType.getMethod("getInstance")
             .invoke(null);
@@ -434,6 +449,11 @@ public final class AndroidCompatibilitySurfaceTest {
     public static final class JavascriptTarget {
         @JavascriptInterface
         public void post(String message) {
+        }
+
+        @JavascriptInterface
+        public String echo(String message) {
+            return message;
         }
     }
 }
