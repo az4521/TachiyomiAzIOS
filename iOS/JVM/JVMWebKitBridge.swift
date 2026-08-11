@@ -379,7 +379,21 @@ final class JVMWebKitBridge {
 
         func load(html: String, baseURL: URL?) {
             originalURL = baseURL
-            webView.loadHTMLString(html, baseURL: baseURL)
+            if
+                let baseURL,
+                baseURL.scheme == "http" || baseURL.scheme == "https"
+            {
+                // Android's loadDataWithBaseURL treats the base URL as the
+                // document URL/security origin. loadHTMLString only uses it to
+                // resolve relative links, which breaks same-origin storage,
+                // cookies, modules, and API calls in SPAs such as Comix.
+                webView.loadSimulatedRequest(
+                    URLRequest(url: baseURL),
+                    responseHTML: html
+                )
+            } else {
+                webView.loadHTMLString(html, baseURL: baseURL)
+            }
         }
 
         func applySettings(_ payload: String) async {
