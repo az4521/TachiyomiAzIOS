@@ -259,6 +259,8 @@ public final class IOSWebViewProviderFactory
                 case "jsBridge":
                     CALLBACK_EXECUTOR.execute(() -> dispatchJavascript(argument1, argument2));
                     return "";
+                case "jsBridgeSync":
+                    return dispatchJavascript(argument1, argument2);
                 default: return "";
             }
         }
@@ -318,24 +320,80 @@ public final class IOSWebViewProviderFactory
             command("addJSInterface", handle, name, null);
         }
 
-        private void dispatchJavascript(String name, String message) {
+        private String dispatchJavascript(String name, String payload) {
             Object target = javascriptInterfaces.get(name);
-            if (target == null) return;
+            if (target == null) return "null";
+            String methodName = "";
+            String message = payload == null ? "" : payload;
+            int separator = message.indexOf('\n');
+            String[] arguments = new String[0];
+            if (separator >= 0) {
+                methodName = message.substring(0, separator);
+                message = message.substring(separator + 1);
+                int countSeparator = message.indexOf('\n');
+                try {
+                    int count = Integer.parseInt(message.substring(0, countSeparator));
+                    String[] encoded = message.substring(countSeparator + 1)
+                        .split("\\t", -1);
+                    if (count >= 0 && encoded.length == count) {
+                        arguments = new String[count];
+                        for (int index = 0; index < count; index++) {
+                            arguments[index] = decodeJavascriptArgument(encoded[index]);
+                        }
+                    }
+                } catch (RuntimeException ignored) {
+                    // Backward compatibility with the former one-string payload.
+                    arguments = new String[] {decodeJavascriptArgument(message)};
+                }
+            }
             for (Method method : target.getClass().getMethods()) {
                 if (
-                    method.getParameterTypes().length == 1 &&
-                    method.getParameterTypes()[0] == String.class &&
-                    method.isAnnotationPresent(JavascriptInterface.class)
+                    (methodName.isEmpty() || method.getName().equals(methodName)) &&
+                    method.isAnnotationPresent(JavascriptInterface.class) &&
+                    (methodName.isEmpty() || method.getParameterTypes().length == arguments.length)
                 ) {
                     try {
                         method.setAccessible(true);
-                        method.invoke(target, message);
+                        Class<?>[] types = method.getParameterTypes();
+                        Object[] converted = new Object[types.length];
+                        for (int index = 0; index < types.length; index++) {
+                            converted[index] = convertJavascriptArgument(arguments[index], types[index]);
+                        }
+                        return encodeJavascriptResult(method.invoke(target, converted));
                     } catch (Throwable error) {
                         throw new RuntimeException("JavaScript interface callback failed", error);
                     }
-                    return;
                 }
             }
+            return "null";
+        }
+
+        private static String decodeJavascriptArgument(String value) {
+            try {
+                return new String(Base64.getDecoder().decode(value), StandardCharsets.UTF_8);
+            } catch (IllegalArgumentException ignored) {
+                return value;
+            }
+        }
+
+        private static Object convertJavascriptArgument(String value, Class<?> type) {
+            if (type == String.class || type == Object.class) return value;
+            if (type == boolean.class || type == Boolean.class) return Boolean.parseBoolean(value);
+            if (type == byte.class || type == Byte.class) return Byte.parseByte(value);
+            if (type == short.class || type == Short.class) return Short.parseShort(value);
+            if (type == int.class || type == Integer.class) return Integer.parseInt(value);
+            if (type == long.class || type == Long.class) return Long.parseLong(value);
+            if (type == float.class || type == Float.class) return Float.parseFloat(value);
+            if (type == double.class || type == Double.class) return Double.parseDouble(value);
+            if (type == char.class || type == Character.class) return value.isEmpty() ? '\0' : value.charAt(0);
+            throw new IllegalArgumentException("Unsupported JavaScript interface type: " + type.getName());
+        }
+
+        private static String encodeJavascriptResult(Object value) {
+            if (value == null) return "null";
+            if (value instanceof Number || value instanceof Boolean) return String.valueOf(value);
+            return "\"" + String.valueOf(value).replace("\\", "\\\\")
+                .replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r") + "\"";
         }
 
         private void loadData(String baseUrl, String data, String encoding) {

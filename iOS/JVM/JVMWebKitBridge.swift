@@ -314,7 +314,7 @@ final class JVMWebKitBridge {
         }
     }
 
-    final class Context: NSObject, WKNavigationDelegate, WKScriptMessageHandler,
+    final class Context: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler,
         WKScriptMessageHandlerWithReply {
         private static let consoleHandler = "tachiyomiaz_console"
         private static let networkHandler = "tachiyomiaz_network"
@@ -342,6 +342,7 @@ final class JVMWebKitBridge {
             )
             super.init()
             webView.navigationDelegate = self
+            webView.uiDelegate = self
             let controller = webView.configuration.userContentController
             controller.add(self, name: Self.consoleHandler)
             controller.addScriptMessageHandler(
@@ -355,6 +356,7 @@ final class JVMWebKitBridge {
         func destroy() {
             webView.stopLoading()
             webView.navigationDelegate = nil
+            webView.uiDelegate = nil
             let controller = webView.configuration.userContentController
             controller.removeScriptMessageHandler(forName: Self.consoleHandler)
             controller.removeScriptMessageHandler(forName: Self.networkHandler, contentWorld: .page)
@@ -434,8 +436,19 @@ final class JVMWebKitBridge {
                 (() => {
                   const name = \(nameJSON);
                   const handler = \(handlerJSON);
-                  window[name] = window[name] || {};
-                  window[name].post = message => window.webkit.messageHandlers[handler].postMessage(String(message));
+                  const encode = value => btoa(unescape(encodeURIComponent(String(value))));
+                  const invoke = (method, args) => {
+                    const payload = String(method) + '\\n' + args.length + '\\n' +
+                      args.map(encode).join('\\t');
+                    const result = window.prompt('__tachiyomiaz_jsbridge__' + handler, payload);
+                    try { return result == null ? null : JSON.parse(result); } catch (_) { return null; }
+                  };
+                  window[name] = new Proxy(window[name] || {}, {
+                    get(target, property) {
+                      if (property in target) return target[property];
+                      return (...args) => invoke(property, args);
+                    },
+                  });
                 })();
                 """
                 controller.addUserScript(WKUserScript(
@@ -490,6 +503,31 @@ final class JVMWebKitBridge {
                 baseURL: navigationAction.request.url ?? URL(string: "about:blank")!
             )
             return .cancel
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            runJavaScriptTextInputPanelWithPrompt prompt: String,
+            defaultText: String?,
+            initiatedByFrame frame: WKFrameInfo,
+            completionHandler: @escaping (String?) -> Void
+        ) {
+            let prefix = "__tachiyomiaz_jsbridge__"
+            guard
+                prompt.hasPrefix(prefix),
+                let name = javaScriptHandlers.first(where: {
+                    $0.value == String(prompt.dropFirst(prefix.count))
+                })?.key
+            else {
+                completionHandler(nil)
+                return
+            }
+            completionHandler(sendJVMWebKitEvent(
+                handle: handle,
+                event: "jsBridgeSync",
+                argument1: name,
+                argument2: defaultText ?? ""
+            ))
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
