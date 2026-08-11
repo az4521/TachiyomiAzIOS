@@ -24,7 +24,7 @@ else
     echo "An nm implementation capable of reading Mach-O archives is required." >&2
     exit 1
 fi |
-    awk '/^_(Java_|JVM_|JNI_|JIMAGE_|JDK_Canonicalize$|VerifyClassCodes(ForMajorVersion)?$|ZIP_|JNU_|GetStringPlatformChars$)/' |
+    awk '/^_(Java_|JVM_|JNI_|JIMAGE_|JDK_Canonicalize$|VerifyClassForMajorVersion$|ZIP_|JNU_|GetStringPlatformChars$)/' |
     LC_ALL=C sort -u > "$temporary"
 
 if [[ ! -s "$temporary" ]]; then
