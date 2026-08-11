@@ -172,6 +172,7 @@ final class JVMWebKitBridge {
                         try await context.webView.evaluateJavaScript(argument1 ?? "")
                     )
                 } catch {
+                    context.reportJavaScriptEvaluationError(error)
                     return "null"
                 }
             case "stop": context.webView.stopLoading(); return "true"
@@ -331,6 +332,7 @@ final class JVMWebKitBridge {
         private var blockImages = false
         private var wideViewport = false
         private var overviewMode = false
+        private var reportedJavaScriptErrors: Set<String> = []
 
         var cookieStore: WKHTTPCookieStore {
             webView.configuration.websiteDataStore.httpCookieStore
@@ -726,8 +728,27 @@ final class JVMWebKitBridge {
                 gesture: false
             )
             let nsError = error as NSError
+            if nsError.domain != NSURLErrorDomain || nsError.code != NSURLErrorCancelled {
+                LogManager.logger.error(
+                    "Compatibility WebView navigation failed " +
+                        "url=\(url?.absoluteString ?? "unknown") " +
+                        "error=\(nsError.domain):\(nsError.code) " +
+                        error.localizedDescription
+                )
+            }
             let detail = "\(nsError.code)\n\(JVMWebKitBridge.encode(error.localizedDescription))"
             emit("error", payload, detail)
+        }
+
+        func reportJavaScriptEvaluationError(_ error: Error) {
+            let nsError = error as NSError
+            let detail = "\(nsError.domain):\(nsError.code):\(error.localizedDescription)"
+            guard reportedJavaScriptErrors.insert(detail).inserted else { return }
+            LogManager.logger.error(
+                "Compatibility WebView JavaScript evaluation failed " +
+                    "url=\(webView.url?.absoluteString ?? originalURL?.absoluteString ?? "unknown") " +
+                    "error=\(detail)"
+            )
         }
 
         private func requestPayload(

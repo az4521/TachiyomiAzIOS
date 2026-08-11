@@ -249,6 +249,29 @@ public final class AndroidCompatibilitySurfaceTest {
                 asyncMethodList
             );
         }
+        java.lang.reflect.Method navigationUserAgent = providerType.getDeclaredMethod(
+            "navigationUserAgent",
+            String.class,
+            String.class,
+            String.class
+        );
+        navigationUserAgent.setAccessible(true);
+        if (!"cached-agent".equals(navigationUserAgent.invoke(
+            null,
+            "cached-agent",
+            "challenge-agent",
+            "session=value"
+        ))) {
+            throw new AssertionError("Ordinary WebViews must keep their configured user agent");
+        }
+        if (!"challenge-agent".equals(navigationUserAgent.invoke(
+            null,
+            "cached-agent",
+            "challenge-agent",
+            "session=value; cf_clearance=cleared"
+        ))) {
+            throw new AssertionError("Cloudflare WebViews must reuse the clearance user agent");
+        }
         webViewFactoryType.getMethod("install").invoke(null);
         Object cookieManager = cookieManagerType.getMethod("getInstance")
             .invoke(null);

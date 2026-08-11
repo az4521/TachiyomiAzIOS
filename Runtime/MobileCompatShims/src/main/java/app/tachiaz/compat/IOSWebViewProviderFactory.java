@@ -132,7 +132,7 @@ public final class IOSWebViewProviderFactory
                     javascriptInterfaces.clear();
                     return null;
                 case "loadUrl":
-                    applySettings();
+                    applySettings((String) args[0]);
                     command(
                         "load",
                         handle,
@@ -141,7 +141,7 @@ public final class IOSWebViewProviderFactory
                     );
                     return null;
                 case "postUrl":
-                    applySettings();
+                    applySettings((String) args[0]);
                     command(
                         "post",
                         handle,
@@ -150,11 +150,11 @@ public final class IOSWebViewProviderFactory
                     );
                     return null;
                 case "loadData":
-                    applySettings();
+                    applySettings(null);
                     loadData(null, (String) args[0], (String) args[2]);
                     return null;
                 case "loadDataWithBaseURL":
-                    applySettings();
+                    applySettings((String) args[0]);
                     loadData((String) args[0], (String) args[1], (String) args[3]);
                     return null;
                 case "evaluateJavaScript":
@@ -424,8 +424,18 @@ public final class IOSWebViewProviderFactory
             command("loadHTML", handle, baseUrl, encoded);
         }
 
-        private void applySettings() {
-            String userAgent = settings.getUserAgentString();
+        private void applySettings(String url) {
+            String cookieHeader = null;
+            if (url != null && !url.isEmpty()) {
+                try {
+                    cookieHeader = CookieManager.getInstance().getCookie(url);
+                } catch (RuntimeException ignored) {}
+            }
+            String userAgent = navigationUserAgent(
+                settings.getUserAgentString(),
+                System.getProperty("http.agent", ""),
+                cookieHeader
+            );
             command("userAgent", handle, userAgent, null);
             String flags = Boolean.toString(settings.getJavaScriptEnabled()) + "\n" +
                 Boolean.toString(settings.getDomStorageEnabled()) + "\n" +
@@ -433,6 +443,29 @@ public final class IOSWebViewProviderFactory
                 Boolean.toString(settings.getUseWideViewPort()) + "\n" +
                 Boolean.toString(settings.getLoadWithOverviewMode());
             command("settings", handle, flags, null);
+        }
+
+        /**
+         * Cloudflare clearance is bound to the browser fingerprint that solved
+         * the challenge. Extensions commonly copy HttpSource's cached headers
+         * into a later WebView, which can restore the pre-challenge user agent.
+         * The host keeps http.agent pinned to the active challenge session, so
+         * use it only when the destination actually has a clearance cookie.
+         */
+        private static String navigationUserAgent(
+            String configured,
+            String session,
+            String cookieHeader
+        ) {
+            if (session == null || session.isEmpty() || cookieHeader == null) {
+                return configured;
+            }
+            for (String cookie : cookieHeader.split(";")) {
+                if (cookie.trim().startsWith("cf_clearance=")) {
+                    return session;
+                }
+            }
+            return configured;
         }
 
         private Object run(String operation) {
