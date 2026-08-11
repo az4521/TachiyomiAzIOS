@@ -189,9 +189,9 @@ struct WebView: UIViewRepresentable {
             let allCookies = await webView.configuration.websiteDataStore
                 .httpCookieStore
                 .allCookies()
-            let matching = allCookies.filter {
+            let matching = allCookies.filter { cookie in
                 visitedHosts.contains { host in
-                    Self.cookie($0, matchesHost: host)
+                    Self.cookie(cookie, matchesHost: host)
                 }
             }
             let cookieValues = Dictionary(
