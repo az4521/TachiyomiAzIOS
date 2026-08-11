@@ -23,10 +23,15 @@ enum TransientCoverCache {
 
     static let pipeline: ImagePipeline = {
         ImagePipeline {
+            let configuration = URLSessionConfiguration.default
+            configuration.urlCache = nil
+            var protocolClasses = configuration.protocolClasses ?? []
+            protocolClasses.insert(JVMImageURLProtocol.self, at: 0)
             let imageCache = ImageCache()
             imageCache.costLimit = 30 * 1024 * 1024
             $0.dataCache = dataCache
             $0.dataCachePolicy = .storeEncodedImages
+            $0.dataLoader = DataLoader(configuration: configuration)
             $0.imageCache = imageCache
             $0.isStoringPreviewsInMemoryCache = false
         }

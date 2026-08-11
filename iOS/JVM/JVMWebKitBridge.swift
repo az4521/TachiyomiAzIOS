@@ -89,10 +89,18 @@ final class JVMWebKitBridge {
     ) async -> String {
         switch operation {
             case "create":
-                let configuration = WKWebViewConfiguration()
-                configuration.websiteDataStore = argument1 == "true"
-                    ? .nonPersistent()
-                    : .default()
+                let configuration: WKWebViewConfiguration
+                if argument1 == "true" {
+                    configuration = WKWebViewConfiguration()
+                    configuration.websiteDataStore = .nonPersistent()
+                } else {
+                    // Android WebViews in one app share their browser profile.
+                    // Use the same persistent WebKit process pool as the
+                    // visible source WebView so DOM storage (including auth
+                    // tokens) is immediately available to extension-created
+                    // headless WebViews.
+                    configuration = PersistentWebViewSession.configuration()
+                }
                 let newHandle = nextHandle
                 nextHandle += 1
                 contexts[newHandle] = Context(handle: newHandle, configuration: configuration)

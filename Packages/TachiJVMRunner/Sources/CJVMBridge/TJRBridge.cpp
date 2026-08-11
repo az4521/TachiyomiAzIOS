@@ -87,6 +87,8 @@ static bool validate_ios_static_symbol_lookup(std::string &error) {
         "JIMAGE_Close",
         "JIMAGE_FindResource",
         "JIMAGE_GetResource",
+        "VerifyClassCodesForMajorVersion",
+        "VerifyClassCodes",
         "ZIP_Open",
         "ZIP_Close",
         "ZIP_FindEntry",

@@ -1560,37 +1560,41 @@ actor TachiyomiXSourceRunner: AidokuRunner.Runner {
         needsDetails: Bool,
         needsChapters: Bool
     ) async throws -> AidokuRunner.Manga {
-        let result = try await JVMSourceRuntime.shared.mangaUpdate(
-            extensionId: extensionId,
-            sourceId: descriptor.id,
-            mangaURL: manga.key,
-            mangaTitle: manga.title,
-            mangaMemo: manga.memo
-        )
-        var updated = manga
-        if needsDetails {
-            updated = manga.copy(
-                from: result.manga.intoAidoku(sourceKey: sourceKey)
+        try await performSourceOperation("manga update") {
+            let result = try await JVMSourceRuntime.shared.mangaUpdate(
+                extensionId: extensionId,
+                sourceId: descriptor.id,
+                mangaURL: manga.key,
+                mangaTitle: manga.title,
+                mangaMemo: manga.memo
             )
+            var updated = manga
+            if needsDetails {
+                updated = manga.copy(
+                    from: result.manga.intoAidoku(sourceKey: sourceKey)
+                )
+            }
+            if needsChapters {
+                updated.chapters = result.chapters.map(\.intoAidoku)
+            }
+            return updated
         }
-        if needsChapters {
-            updated.chapters = result.chapters.map(\.intoAidoku)
-        }
-        return updated
     }
 
     func getPageList(
         manga: AidokuRunner.Manga,
         chapter: AidokuRunner.Chapter
     ) async throws -> [AidokuRunner.Page] {
-        let pages = try await JVMSourceRuntime.shared.pages(
-            extensionId: extensionId,
-            sourceId: descriptor.id,
-            chapterURL: chapter.key,
-            chapterName: chapter.title ?? "",
-            chapterMemo: chapter.memo
-        )
-        return try pages.map { try $0.intoAidoku }
+        try await performSourceOperation("page list") {
+            let pages = try await JVMSourceRuntime.shared.pages(
+                extensionId: extensionId,
+                sourceId: descriptor.id,
+                chapterURL: chapter.key,
+                chapterName: chapter.title ?? "",
+                chapterMemo: chapter.memo
+            )
+            return try pages.map { try $0.intoAidoku }
+        }
     }
 
     func mangaWebURL(for manga: AidokuRunner.Manga) async throws -> URL {

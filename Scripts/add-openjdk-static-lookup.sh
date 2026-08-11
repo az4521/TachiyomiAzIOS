@@ -31,6 +31,8 @@ mapping_count="$(wc -l < "$symbols" | tr -d ' ')"
 required_symbols=(
     JNI_CreateJavaVM
     JIMAGE_Open
+    VerifyClassCodesForMajorVersion
+    VerifyClassCodes
     ZIP_Open
     Java_java_lang_System_registerNatives
     Java_jdk_internal_loader_NativeLibraries_findBuiltinLib

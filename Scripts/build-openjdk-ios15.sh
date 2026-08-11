@@ -221,6 +221,7 @@ combine_runtime() {
     libtool -static -o "$destination" \
         "$static_root/zero/libjvm.a" \
         "$libffi" \
+        "$static_root/libverify.a" \
         "$static_root/libjava.a" \
         "$static_root/libzip.a" \
         "$static_root/libnet.a" \

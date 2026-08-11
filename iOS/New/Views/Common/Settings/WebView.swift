@@ -8,6 +8,19 @@
 import SwiftUI
 import WebKit
 
+@MainActor
+enum PersistentWebViewSession {
+    static let processPool = WKProcessPool()
+
+    static func configuration() -> WKWebViewConfiguration {
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .default()
+        configuration.processPool = processPool
+        return configuration
+    }
+}
+
+@MainActor
 struct WebView: UIViewRepresentable {
     let url: URL
     let localStorageKeys: [String]
@@ -21,7 +34,10 @@ struct WebView: UIViewRepresentable {
     let preferredUserAgent: String?
     let initialCookies: [HTTPCookie]
 
-    private let webView = WKWebView()
+    private let webView = WKWebView(
+        frame: .zero,
+        configuration: PersistentWebViewSession.configuration()
+    )
 
     init(
         _ url: URL,
