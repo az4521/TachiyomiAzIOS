@@ -434,7 +434,8 @@ public final class IOSWebViewProviderFactory
             String userAgent = navigationUserAgent(
                 settings.getUserAgentString(),
                 System.getProperty("http.agent", ""),
-                cookieHeader
+                cookieHeader,
+                hasExplicitUserAgent(settings)
             );
             command("userAgent", handle, userAgent, null);
             String flags = Boolean.toString(settings.getJavaScriptEnabled()) + "\n" +
@@ -446,26 +447,56 @@ public final class IOSWebViewProviderFactory
         }
 
         /**
-         * Cloudflare clearance is bound to the browser fingerprint that solved
-         * the challenge. Extensions commonly copy HttpSource's cached headers
-         * into a later WebView, which can restore the pre-challenge user agent.
-         * The host keeps http.agent pinned to the active challenge session, so
-         * use it only when the destination actually has a clearance cookie.
+         * Browser challenges and local-storage tokens can both be bound to the
+         * fingerprint that solved them. Untouched WebSettings inherit the
+         * committed browser/HTTP session agent. Preserve a source's deliberate
+         * custom agent, except when a Cloudflare cookie requires the solver's
+         * exact agent.
          */
         private static String navigationUserAgent(
             String configured,
             String session,
-            String cookieHeader
+            String cookieHeader,
+            boolean explicitlyConfigured
         ) {
-            if (session == null || session.isEmpty() || cookieHeader == null) {
+            if (session == null || session.isEmpty()) {
                 return configured;
             }
-            for (String cookie : cookieHeader.split(";")) {
-                if (cookie.trim().startsWith("cf_clearance=")) {
-                    return session;
+            // KcefWebSettings derives its untouched default from http.agent;
+            // that is inherited state, not an extension-authored override.
+            if (
+                configured == null ||
+                configured.isEmpty() ||
+                !explicitlyConfigured
+            ) {
+                return session;
+            }
+            if (cookieHeader != null) {
+                for (String cookie : cookieHeader.split(";")) {
+                    if (cookie.trim().startsWith("cf_clearance=")) {
+                        return session;
+                    }
                 }
             }
             return configured;
+        }
+
+        private static boolean hasExplicitUserAgent(WebSettings settings) {
+            Class<?> current = settings.getClass();
+            while (current != null) {
+                try {
+                    Field field = current.getDeclaredField("userAgentString");
+                    field.setAccessible(true);
+                    return field.get(settings) != null;
+                } catch (NoSuchFieldException ignored) {
+                    current = current.getSuperclass();
+                } catch (ReflectiveOperationException ignored) {
+                    // Preserve a possibly explicit override if an alternate
+                    // WebSettings implementation hides its backing state.
+                    return true;
+                }
+            }
+            return true;
         }
 
         private Object run(String operation) {

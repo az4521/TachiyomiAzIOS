@@ -13,12 +13,60 @@ import WebKit
 @MainActor
 enum PersistentWebViewSession {
     static let processPool = WKProcessPool()
+    private static var localStorageSnapshots: [String: [String: String]] = [:]
+    private static var localStorageSnapshotOrder: [String] = []
 
     static func configuration() -> WKWebViewConfiguration {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
         configuration.processPool = processPool
         return configuration
+    }
+
+    static func saveLocalStorage(_ values: [String: String], for url: URL) {
+        guard let origin = origin(for: url) else { return }
+        localStorageSnapshotOrder.removeAll { $0 == origin }
+        if values.isEmpty {
+            localStorageSnapshots[origin] = nil
+        } else {
+            localStorageSnapshots[origin] = values
+            localStorageSnapshotOrder.append(origin)
+            while localStorageSnapshotOrder.count > 32 {
+                localStorageSnapshots[localStorageSnapshotOrder.removeFirst()] = nil
+            }
+        }
+    }
+
+    static func localStorage(for url: URL) -> [String: String] {
+        guard let origin = origin(for: url) else { return [:] }
+        return localStorageSnapshots[origin] ?? [:]
+    }
+
+    static func origin(for url: URL) -> String? {
+        guard
+            let scheme = url.scheme?.lowercased(),
+            scheme == "http" || scheme == "https",
+            let host = url.host?.lowercased()
+        else { return nil }
+        let defaultPort = scheme == "https" ? 443 : 80
+        let port = url.port.flatMap { $0 == defaultPort ? nil : ":\($0)" } ?? ""
+        return "\(scheme)://\(host)\(port)"
+    }
+}
+
+@MainActor
+final class WebViewSessionHandle: ObservableObject {
+    weak var webView: WKWebView?
+
+    @discardableResult
+    func captureLocalStorage() async -> [String: String]? {
+        guard
+            let webView,
+            let url = webView.url,
+            let values = await webView.getAllLocalStorage()
+        else { return nil }
+        PersistentWebViewSession.saveLocalStorage(values, for: url)
+        return values
     }
 }
 
@@ -40,6 +88,7 @@ struct WebView: UIViewRepresentable {
 
     let preferredUserAgent: String?
     let initialCookies: [HTTPCookie]
+    let sessionHandle: WebViewSessionHandle?
 
     private let webView = WKWebView(
         frame: .zero,
@@ -55,6 +104,7 @@ struct WebView: UIViewRepresentable {
         userAgent: Binding<String> = .constant(""),
         preferredUserAgent: String? = nil,
         initialCookies: [HTTPCookie] = [],
+        sessionHandle: WebViewSessionHandle? = nil,
         reloadToggle: Binding<Bool> = .constant(false),
         goBackToggle: Binding<Bool> = .constant(false),
         goForwardToggle: Binding<Bool> = .constant(false),
@@ -70,6 +120,7 @@ struct WebView: UIViewRepresentable {
         self._userAgent = userAgent
         self.preferredUserAgent = preferredUserAgent
         self.initialCookies = initialCookies
+        self.sessionHandle = sessionHandle
         self._reloadToggle = reloadToggle
         self._goBackToggle = goBackToggle
         self._goForwardToggle = goForwardToggle
@@ -82,6 +133,7 @@ struct WebView: UIViewRepresentable {
         webView.navigationDelegate = context.coordinator
         webView.customUserAgent = preferredUserAgent
         context.coordinator.webView = webView
+        sessionHandle?.webView = webView
         Task { @MainActor in
             let store = webView.configuration.websiteDataStore.httpCookieStore
             for cookie in initialCookies {
@@ -144,6 +196,7 @@ struct WebView: UIViewRepresentable {
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             Task {
                 await updateState(from: webView)
+                _ = await parent.sessionHandle?.captureLocalStorage()
                 if !parent.localStorageKeys.isEmpty {
                     let storage = await webView.getLocalStorage(keys: parent.localStorageKeys)
                     await MainActor.run {
@@ -250,6 +303,7 @@ struct SourceWebBrowserView: View {
     @State private var loading = true
     @State private var saving = false
     @State private var errorMessage: String?
+    @StateObject private var webViewSession = WebViewSessionHandle()
 
     var body: some View {
         PlatformNavigationStack {
@@ -262,6 +316,7 @@ struct SourceWebBrowserView: View {
                         userAgent: $userAgent,
                         preferredUserAgent: session.userAgent,
                         initialCookies: session.cookies,
+                        sessionHandle: webViewSession,
                         reloadToggle: $reloadToggle,
                         goBackToggle: $goBackToggle,
                         goForwardToggle: $goForwardToggle,
@@ -357,6 +412,11 @@ struct SourceWebBrowserView: View {
         Task {
             defer { saving = false }
             do {
+                // localStorage-backed challenge tokens are not cookies. Take
+                // an explicit snapshot before the visible WebView is dismissed
+                // so a newly-created extension WebView cannot race WebKit's
+                // cross-process persistence.
+                _ = await webViewSession.captureLocalStorage()
                 if let runner {
                     let resolvedUserAgent = userAgent.isEmpty
                         ? (try await runner.webLoginUserAgent())

@@ -145,6 +145,7 @@ final class JVMWebKitBridge {
                 guard let value = argument1, let url = URL(string: value) else {
                     return "__ERROR__Invalid WebView URL"
                 }
+                context.prepareLocalStorage(for: url)
                 await copyHTTPCookiesToWebKit(store: context.cookieStore, for: url)
                 var request = URLRequest(url: url)
                 for (key, value) in decodeHeaders(argument2) {
@@ -156,6 +157,7 @@ final class JVMWebKitBridge {
                 guard let value = argument1, let url = URL(string: value) else {
                     return "__ERROR__Invalid WebView URL"
                 }
+                context.prepareLocalStorage(for: url)
                 await copyHTTPCookiesToWebKit(store: context.cookieStore, for: url)
                 var request = URLRequest(url: url)
                 request.httpMethod = "POST"
@@ -330,6 +332,7 @@ final class JVMWebKitBridge {
         WKScriptMessageHandlerWithReply {
         private static let consoleHandler = "tachiyomiaz_console"
         private static let networkHandler = "tachiyomiaz_network"
+        private static let sessionReadyHandler = "tachiyomiaz_session_ready"
 
         let handle: Int64
         let webView: WKWebView
@@ -341,6 +344,9 @@ final class JVMWebKitBridge {
         private var wideViewport = false
         private var overviewMode = false
         private var reportedJavaScriptErrors: Set<String> = []
+        private var localStorageSnapshot: [String: String] = [:]
+        private var localStorageOrigin: String?
+        private var pageFinishedEmitted = false
 
         var cookieStore: WKHTTPCookieStore {
             webView.configuration.websiteDataStore.httpCookieStore
@@ -359,6 +365,7 @@ final class JVMWebKitBridge {
             webView.uiDelegate = self
             let controller = webView.configuration.userContentController
             controller.add(self, name: Self.consoleHandler)
+            controller.add(self, name: Self.sessionReadyHandler)
             controller.addScriptMessageHandler(
                 self,
                 contentWorld: .page,
@@ -374,6 +381,7 @@ final class JVMWebKitBridge {
             webView.uiDelegate = nil
             let controller = webView.configuration.userContentController
             controller.removeScriptMessageHandler(forName: Self.consoleHandler)
+            controller.removeScriptMessageHandler(forName: Self.sessionReadyHandler)
             controller.removeScriptMessageHandler(forName: Self.networkHandler, contentWorld: .page)
             for handler in javaScriptHandlers.values {
                 controller.removeScriptMessageHandler(forName: handler)
@@ -385,12 +393,14 @@ final class JVMWebKitBridge {
 
         func load(_ request: URLRequest) {
             originalURL = request.url
+            pageFinishedEmitted = false
             attachToWindowIfNeeded()
             webView.load(request)
         }
 
         func load(html: String, baseURL: URL?) {
             originalURL = baseURL
+            pageFinishedEmitted = false
             attachToWindowIfNeeded()
             if
                 let baseURL,
@@ -456,6 +466,14 @@ final class JVMWebKitBridge {
             rebuildScripts()
         }
 
+        func prepareLocalStorage(for url: URL) {
+            localStorageSnapshot = PersistentWebViewSession.localStorage(for: url)
+            localStorageOrigin = localStorageSnapshot.isEmpty
+                ? nil
+                : PersistentWebViewSession.origin(for: url)
+            rebuildScripts()
+        }
+
         func removeJavaScriptInterface(named name: String) {
             guard let handler = javaScriptHandlers.removeValue(forKey: name) else { return }
             asynchronousJavaScriptMethods[name] = nil
@@ -476,6 +494,41 @@ final class JVMWebKitBridge {
                 injectionTime: .atDocumentStart,
                 forMainFrameOnly: false
             ))
+            if
+                !localStorageSnapshot.isEmpty,
+                let data = try? JSONSerialization.data(
+                    withJSONObject: localStorageSnapshot,
+                    options: [.sortedKeys]
+                ),
+                let snapshot = String(data: data, encoding: .utf8),
+                let localStorageOrigin
+            {
+                // The visible source browser and Android-compatible WebViews
+                // share WKWebsiteDataStore.default(), but a token written just
+                // before dismissal may not yet be visible to a newly-spawned
+                // WebContent process. Seed the freshly captured values before
+                // any page script can validate or invalidate them.
+                controller.addUserScript(WKUserScript(
+                    source: """
+                    (() => {
+                      try {
+                        if (window.location.origin !== \(Self.jsonLiteral(localStorageOrigin))) return;
+                        const snapshot = \(snapshot);
+                        for (const [key, value] of Object.entries(snapshot)) {
+                          window.localStorage.setItem(key, String(value));
+                        }
+                        if (Object.prototype.hasOwnProperty.call(snapshot, 'clearance')) {
+                          window.webkit.messageHandlers.tachiyomiaz_session_ready.postMessage(
+                            window.location.href
+                          );
+                        }
+                      } catch (_) {}
+                    })();
+                    """,
+                    injectionTime: .atDocumentStart,
+                    forMainFrameOnly: true
+                ))
+            }
             if wideViewport || overviewMode {
                 controller.addUserScript(WKUserScript(
                     source: Self.viewportScript,
@@ -620,7 +673,10 @@ final class JVMWebKitBridge {
             let url = webView.url?.absoluteString ?? originalURL?.absoluteString ?? ""
             emit("title", webView.title ?? "")
             emit("progress", "100")
-            emit("pageFinished", url)
+            if !pageFinishedEmitted {
+                pageFinishedEmitted = true
+                emit("pageFinished", url)
+            }
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -653,6 +709,25 @@ final class JVMWebKitBridge {
                     "console",
                     [level, JVMWebKitBridge.encode(text), JVMWebKitBridge.encode(source), line]
                         .joined(separator: "\n")
+                )
+                return
+            }
+            if
+                message.name == Self.sessionReadyHandler,
+                message.frameInfo.isMainFrame,
+                !pageFinishedEmitted,
+                blockImages,
+                localStorageSnapshot["clearance"] != nil
+            {
+                // A source such as SchaleNetwork only opens this headless view
+                // to read a token that was just captured by the visible shared
+                // browser. Do not make its hard-coded 10-second latch wait for
+                // unrelated page resources or a third-party challenge script.
+                pageFinishedEmitted = true
+                emit("progress", "100")
+                emit(
+                    "pageFinished",
+                    webView.url?.absoluteString ?? originalURL?.absoluteString ?? ""
                 )
                 return
             }

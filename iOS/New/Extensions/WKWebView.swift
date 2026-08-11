@@ -47,4 +47,25 @@ extension WKWebView {
             return [:]
         }
     }
+
+    /// Captures the current security origin's complete DOM storage. Returning
+    /// nil distinguishes a JavaScript/storage failure from a legitimately
+    /// empty store so callers do not replace a valid session with bad data.
+    func getAllLocalStorage() async -> [String: String]? {
+        let js = """
+        (function() {
+            var result = {};
+            for (var i = 0; i < localStorage.length; i++) {
+                var key = localStorage.key(i);
+                if (key !== null) { result[key] = localStorage.getItem(key); }
+            }
+            return result;
+        })();
+        """
+        do {
+            return try await evaluateJavaScript(js) as? [String: String]
+        } catch {
+            return nil
+        }
+    }
 }

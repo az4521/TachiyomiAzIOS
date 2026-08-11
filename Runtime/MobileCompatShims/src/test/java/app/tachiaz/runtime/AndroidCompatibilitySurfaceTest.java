@@ -253,24 +253,52 @@ public final class AndroidCompatibilitySurfaceTest {
             "navigationUserAgent",
             String.class,
             String.class,
-            String.class
+            String.class,
+            Boolean.TYPE
         );
         navigationUserAgent.setAccessible(true);
-        if (!"cached-agent".equals(navigationUserAgent.invoke(
+        if (!"challenge-agent".equals(navigationUserAgent.invoke(
             null,
             "cached-agent",
             "challenge-agent",
-            "session=value"
+            "session=value",
+            false
         ))) {
-            throw new AssertionError("Ordinary WebViews must keep their configured user agent");
+            throw new AssertionError("Inherited WebViews must reuse the shared session user agent");
+        }
+        if (!"custom-agent".equals(navigationUserAgent.invoke(
+            null,
+            "custom-agent",
+            "challenge-agent",
+            "session=value",
+            true
+        ))) {
+            throw new AssertionError("Explicit WebView user agents must remain unchanged");
         }
         if (!"challenge-agent".equals(navigationUserAgent.invoke(
             null,
             "cached-agent",
             "challenge-agent",
-            "session=value; cf_clearance=cleared"
+            "session=value; cf_clearance=cleared",
+            true
         ))) {
             throw new AssertionError("Cloudflare WebViews must reuse the clearance user agent");
+        }
+        java.lang.reflect.Method hasExplicitUserAgent = providerType.getDeclaredMethod(
+            "hasExplicitUserAgent",
+            webSettings
+        );
+        hasExplicitUserAgent.setAccessible(true);
+        Object compatibilitySettings = Class.forName(
+            "xyz.nulldev.androidcompat.webkit.KcefWebSettings"
+        ).getConstructor().newInstance();
+        if ((Boolean) hasExplicitUserAgent.invoke(null, compatibilitySettings)) {
+            throw new AssertionError("Default WebSettings were mistaken for an explicit user agent");
+        }
+        webSettings.getMethod("setUserAgentString", String.class)
+            .invoke(compatibilitySettings, "custom-agent");
+        if (!(Boolean) hasExplicitUserAgent.invoke(null, compatibilitySettings)) {
+            throw new AssertionError("Explicit WebSettings user agent was not detected");
         }
         webViewFactoryType.getMethod("install").invoke(null);
         Object cookieManager = cookieManagerType.getMethod("getInstance")
