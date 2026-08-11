@@ -6,7 +6,6 @@
 //
 
 import UIKit
-import SafariServices
 import SwiftUI
 import AidokuRunner
 
@@ -148,7 +147,10 @@ class ReaderViewController: BaseObservingViewController {
             target: self,
             action: #selector(openWebView)
         )
-        moreButton.isEnabled = chapter.url != nil
+        moreButton.isEnabled =
+            source?.runner is TachiyomiXSourceRunner ||
+            chapter.url?.scheme == "http" ||
+            chapter.url?.scheme == "https"
         navigationItem.rightBarButtonItems = [
             moreButton,
             UIBarButtonItem(
@@ -536,8 +538,32 @@ class ReaderViewController: BaseObservingViewController {
     }
 
     @objc func openWebView() {
-        guard let url = chapter.url, url.scheme == "http" || url.scheme == "https" else { return }
-        present(SFSafariViewController(url: url), animated: true)
+        Task {
+            do {
+                let url: URL
+                if let runner = source?.runner as? TachiyomiXSourceRunner {
+                    url = try await runner.chapterWebURL(for: chapter)
+                } else if
+                    let chapterURL = chapter.url,
+                    chapterURL.scheme == "http" || chapterURL.scheme == "https"
+                {
+                    url = chapterURL
+                } else {
+                    return
+                }
+                SourceWebBrowserPresenter.present(
+                    from: self,
+                    source: source,
+                    url: url,
+                    title: manga.title
+                )
+            } catch {
+                presentAlert(
+                    title: NSLocalizedString("ERROR"),
+                    message: error.localizedDescription
+                )
+            }
+        }
     }
 
     @objc func openChapterList() {

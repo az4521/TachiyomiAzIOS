@@ -31,10 +31,6 @@ struct MangaView: View {
     @State private var openChapter: AidokuRunner.Chapter?
 
     @State private var mangaWebSession: MangaWebSession?
-    @State private var mangaWebCookies: [String: String] = [:]
-    @State private var mangaWebDetailedCookies: [HTTPCookie] = []
-    @State private var mangaWebUserAgent = ""
-    @State private var mangaWebReload = false
     @State private var mangaWebLoading = false
     @State private var mangaWebError: String?
 
@@ -625,93 +621,40 @@ extension MangaView {
     private struct MangaWebSession: Identifiable {
         let id = UUID()
         let url: URL
-        let userAgent: String
-        let cookies: [HTTPCookie]
     }
 
     @ViewBuilder
     private func mangaWebSheet(_ session: MangaWebSession) -> some View {
-        PlatformNavigationStack {
-            WebView(
-                session.url,
-                cookies: $mangaWebCookies,
-                detailedCookies: $mangaWebDetailedCookies,
-                userAgent: $mangaWebUserAgent,
-                preferredUserAgent: session.userAgent,
-                initialCookies: session.cookies,
-                reloadToggle: $mangaWebReload
-            )
-            .edgesIgnoringSafeArea(.bottom)
-            .navigationTitle(viewModel.manga.title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(NSLocalizedString("CANCEL")) {
-                        mangaWebSession = nil
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        mangaWebReload = true
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(NSLocalizedString("DONE")) {
-                        commitMangaWebSession(session)
-                    }
-                    .disabled(mangaWebLoading)
-                }
-            }
-        }
+        SourceWebBrowserView(
+            title: viewModel.manga.title,
+            url: session.url,
+            runner: viewModel.source?.runner as? TachiyomiXSourceRunner
+        )
     }
 
     private func openMangaWebView() {
-        guard
-            !mangaWebLoading,
-            let runner = viewModel.source?.runner as? TachiyomiXSourceRunner
-        else { return }
+        guard !mangaWebLoading else { return }
         mangaWebLoading = true
         Task {
             defer { mangaWebLoading = false }
             do {
-                async let url = runner.mangaWebURL(for: viewModel.manga)
-                async let userAgent = runner.webLoginUserAgent()
-                let resolvedURL = try await url
-                let resolvedUserAgent = try await userAgent
-                let cookies = try await runner.webLoginCookies(for: resolvedURL)
-                mangaWebCookies = [:]
-                mangaWebDetailedCookies = cookies
-                mangaWebUserAgent = resolvedUserAgent
-                mangaWebReload = false
-                mangaWebSession = MangaWebSession(
-                    url: resolvedURL,
-                    userAgent: resolvedUserAgent,
-                    cookies: cookies
-                )
-            } catch {
-                mangaWebError = error.localizedDescription
-            }
-        }
-    }
-
-    private func commitMangaWebSession(_ session: MangaWebSession) {
-        guard
-            !mangaWebLoading,
-            let runner = viewModel.source?.runner as? TachiyomiXSourceRunner
-        else { return }
-        mangaWebLoading = true
-        Task {
-            defer { mangaWebLoading = false }
-            do {
-                try await runner.commitWebLogin(
-                    cookies: mangaWebDetailedCookies,
-                    userAgent: mangaWebUserAgent.isEmpty
-                        ? session.userAgent
-                        : mangaWebUserAgent
-                )
-                mangaWebSession = nil
+                let resolvedURL: URL
+                if
+                    let runner = viewModel.source?.runner
+                        as? TachiyomiXSourceRunner
+                {
+                    resolvedURL = try await runner.mangaWebURL(
+                        for: viewModel.manga
+                    )
+                } else if
+                    let mangaURL = viewModel.manga.url,
+                    mangaURL.scheme == "http" || mangaURL.scheme == "https"
+                {
+                    resolvedURL = mangaURL
+                } else {
+                    return
+                }
+                mangaWebSession = MangaWebSession(url: resolvedURL)
             } catch {
                 mangaWebError = error.localizedDescription
             }
@@ -1021,7 +964,10 @@ private struct RightNavbarButton: View, Equatable {
         self.hasCategories = !CoreDataManager.shared.getCategoryTitles(sorted: false).isEmpty
         self.url = viewModel.manga.url
         self.hasDownloads = viewModel.downloadStatus.contains(where: { $0.value == .finished })
-        self.supportsMangaWebView = viewModel.source?.runner is TachiyomiXSourceRunner
+        self.supportsMangaWebView =
+            viewModel.source?.runner is TachiyomiXSourceRunner ||
+            viewModel.manga.url?.scheme == "http" ||
+            viewModel.manga.url?.scheme == "https"
         self.refresh = refreshController.refresh
 
         self.markAllRead = markAllRead

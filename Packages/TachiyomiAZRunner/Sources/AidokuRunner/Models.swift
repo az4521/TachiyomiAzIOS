@@ -275,11 +275,24 @@ public enum KeyKind: UInt8, Sendable, Codable {
     case manga, chapter
 }
 
-public enum SourceError: Error, Equatable {
+public enum SourceError: LocalizedError, Equatable {
     case missingResult
     case unimplemented
     case networkError
     case message(String)
+
+    public var errorDescription: String? {
+        switch self {
+            case .missingResult:
+                "No result was returned by the source."
+            case .unimplemented:
+                "This operation is not implemented by the source."
+            case .networkError:
+                "The source request failed because of a network error."
+            case .message(let message):
+                message
+        }
+    }
 }
 
 public struct SourceFeatures: Sendable {

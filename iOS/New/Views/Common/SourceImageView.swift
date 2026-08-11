@@ -27,6 +27,7 @@ enum TransientCoverCache {
             configuration.urlCache = nil
             var protocolClasses = configuration.protocolClasses ?? []
             protocolClasses.insert(JVMImageURLProtocol.self, at: 0)
+            configuration.protocolClasses = protocolClasses
             let imageCache = ImageCache()
             imageCache.costLimit = 30 * 1024 * 1024
             $0.dataCache = dataCache

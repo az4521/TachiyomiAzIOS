@@ -9,7 +9,6 @@ import SwiftUI
 import AidokuRunner
 import MarkdownUI
 import NukeUI
-import SafariServices
 
 struct MangaDetailsHeaderView: View {
     @Binding var source: AidokuRunner.Source?
@@ -349,19 +348,22 @@ struct MangaDetailsHeaderView: View {
                 .buttonStyle(MangaActionButtonStyle(selected: isTracking))
             }
 
-            if let url = manga.url {
+            if
+                source?.runner is TachiyomiXSourceRunner ||
+                manga.url?.scheme == "http" ||
+                manga.url?.scheme == "https"
+            {
                 Button {
-                    guard url.scheme == "http" || url.scheme == "https" else { return }
-                    path.present(SFSafariViewController(url: url))
+                    openWebsite()
                 } label: {
                     Image(systemName: "safari")
                 }
                 .buttonStyle(MangaActionButtonStyle())
                 .transition(.opacity)
                 .simultaneousGesture(
-                    LongPressGesture()
+                        LongPressGesture()
                         .onEnded { finished in
-                            if finished {
+                            if finished, let url = manga.url {
                                 UIPasteboard.general.string = url.absoluteString
                                 longHeldSafari = true
                             }
@@ -375,6 +377,44 @@ struct MangaDetailsHeaderView: View {
                 } message: {
                     Text(NSLocalizedString("LINK_COPIED_TEXT"))
                 }
+            }
+        }
+    }
+
+    private func openWebsite() {
+        Task {
+            do {
+                let url: URL
+                if let runner = source?.runner as? TachiyomiXSourceRunner {
+                    url = try await runner.mangaWebURL(for: manga)
+                } else if
+                    let mangaURL = manga.url,
+                    mangaURL.scheme == "http" || mangaURL.scheme == "https"
+                {
+                    url = mangaURL
+                } else {
+                    return
+                }
+                path.present(
+                    SourceWebBrowserPresenter.makeViewController(
+                        source: source,
+                        url: url,
+                        title: manga.title
+                    )
+                )
+            } catch {
+                let alert = UIAlertController(
+                    title: NSLocalizedString("ERROR"),
+                    message: error.localizedDescription,
+                    preferredStyle: .alert
+                )
+                alert.addAction(
+                    UIAlertAction(
+                        title: NSLocalizedString("OK"),
+                        style: .cancel
+                    )
+                )
+                path.present(alert)
             }
         }
     }

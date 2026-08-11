@@ -8,7 +8,6 @@
 import AidokuRunner
 import Combine
 import NukeUI
-import SafariServices
 import SwiftUI
 
 class NewSourceViewController: UIViewController {
@@ -639,8 +638,12 @@ extension NewSourceViewController {
                     self.present(alert, animated: true, completion: nil)
                     return
                 }
-                let safariController = SFSafariViewController(url: url)
-                self.present(safariController, animated: true)
+                SourceWebBrowserPresenter.present(
+                    from: self,
+                    source: self.source,
+                    url: url,
+                    title: self.source.name
+                )
             }
         }
 

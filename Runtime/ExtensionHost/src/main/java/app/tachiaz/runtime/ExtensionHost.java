@@ -104,6 +104,8 @@ public final class ExtensionHost {
                     return getMangaUpdate(request);
                 case "getMangaUrl":
                     return getMangaUrl(request);
+                case "getChapterUrl":
+                    return getChapterUrl(request);
                 case "getPageList":
                     return getPageList(request);
                 case "getImageRequest":
@@ -1054,7 +1056,7 @@ public final class ExtensionHost {
         );
         return MiniJson.response(
             true,
-            serializeMangaUpdate(update),
+            serializeMangaUpdate(update, require(request, "mangaURL")),
             null,
             null
         );
@@ -1248,6 +1250,43 @@ public final class ExtensionHost {
         );
         getMangaUrl.setAccessible(true);
         String url = String.valueOf(getMangaUrl.invoke(source, manga));
+        return MiniJson.response(true, url, null, null);
+    }
+
+    private static String getChapterUrl(Map<String, String> request)
+        throws Exception {
+        Object source = requireSource(request);
+        ClassLoader loader = source.getClass().getClassLoader();
+        Class<?> chapterType = Class.forName(
+            "eu.kanade.tachiyomi.source.model.SChapter",
+            true,
+            loader
+        );
+        Object chapter = Class.forName(
+            "eu.kanade.tachiyomi.source.model.SChapterImpl",
+            true,
+            loader
+        ).getDeclaredConstructor().newInstance();
+        setter(
+            chapter,
+            "setUrl",
+            String.class,
+            require(request, "chapterURL")
+        );
+        setter(
+            chapter,
+            "setName",
+            String.class,
+            defaultValue(request.get("chapterName"), "")
+        );
+        restoreMemo(chapter, request.get("chapterMemo"));
+        Method getChapterUrl = findMethod(
+            source.getClass(),
+            "getChapterUrl",
+            chapterType
+        );
+        getChapterUrl.setAccessible(true);
+        String url = String.valueOf(getChapterUrl.invoke(source, chapter));
         return MiniJson.response(true, url, null, null);
     }
 
@@ -2195,14 +2234,17 @@ public final class ExtensionHost {
         return output.toString();
     }
 
-    private static String serializeMangaUpdate(Object update) throws Exception {
+    private static String serializeMangaUpdate(
+        Object update,
+        String fallbackMangaURL
+    ) throws Exception {
         Object manga = getter(update, "getManga");
         @SuppressWarnings("unchecked")
         List<Object> chapters =
             (List<Object>) getter(update, "getChapters");
         String mangaTitle = String.valueOf(getter(manga, "getTitle"));
         StringBuilder output = new StringBuilder("{\"manga\":");
-        appendManga(output, manga);
+        appendManga(output, manga, fallbackMangaURL);
         output.append(",\"chapters\":[");
         for (int index = 0; index < chapters.size(); index++) {
             if (index > 0) {
@@ -2258,8 +2300,21 @@ public final class ExtensionHost {
 
     private static void appendManga(StringBuilder output, Object manga)
         throws Exception {
+        appendManga(output, manga, null);
+    }
+
+    private static void appendManga(
+        StringBuilder output,
+        Object manga,
+        String fallbackURL
+    ) throws Exception {
         output.append('{');
-        appendJsonField(output, "url", getter(manga, "getUrl"), false);
+        appendJsonField(
+            output,
+            "url",
+            getterOrFallback(manga, "getUrl", fallbackURL),
+            false
+        );
         appendJsonField(output, "title", getter(manga, "getTitle"), true);
         appendJsonField(
             output,
@@ -2400,6 +2455,32 @@ public final class ExtensionHost {
     private static Object getter(Object instance, String name)
         throws Exception {
         return instance.getClass().getMethod(name).invoke(instance);
+    }
+
+    private static Object getterOrFallback(
+        Object instance,
+        String name,
+        Object fallback
+    ) throws Exception {
+        try {
+            Object value = getter(instance, name);
+            if (value instanceof String && ((String) value).isEmpty()) {
+                return fallback;
+            }
+            return value == null ? fallback : value;
+        } catch (InvocationTargetException error) {
+            Throwable cause = error.getCause();
+            if (
+                fallback != null &&
+                cause != null &&
+                "kotlin.UninitializedPropertyAccessException".equals(
+                    cause.getClass().getName()
+                )
+            ) {
+                return fallback;
+            }
+            throw rethrow(cause == null ? error : cause);
+        }
     }
 
     private static void setter(

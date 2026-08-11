@@ -655,6 +655,34 @@ actor JVMSourceRuntime {
         return url
     }
 
+    func chapterWebURL(
+        extensionId: String,
+        sourceId: Int64,
+        chapter: AidokuRunner.Chapter
+    ) async throws -> URL {
+        let response = try await dispatch(
+            .init(
+                operation: "getChapterUrl",
+                extensionId: extensionId,
+                sourceId: String(sourceId),
+                chapterURL: chapter.key,
+                chapterName: chapter.title ?? "",
+                chapterMemo: chapter.memo
+            )
+        )
+        try requireSuccess(response)
+        guard
+            let value = response.result,
+            let url = URL(string: value),
+            url.scheme == "http" || url.scheme == "https"
+        else {
+            throw RuntimeError.hostRejected(
+                "The extension did not provide a valid chapter website URL."
+            )
+        }
+        return url
+    }
+
     func webLoginCookies(
         extensionId: String,
         sourceId: Int64,
@@ -1602,6 +1630,14 @@ actor TachiyomiXSourceRunner: AidokuRunner.Runner {
             extensionId: extensionId,
             sourceId: descriptor.id,
             manga: manga
+        )
+    }
+
+    func chapterWebURL(for chapter: AidokuRunner.Chapter) async throws -> URL {
+        try await JVMSourceRuntime.shared.chapterWebURL(
+            extensionId: extensionId,
+            sourceId: descriptor.id,
+            chapter: chapter
         )
     }
 

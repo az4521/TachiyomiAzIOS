@@ -281,7 +281,16 @@ actor CloudflareHandler: NSObject {
         let viewport = parentView.bounds.isEmpty
             ? CGRect(x: 0, y: 0, width: 390, height: 844)
             : parentView.bounds
+#if os(macOS)
         webView = WKWebView(frame: viewport)
+#else
+        // Keep manual source browsing, automatic Cloudflare challenges, and
+        // extension-created Android WebViews in one WebKit browser profile.
+        webView = WKWebView(
+            frame: viewport,
+            configuration: PersistentWebViewSession.configuration()
+        )
+#endif
         webView.navigationDelegate = await proxy(for: request)
         webView.customUserAgent = request.value(forHTTPHeaderField: "User-Agent")
         webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
