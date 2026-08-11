@@ -27,9 +27,6 @@ enum TransientCoverCache {
             imageCache.costLimit = 30 * 1024 * 1024
             $0.dataCache = dataCache
             $0.dataCachePolicy = .storeEncodedImages
-            // At 320 px this is normally well below 100 KB while still looking
-            // sharp in a high-density two-column grid.
-            $0.imageEncoder = .imageIO(compressionQuality: 0.45)
             $0.imageCache = imageCache
             $0.isStoringPreviewsInMemoryCache = false
         }
