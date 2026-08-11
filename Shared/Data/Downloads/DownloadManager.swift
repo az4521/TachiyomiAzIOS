@@ -48,6 +48,23 @@ actor DownloadManager {
 
     static let directory = FileManager.default.documentDirectory.appendingPathComponent("Downloads", isDirectory: true)
 
+    /// Downloaded chapters can be restored from their source, so they should not
+    /// consume space in iCloud or device backups.
+    nonisolated static func prepareDirectory() {
+        if !directory.exists {
+            directory.createDirectory()
+        }
+
+        do {
+            var resourceValues = URLResourceValues()
+            resourceValues.isExcludedFromBackup = true
+            var url = directory
+            try url.setResourceValues(resourceValues)
+        } catch {
+            LogManager.logger.error("Unable to exclude downloaded manga from backups: \(error)")
+        }
+    }
+
     @MainActor
     private let cache: DownloadCache = .init()
     private let queue: DownloadQueue
@@ -59,9 +76,7 @@ actor DownloadManager {
 
     init() {
         self.queue = DownloadQueue(cache: cache)
-        if !Self.directory.exists {
-            Self.directory.createDirectory()
-        }
+        Self.prepareDirectory()
         Task {
             await self.queue.setOnCompletion { @Sendable in
                 Task { @MainActor in

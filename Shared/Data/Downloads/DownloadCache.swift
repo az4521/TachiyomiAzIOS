@@ -83,6 +83,7 @@ class DownloadCache {
 
     func removeAll() {
         DownloadManager.directory.removeItem()
+        DownloadManager.prepareDirectory()
     }
 }
 
