@@ -199,6 +199,22 @@ extension SettingsView {
                 ) {
                     self.clearNetworkCache()
                 }
+            case "Advanced.clearTransientCoverCache":
+                let message = NSLocalizedString("CLEAR_BROWSE_COVER_CACHE_TEXT")
+                    + "\n\n"
+                    + String(
+                        format: NSLocalizedString("CACHE_SIZE_%@"),
+                        ByteCountFormatter.string(
+                            fromByteCount: Int64(TransientCoverCache.diskUsage),
+                            countStyle: .file
+                        )
+                    )
+                confirmAction(
+                    title: NSLocalizedString("CLEAR_BROWSE_COVER_CACHE"),
+                    message: message
+                ) {
+                    TransientCoverCache.clear()
+                }
             case "Advanced.clearReadHistory":
                 confirmAction(
                     title: NSLocalizedString("CLEAR_READ_HISTORY"),

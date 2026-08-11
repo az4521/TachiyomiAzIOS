@@ -258,6 +258,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
 
         ImagePipeline.shared = pipeline
+        TransientCoverCache.configure()
 
         performMigration()
         handleChaptersToBeDeleted()

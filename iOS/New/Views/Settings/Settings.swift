@@ -667,6 +667,11 @@ extension Settings {
                     value: .button(.init())
                 ),
                 .init(
+                    key: "Advanced.clearTransientCoverCache",
+                    title: NSLocalizedString("CLEAR_BROWSE_COVER_CACHE"),
+                    value: .button(.init())
+                ),
+                .init(
                     key: "Advanced.clearReadHistory",
                     title: NSLocalizedString("CLEAR_READ_HISTORY"),
                     value: .button(.init())

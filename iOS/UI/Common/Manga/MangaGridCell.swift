@@ -52,6 +52,7 @@ class MangaGridCell: UICollectionViewCell {
 
     private var url: String?
     private var imageTask: ImageTask?
+    var usesTransientCoverCache = false
     var isEditing = false
 
     // shadow shown when in selection mode
@@ -264,12 +265,17 @@ extension MangaGridCell {
 
         let request = ImageRequest(
             urlRequest: urlRequest,
-            processors: [DownsampleProcessor(width: bounds.width)]
+            processors: [DownsampleProcessor(width: usesTransientCoverCache
+                ? TransientCoverCache.maximumPixelWidth
+                : bounds.width)]
         )
 
         cached = cached || ImagePipeline.shared.cache.containsCachedImage(for: request)
 
-        imageTask = ImagePipeline.shared.loadImage(with: request) { [weak self] result in
+        let pipeline = usesTransientCoverCache
+            ? TransientCoverCache.pipeline
+            : ImagePipeline.shared
+        imageTask = pipeline.loadImage(with: request) { [weak self] result in
             guard let self else { return }
             switch result {
                 case .success(let response):

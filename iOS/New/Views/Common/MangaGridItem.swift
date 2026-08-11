@@ -32,7 +32,10 @@ struct MangaGridItem: View {
                     source: source,
                     sourceKey: sourceKey,
                     imageUrl: coverImage,
-                    downsampleWidth: 400 // reduces stuttering caused by rendering large images
+                    downsampleWidth: bookmarked
+                        ? 400
+                        : TransientCoverCache.maximumPixelWidth,
+                    useTransientCoverCache: !bookmarked
                 )
             }
             .overlay(

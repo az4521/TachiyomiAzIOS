@@ -631,6 +631,8 @@
 "RESET_TEXT" = "This action is irreversible. All data, settings, and caches will be cleared and reset.";
 "CLEAR_NETWORK_CACHE" = "Clear Network Cache";
 "CLEAR_NETWORK_CACHE_TEXT" = "This action is irreversible. Cached network requests and images will be cleared.";
+"CLEAR_BROWSE_COVER_CACHE" = "Clear Browse Cover Cache";
+"CLEAR_BROWSE_COVER_CACHE_TEXT" = "This action is irreversible. Compressed covers from browse and search results will be cleared.";
 "CLEAR_READ_HISTORY" = "Clear Read History";
 "CLEAR_READ_HISTORY_TEXT" = "This action is irreversible. All read history will be removed.";
 "CLEAR_EXCLUDING_LIBRARY" = "Clear Read History Excluding Library";

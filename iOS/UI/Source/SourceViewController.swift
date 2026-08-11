@@ -166,6 +166,7 @@ class SourceViewController: OldMangaCollectionViewController {
                 )
             }
             cell.showsBookmark = inLibrary
+            cell.usesTransientCoverCache = !inLibrary
             await cell.loadImage(url: info.coverUrl)
         }
     }

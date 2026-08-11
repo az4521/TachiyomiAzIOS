@@ -7,8 +7,45 @@
 
 import AidokuRunner
 import Foundation
+import Nuke
 import NukeUI
 import SwiftUI
+
+/// Disk cache for covers shown in browse and search results. These images are
+/// intentionally small: a grid never needs the original source-sized artwork.
+enum TransientCoverCache {
+    static let maximumDiskUsage = 250 * 1024 * 1024
+    static let maximumPixelWidth: CGFloat = 320
+
+    private static let dataCache = try? DataCache(
+        name: "app.tachiyomiaz.TachiyomiAZ.transient-covers"
+    )
+
+    static let pipeline: ImagePipeline = {
+        ImagePipeline {
+            let imageCache = ImageCache()
+            imageCache.costLimit = 30 * 1024 * 1024
+            $0.dataCache = dataCache
+            $0.dataCachePolicy = .storeEncodedImages
+            // At 320 px this is normally well below 100 KB while still looking
+            // sharp in a high-density two-column grid.
+            $0.imageEncoder = .imageIO(compressionQuality: 0.45)
+            $0.imageCache = imageCache
+            $0.isStoringPreviewsInMemoryCache = false
+        }
+    }()
+
+    static func clear() {
+        dataCache?.removeAll()
+        (pipeline.configuration.imageCache as? ImageCache)?.removeAll()
+    }
+
+    static var diskUsage: Int { dataCache?.totalSize ?? 0 }
+
+    static func configure() {
+        dataCache?.sizeLimit = maximumDiskUsage
+    }
+}
 
 struct SourceImageView: View {
     var source: AidokuRunner.Source?
@@ -18,6 +55,7 @@ struct SourceImageView: View {
     var width: CGFloat?
     var height: CGFloat?
     var downsampleWidth: CGFloat?
+    var useTransientCoverCache = false
     var contentMode: ContentMode = .fill
     var placeholder = "MangaPlaceholder"
 
@@ -55,6 +93,11 @@ struct SourceImageView: View {
                 []
             }
         }())
+        .pipeline(
+            useTransientCoverCache
+                ? TransientCoverCache.pipeline
+                : ImagePipeline.shared
+        )
         .task(id: ImageRequestIdentity(
             imageUrl: imageUrl,
             sourceKey: source?.key ?? sourceKey

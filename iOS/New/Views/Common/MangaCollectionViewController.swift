@@ -158,7 +158,9 @@ extension MangaCollectionViewController {
         GridCellRegistration { [weak self] cell, _, manga in
             cell.identifier = MangaIdentifier(sourceKey: manga.sourceKey, mangaKey: manga.key)
             cell.title = manga.title
-            cell.showsBookmark = self?.bookmarkedItems.contains(manga.key) ?? false
+            let isBookmarked = self?.bookmarkedItems.contains(manga.key) ?? false
+            cell.showsBookmark = isBookmarked
+            cell.usesTransientCoverCache = !isBookmarked
             Task {
                 await cell.loadImage(url: manga.cover.flatMap { URL(string: $0) })
             }

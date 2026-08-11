@@ -185,6 +185,18 @@ extension MangaManager {
         // add enhanced trackers
         await TrackerManager.shared.bindEnhancedTrackers(manga: manga)
 
+        // Browse covers use the compact transient cache. Once the manga is in
+        // the library, warm the normal pipeline with the original cover so the
+        // library never inherits that low-resolution derivative.
+        if let coverURL = manga.cover.flatMap(URL.init(string:)) {
+            let request = if let source = SourceManager.shared.source(for: manga.sourceKey) {
+                await source.getModifiedImageRequest(url: coverURL, context: nil)
+            } else {
+                URLRequest(url: coverURL)
+            }
+            _ = try? await ImagePipeline.shared.image(for: ImageRequest(urlRequest: request))
+        }
+
         NotificationCenter.default.post(name: .addToLibrary, object: manga)
         NotificationCenter.default.post(name: .updateLibrary, object: nil)
     }
