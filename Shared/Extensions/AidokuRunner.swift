@@ -107,10 +107,11 @@ extension AidokuRunner.Source {
 
     static func modify(url: URL, request: URLRequest) async -> URLRequest {
         var request = request
-        // add user-agent and stored cookies if not provided (for cloudflare)
+        // Supply the single app-level default without replacing a UA authored
+        // by the extension itself.
         if request.value(forHTTPHeaderField: "User-Agent") == nil {
             request.setValue(
-                await UserAgentProvider.shared.getUserAgent(),
+                await UserAgentProvider.shared.getExtensionNetworkUserAgent(),
                 forHTTPHeaderField: "User-Agent"
             )
         }

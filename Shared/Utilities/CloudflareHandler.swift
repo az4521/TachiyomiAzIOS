@@ -128,10 +128,19 @@ actor CloudflareHandler: NSObject {
         return try await URLSession.shared.data(for: newRequest)
     }
 
-    func solve(request: URLRequest) async throws -> Session {
+    func solve(request originalRequest: URLRequest) async throws -> Session {
         // wait until previous request finishes
         while finishContinuation != nil {
             try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        var request = originalRequest
+        if request.value(forHTTPHeaderField: "User-Agent") == nil {
+            let userAgent = await UserAgentProvider.shared
+                .getExtensionNetworkUserAgent()
+            if !userAgent.isEmpty {
+                request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+            }
         }
 
         let sessionKey = cacheKey(for: request)

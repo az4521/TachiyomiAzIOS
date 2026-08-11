@@ -130,10 +130,10 @@ extension WasmNet {
         guard let url = urlRequest.url else { return nil }
         var request = urlRequest
 
-        // ensure a user-agent is passed
         if request.value(forHTTPHeaderField: "User-Agent") == nil {
             request.setValue(
-                UserAgentProvider.shared.getUserAgentBlocking(),
+                UserAgentProvider.shared
+                    .getExtensionNetworkUserAgentBlocking(),
                 forHTTPHeaderField: "User-Agent"
             )
         }

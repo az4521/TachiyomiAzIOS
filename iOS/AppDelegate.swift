@@ -114,8 +114,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 "Appearance.customPortraitRows": UIDevice.current.userInterfaceIdiom == .pad ? 5 : 2,
                 "Appearance.customLandscapeRows": UIDevice.current.userInterfaceIdiom == .pad ? 6 : 4,
 
-                UserAgentProvider.extensionNetworkUserAgentKey:
-                    UserAgentProvider.defaultExtensionNetworkUserAgent,
+                // An empty value means every extension networking and WebView
+                // path uses WebKit's system user agent.
+                UserAgentProvider.extensionNetworkUserAgentKey: "",
 
                 "Library.sortOption": 2, // lastOpened
                 "Library.sortAscending": false,

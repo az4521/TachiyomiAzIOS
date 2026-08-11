@@ -1057,10 +1057,12 @@ extension SettingView {
     }
 
     private func prepareJVMWebLogin() async {
-        guard
-            loginPreferredUserAgent.isEmpty,
-            let runner = source?.runner as? TachiyomiXSourceRunner
-        else { return }
+        guard loginPreferredUserAgent.isEmpty else { return }
+        guard let runner = source?.runner as? TachiyomiXSourceRunner else {
+            loginPreferredUserAgent = await UserAgentProvider.shared
+                .getExtensionNetworkUserAgent()
+            return
+        }
         do {
             loginPreferredUserAgent = try await runner.webLoginUserAgent()
         } catch {

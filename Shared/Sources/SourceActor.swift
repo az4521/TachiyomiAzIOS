@@ -110,7 +110,8 @@ actor SourceActor {
         request.URL = url
 
         // add cloudflare headers
-        request.headers["User-Agent"] = await UserAgentProvider.shared.getUserAgent()
+        request.headers["User-Agent"] = await UserAgentProvider.shared
+            .getExtensionNetworkUserAgent()
         if let url = URL(string: url),
            let cookies = HTTPCookie.requestHeaderFields(with: HTTPCookieStorage.shared.cookies(for: url) ?? [])["Cookie"] {
             request.headers["Cookie"] = cookies

@@ -485,6 +485,11 @@ final class JVMWebKitBridge {
             let controller = webView.configuration.userContentController
             controller.removeAllUserScripts()
             controller.addUserScript(WKUserScript(
+                source: PersistentWebViewSession.browserCompatibilityScript,
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: false
+            ))
+            controller.addUserScript(WKUserScript(
                 source: Self.consoleScript,
                 injectionTime: .atDocumentStart,
                 forMainFrameOnly: false

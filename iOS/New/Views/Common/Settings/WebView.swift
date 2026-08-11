@@ -13,6 +13,40 @@ import WebKit
 @MainActor
 enum PersistentWebViewSession {
     static let processPool = WKProcessPool()
+    static let browserCompatibilityScript = """
+    (() => {
+      const installDimensionFallback = (name, values) => {
+        if (Number(window[name]) > 0) return;
+        const resolve = () => {
+          for (const value of values()) {
+            const number = Number(value);
+            if (Number.isFinite(number) && number > 0) return number;
+          }
+          return 1;
+        };
+        try { window[name] = resolve(); } catch (_) {}
+        if (Number(window[name]) > 0) return;
+        try {
+          Object.defineProperty(window, name, {
+            configurable: true,
+            get: resolve,
+          });
+        } catch (_) {}
+      };
+      installDimensionFallback('outerWidth', () => [
+        window.innerWidth,
+        window.visualViewport && window.visualViewport.width,
+        window.screen && window.screen.width,
+        document.documentElement && document.documentElement.clientWidth,
+      ]);
+      installDimensionFallback('outerHeight', () => [
+        window.innerHeight,
+        window.visualViewport && window.visualViewport.height,
+        window.screen && window.screen.height,
+        document.documentElement && document.documentElement.clientHeight,
+      ]);
+    })();
+    """
     private static var localStorageSnapshots: [String: [String: String]] = [:]
     private static var localStorageSnapshotOrder: [String] = []
 
@@ -20,6 +54,11 @@ enum PersistentWebViewSession {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
         configuration.processPool = processPool
+        configuration.userContentController.addUserScript(WKUserScript(
+            source: browserCompatibilityScript,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false
+        ))
         return configuration
     }
 
@@ -398,7 +437,15 @@ struct SourceWebBrowserView: View {
                 detailedCookies = values.1
                 session = Session(userAgent: values.0, cookies: values.1)
             } else {
-                session = Session(userAgent: nil, cookies: [])
+                let resolvedUserAgent = await UserAgentProvider.shared
+                    .getExtensionNetworkUserAgent()
+                userAgent = resolvedUserAgent
+                session = Session(
+                    userAgent: resolvedUserAgent.isEmpty
+                        ? nil
+                        : resolvedUserAgent,
+                    cookies: []
+                )
             }
         } catch {
             errorMessage = error.localizedDescription

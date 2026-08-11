@@ -624,7 +624,7 @@ actor JVMSourceRuntime {
         if !info.userAgent.isEmpty {
             return info.userAgent
         }
-        return await UserAgentProvider.shared.getUserAgent()
+        return await UserAgentProvider.shared.getExtensionNetworkUserAgent()
     }
 
     func mangaWebURL(
@@ -1124,14 +1124,15 @@ actor JVMSourceRuntime {
             )
         }
 
-        // Clearance cookies are bound to the browser fingerprint. Using a
-        // desktop/Android extension user agent inside WKWebView can make a
-        // successfully solved challenge restart forever, so use WebKit's real
-        // user agent and apply that same value to OkHttp before retrying.
-        let webKitUserAgent = await UserAgentProvider.shared.getUserAgent()
-        let userAgent = webKitUserAgent.isEmpty
-            ? info.userAgent
-            : webKitUserAgent
+        // `info.userAgent` is the OkHttp client's effective UA: the Advanced
+        // default unless this extension intentionally supplied its own.
+        let userAgent: String
+        if info.userAgent.isEmpty {
+            userAgent = await UserAgentProvider.shared
+                .getExtensionNetworkUserAgent()
+        } else {
+            userAgent = info.userAgent
+        }
         var request = URLRequest(url: url)
         if !userAgent.isEmpty {
             request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
