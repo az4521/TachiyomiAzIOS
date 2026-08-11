@@ -359,6 +359,7 @@ final class JVMWebKitBridge {
 
         func destroy() {
             webView.stopLoading()
+            webView.removeFromSuperview()
             webView.navigationDelegate = nil
             webView.uiDelegate = nil
             let controller = webView.configuration.userContentController
@@ -374,11 +375,13 @@ final class JVMWebKitBridge {
 
         func load(_ request: URLRequest) {
             originalURL = request.url
+            attachToWindowIfNeeded()
             webView.load(request)
         }
 
         func load(html: String, baseURL: URL?) {
             originalURL = baseURL
+            attachToWindowIfNeeded()
             if
                 let baseURL,
                 baseURL.scheme == "http" || baseURL.scheme == "https"
@@ -394,6 +397,24 @@ final class JVMWebKitBridge {
             } else {
                 webView.loadHTMLString(html, baseURL: baseURL)
             }
+        }
+
+        /// WKWebView aggressively deprioritizes detached views. Android WebView
+        /// continues running a measured, headless instance, so keep this view in
+        /// an active window behind the app's content to preserve equivalent page
+        /// lifecycle behavior without displaying or intercepting the page.
+        private func attachToWindowIfNeeded() {
+            guard webView.window == nil else { return }
+            let windows = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap { $0.windows }
+            guard let window = windows.first(where: { $0.isKeyWindow })
+                ?? windows.first(where: { !$0.isHidden })
+            else { return }
+            webView.frame = window.bounds
+            webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            webView.isUserInteractionEnabled = false
+            window.insertSubview(webView, at: 0)
         }
 
         func applySettings(_ payload: String) async {
@@ -800,10 +821,10 @@ final class JVMWebKitBridge {
           window.__tachiyomiazFetchInstalled = true;
           const originalFetch = window.fetch.bind(window);
           window.fetch = async function(input, init) {
-            const request = new Request(input, init);
-            const headers = {};
-            request.headers.forEach((value, key) => headers[key] = value);
             try {
+              const request = new Request(input, init);
+              const headers = {};
+              request.headers.forEach((value, key) => headers[key] = value);
               const intercepted = await window.webkit.messageHandlers.tachiyomiaz_network.postMessage({
                 url: request.url,
                 method: request.method,
