@@ -3493,7 +3493,7 @@
 					"-lc++",
 					"-Wl,-exported_symbols_list,$(SRCROOT)/iOS/JVM/OpenJDK.exports",
 				);
-				MARKETING_VERSION = 0.8.4;
+				MARKETING_VERSION = 8.9.1;
 				PRODUCT_NAME = Aidoku;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
@@ -3545,7 +3545,7 @@
 					"-lc++",
 					"-Wl,-exported_symbols_list,$(SRCROOT)/iOS/JVM/OpenJDK.exports",
 				);
-				MARKETING_VERSION = 0.8.4;
+				MARKETING_VERSION = 8.9.1;
 				PRODUCT_NAME = Aidoku;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
