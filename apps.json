@@ -1,0 +1,53 @@
+{
+  "name": "TachiyomiAZ iOS",
+  "identifier": "app.tachiyomiaz.altstore",
+  "sourceURL": "https://raw.githubusercontent.com/az4521/TachiyomiAZiOS/refs/heads/altstore/apps.json",
+  "subtitle": "Tachiyomi extension compatibility for iPhone and iPad",
+  "description": "A sideload-focused manga reader for iOS and iPadOS with user-provided Tachiyomi and TachiyomiX extension repositories.",
+  "iconURL": "https://raw.githubusercontent.com/az4521/TachiyomiAZiOS/refs/heads/main/Shared/Assets.xcassets/AppIcon.appiconset/Icon.png",
+  "website": "https://github.com/az4521/TachiyomiAZiOS",
+  "tintColor": "54759e",
+  "nsfw": false,
+  "featuredApps": [
+    "app.tachiyomiaz.TachiyomiAZ"
+  ],
+  "apps": [
+    {
+      "name": "TachiyomiAZ",
+      "bundleIdentifier": "app.tachiyomiaz.TachiyomiAZ",
+      "developerName": "az4521",
+      "subtitle": "A Tachiyomi-compatible manga reader for iOS",
+      "localizedDescription": "Browse and read manga using repositories and extensions supplied by the user. Includes library management, downloads, tracking, source filters, and Mihon-compatible backups.",
+      "iconURL": "https://raw.githubusercontent.com/az4521/TachiyomiAZiOS/refs/heads/main/Shared/Assets.xcassets/AppIcon.appiconset/Icon.png",
+      "tintColor": "54759e",
+      "category": "entertainment",
+      "appPermissions": {
+        "entitlements": [
+          "aps-environment",
+          "com.apple.developer.icloud-container-identifiers",
+          "com.apple.developer.icloud-services",
+          "com.apple.developer.ubiquity-container-identifiers",
+          "com.apple.developer.ubiquity-kvstore-identifier",
+          "com.apple.developer.user-fonts"
+        ],
+        "privacy": {
+          "NSFaceIDUsageDescription": "TachiyomiAZ uses Face ID for user-configured library locking.",
+          "NSPhotoLibraryUsageDescription": "TachiyomiAZ needs permission to save pages to your photo library.",
+          "NSLocalNetworkUsageDescription": "TachiyomiAZ needs permission to connect to local Komga and Kavita servers."
+        }
+      },
+      "versions": [
+        {
+          "version": "8.9.1",
+          "buildVersion": "145",
+          "date": "2026-08-14",
+          "localizedDescription": "Automated build of commit b86cead7dd1387b09c71e7f4b15c1e020463e422 from the main branch.",
+          "downloadURL": "https://github.com/az4521/TachiyomiAzIOS/releases/download/nightly/TachiyomiAZ-iOS.ipa",
+          "size": 83228954,
+          "minOSVersion": "15.0"
+        }
+      ]
+    }
+  ],
+  "news": []
+}
